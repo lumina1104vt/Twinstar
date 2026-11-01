@@ -1,0 +1,91 @@
+package com.lumina.twinstar.storage;
+
+import appeng.api.AECapabilities;
+import appeng.api.storage.ISubMenuHost;
+import appeng.blockentity.AEBaseBlockEntity;
+import appeng.menu.implementations.MenuTypeBuilder;
+import com.lumina.twinstar.Twinstar;
+import com.lumina.twinstar.algorithm.ae2.PatternChances;
+import com.lumina.twinstar.algorithm.ae2.PatternInputFaces;
+import com.lumina.twinstar.order.OrderMenu;
+import com.lumina.twinstar.order.PlanMenu;
+import net.minecraft.core.component.DataComponentType;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.inventory.MenuType;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.CreativeModeTabs;
+import net.minecraft.world.level.block.SoundType;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
+import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
+import net.neoforged.neoforge.registries.DeferredBlock;
+import net.neoforged.neoforge.registries.DeferredHolder;
+import net.neoforged.neoforge.registries.DeferredItem;
+import net.neoforged.neoforge.registries.DeferredRegister;
+
+/** The lib's own registrations: the BigInteger test storage, the order menus and the pattern chances component. */
+public final class TwinstarContent {
+    private static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks(Twinstar.MODID);
+    private static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(Twinstar.MODID);
+    private static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES =
+            DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, Twinstar.MODID);
+    private static final DeferredRegister<MenuType<?>> MENUS = DeferredRegister.create(Registries.MENU, Twinstar.MODID);
+    private static final DeferredRegister.DataComponents COMPONENTS =
+            DeferredRegister.createDataComponents(Registries.DATA_COMPONENT_TYPE, Twinstar.MODID);
+
+    /** On an encoded pattern: outputs that only come with some probability (written by gen_patterns). */
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<PatternChances>> PATTERN_CHANCES =
+            COMPONENTS.registerComponentType("pattern_chances",
+                    b -> b.persistent(PatternChances.CODEC).networkSynchronized(PatternChances.STREAM_CODEC));
+    /** On a hub pattern: the machine faces each material goes in through ("specified" interfaces). */
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<PatternInputFaces>> PATTERN_INPUT_FACES =
+            COMPONENTS.registerComponentType("pattern_input_faces",
+                    b -> b.persistent(PatternInputFaces.CODEC).networkSynchronized(PatternInputFaces.STREAM_CODEC));
+
+    /** The twin-star order screen (replaces AE2's amount screen on grids with a hub). */
+    public static final DeferredHolder<MenuType<?>, MenuType<OrderMenu>> ORDER_MENU = MENUS.register("order",
+            () -> MenuTypeBuilder.create(OrderMenu::new, ISubMenuHost.class)
+                    .buildUnregistered(ResourceLocation.fromNamespaceAndPath(Twinstar.MODID, "order")));
+    /** The twin-star plan screen (in place of AE2's confirm screen for orders from the order screen). */
+    public static final DeferredHolder<MenuType<?>, MenuType<PlanMenu>> PLAN_MENU = MENUS.register("plan",
+            () -> MenuTypeBuilder.create(PlanMenu::new, ISubMenuHost.class)
+                    .buildUnregistered(ResourceLocation.fromNamespaceAndPath(Twinstar.MODID, "plan")));
+
+    public static final DeferredBlock<BigStorageBlock> BIG_STORAGE = BLOCKS.registerBlock("big_storage", BigStorageBlock::new,
+            BlockBehaviour.Properties.of().strength(2.2f, 11f).sound(SoundType.METAL));
+    public static final DeferredItem<BlockItem> BIG_STORAGE_ITEM = ITEMS.registerSimpleBlockItem("big_storage", BIG_STORAGE);
+
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<BigStorageBlockEntity>> BIG_STORAGE_BE =
+            BLOCK_ENTITIES.register("big_storage", () -> {
+                var type = BlockEntityType.Builder.of(BigStorageBlockEntity::new, BIG_STORAGE.get()).build(null);
+                BIG_STORAGE.get().setBlockEntity(BigStorageBlockEntity.class, type, null, null);
+                AEBaseBlockEntity.registerBlockEntityItem(type, BIG_STORAGE.get().asItem());
+                return type;
+            });
+
+    private TwinstarContent() {
+    }
+
+    public static void register(IEventBus bus) {
+        BLOCKS.register(bus);
+        ITEMS.register(bus);
+        BLOCK_ENTITIES.register(bus);
+        MENUS.register(bus);
+        COMPONENTS.register(bus);
+        bus.addListener(TwinstarContent::registerCapabilities);
+        bus.addListener(TwinstarContent::addToCreativeTab);
+    }
+
+    /** AE2 only finds a neighbour's grid node through this capability (otherwise cables don't connect). */
+    private static void registerCapabilities(RegisterCapabilitiesEvent event) {
+        event.registerBlockEntity(AECapabilities.IN_WORLD_GRID_NODE_HOST, BIG_STORAGE_BE.get(), (be, ctx) -> be);
+    }
+
+    private static void addToCreativeTab(BuildCreativeModeTabContentsEvent event) {
+        if (event.getTabKey() == CreativeModeTabs.FUNCTIONAL_BLOCKS)
+            event.accept(BIG_STORAGE_ITEM);
+    }
+}

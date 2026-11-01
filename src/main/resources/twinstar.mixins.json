@@ -1,0 +1,23 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.lumina.twinstar.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "CraftingServiceMixin",
+    "CraftingServiceAccessor",
+    "CraftingCPUMenuMixin",
+    "CraftAmountMenuMixin",
+    "CraftingStatusEntryMixin"
+  ],
+  "client": [
+    "client.CraftingStatusTableRendererMixin",
+    "client.CraftingCPUScreenMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}

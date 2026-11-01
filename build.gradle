@@ -1,0 +1,80 @@
+// twinstar - the twin-star crafting engine, a separate lib mod. No runs of its own: the root
+// project's runs load it beside Gravity Tech. Shared setup: gradle/mod-common.gradle.
+plugins {
+    id 'java-library'
+    id 'idea'
+    id 'net.neoforged.moddev'   // version from the root project
+}
+
+apply from: rootProject.file('gradle/mod-common.gradle')
+
+neoForge {
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+repositories {
+    mavenCentral()  // JUnit
+}
+
+configurations {
+    ldlibJar { transitive = false }
+}
+
+// LDLib2 bundles taffy and yoga as jar-in-jar; they are only needed to compile against its API
+def ldlibNested = layout.buildDirectory.dir('ldlib-nested')
+tasks.register('extractLdlibNested', Copy) {
+    from({ configurations.ldlibJar.collect { zipTree(it) } }) {
+        include 'META-INF/jarjar/taffy-*.jar', 'META-INF/jarjar/yoga-*.jar'
+        eachFile { path = name }
+    }
+    into ldlibNested
+    includeEmptyDirs = false
+}
+
+dependencies {
+    // the engine hooks AE2's crafting service; AE2 itself is provided by the player
+    compileOnly "maven.modrinth:ae2:${ae2_version}"
+    // gen_patterns / dump_recipes read recipes (amounts, fluids, all outputs) from the player's JEI
+    compileOnly "maven.modrinth:jei:${jei_version}"
+    // LDLib2's UI (layout, stylesheets) for the plan screen; client only, provided by the player
+    compileOnly "maven.modrinth:ldlib:${ldlib_version}"
+    ldlibJar "maven.modrinth:ldlib:${ldlib_version}"
+    // its layout engines, whose types are in its layout API, ship inside its jar (no public maven)
+    compileOnly fileTree(dir: ldlibNested, include: '*.jar').builtBy('extractLdlibNested')
+
+    // planner tests (algorithm.model / cache / planning / allocation are plain Java on int ids)
+    testImplementation platform('org.junit:junit-bom:5.10.3')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    // recipeBench reads the recipe dump (same Gson as Minecraft 1.21.1, which is not on the test classpath)
+    testImplementation 'com.google.code.gson:gson:2.11.0'
+    // the crafting graphs' layout test builds graphs whose item keys are left null
+    testCompileOnly "maven.modrinth:ae2:${ae2_version}"
+}
+
+// the engine on a modpack's recipes (dump them in game: /twinstar dump_recipes):
+// gradlew :core:recipeBench -Drecipes=path/to/recipes.json [-Dorders=300] [-Dseed=1] [-Dtrace=minecraft:iron_block]
+tasks.register('recipeBench', Test) {
+    description = 'Benchmarks the twin-star engine with recipes dumped from a modpack'
+    group = 'verification'
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    filter { includeTestsMatching 'com.lumina.twinstar.bench.*' }
+    ['recipes', 'orders', 'seed', 'trace', 'listImpossible', 'cold'].each { k -> if (System.getProperty(k) != null) systemProperty k, System.getProperty(k) }
+    maxHeapSize = '4g'
+    // -Djfr=<file>: record a profile of the run (inspect with the JDK's jfr tool)
+    if (System.getProperty('jfr') != null) jvmArgs "-XX:StartFlightRecording=filename=${System.getProperty('jfr')},settings=profile"
+    testLogging { showStandardStreams = true }
+    outputs.upToDateWhen { false }
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+    // stress the incremental-vs-rebuild test: gradlew :core:test -Drounds=30000
+    systemProperty 'rounds', System.getProperty('rounds', '200')
+}
