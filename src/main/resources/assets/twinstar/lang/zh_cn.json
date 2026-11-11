@@ -135,5 +135,6 @@
   "gui.twinstar.plan.keep.field.tooltip": "保留数量，按 Enter 重新规划；空白为全部",
   "gui.twinstar.graph.failed": "[双星] 合成图打不开：%s（详细内容在 logs/latest.log）",
   "gui.twinstar.graph.no_plan": "[双星] 尚无规划结果",
-  "gui.twinstar.hub_name": "双星调度中枢"
+  "gui.twinstar.hub_name": "双星调度中枢",
+  "twinstar.job.done.title": "合成完成"
 }

@@ -6,6 +6,12 @@ plugins {
     id 'net.neoforged.moddev'   // version from the root project
 }
 
+// version comes from the root gradle.properties (twinstar_mod_version); must be set before mod-common reads it
+ext.mod_version = rootProject.twinstar_mod_version
+
+// mod description: the text lives in description.txt (UTF-8, English then 繁體中文)
+ext.mod_description = file('description.txt').getText('UTF-8')
+
 apply from: rootProject.file('gradle/mod-common.gradle')
 
 neoForge {

@@ -43,6 +43,8 @@ public class Twinstar {
     private static void registerPayloads(RegisterPayloadHandlersEvent event) {
         var registrar = event.registrar("1");
         registrar.playToClient(PlanViewPacket.TYPE, PlanViewPacket.STREAM_CODEC, PlanViewPacket::handle);
+        registrar.playToClient(com.lumina.twinstar.order.JobDonePacket.TYPE, com.lumina.twinstar.order.JobDonePacket.STREAM_CODEC,
+                com.lumina.twinstar.order.JobDonePacket::handle);
         registrar.playToServer(TheoryPackets.Request.TYPE, TheoryPackets.Request.STREAM_CODEC, TheoryPackets.Request::handle);
         registrar.playToClient(TheoryPackets.StatusReply.TYPE, TheoryPackets.StatusReply.STREAM_CODEC, TheoryPackets.StatusReply::handle);
         registrar.playToClient(TheoryPackets.MapReply.TYPE, TheoryPackets.MapReply.STREAM_CODEC, TheoryPackets.MapReply::handle);

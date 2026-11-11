@@ -30,15 +30,19 @@ public final class Pattern {
     private final int[] inputDurability;        // TOOL only: runs one tool lasts
     private final int[][] inputAlternatives;    // other items accepted in the slot (allowSubst only)
     private final int[] inputFaces;             // HUB_MACHINE: machine faces the slot goes in through (bits), 0 = not set
+    private final int[] inputTargets;           // HUB_MACHINE: where the slot goes (PatternInputTargets), 0 = the machine
 
     private final int[] outputItems;
     private final Amount[] outputAmounts;
     private final boolean[] outputByproduct;
     private final double[] outputChance;        // 1: always
+    private final int[] nbtFreeOutputs;         // HUB_MACHINE: products that count whatever their NBT
 
     public final PatternLocation where;
     /** HUB_MACHINE: the item id of the machine it runs in; −1 otherwise */
     public final int machine;
+    /** HUB_MACHINE: item ids of the blocks near the machine that materials sent to sub-machines go into, in order */
+    private final int[] subMachines;
     public final int priority;                  // provider priority (AE2, higher first)
     public final boolean allowSubst;
     public final Rational energyPerRun;         // AE energy per run, exact (AE2: sum of inputs / amount per operation)
@@ -54,6 +58,7 @@ public final class Pattern {
         this.inputDurability = new int[n];
         this.inputAlternatives = new int[n][];
         this.inputFaces = new int[n];
+        this.inputTargets = new int[n];
         for (int i = 0; i < n; i++) {
             inputItems[i] = b.inItems.get(i);
             inputAmounts[i] = b.inAmounts.get(i);
@@ -61,6 +66,7 @@ public final class Pattern {
             inputDurability[i] = b.inDurability.get(i);
             inputAlternatives[i] = b.inAlternatives.get(i).clone();
             inputFaces[i] = i < b.inFaces.size() ? b.inFaces.get(i) : 0;
+            inputTargets[i] = i < b.inTargets.size() ? b.inTargets.get(i) : 0;
         }
         // outputs: merge repeated items so outputAmount(x) is a single lookup
         // (an item that is also a main output is a main output for the whole amount)
@@ -94,12 +100,34 @@ public final class Pattern {
         for (int i = 0; i < ob.size(); i++)
             outputByproduct[i] = ob.get(i);
         this.outputChance = oc.stream().mapToDouble(Double::doubleValue).toArray();
+        this.nbtFreeOutputs = b.nbtFreeOutputs.stream().mapToInt(Integer::intValue).toArray();
         this.where = b.where;
         this.machine = b.machine;
+        this.subMachines = b.subMachines.stream().mapToInt(Integer::intValue).toArray();
         this.priority = b.priority;
         this.allowSubst = b.allowSubst;
         this.energyPerRun = b.energyPerRun;
         this.source = b.source;
+    }
+
+    /** Product {@code item} counts when a machine gives it with other NBT (durability aside). */
+    public boolean ignoresNbtOf(int item) {
+        for (int o : nbtFreeOutputs)
+            if (o == item)
+                return true;
+        return false;
+    }
+
+    public int[] nbtFreeOutputs() {
+        return nbtFreeOutputs.clone();
+    }
+
+    public int subMachineCount() {
+        return subMachines.length;
+    }
+
+    public int subMachine(int i) {
+        return subMachines[i];
     }
 
     public int inputCount() {
@@ -125,6 +153,11 @@ public final class Pattern {
     /** Machine faces input slot {@code i} goes in through (bits by {@code Direction.get3DDataValue}); 0 = not set. */
     public int inputFaces(int i) {
         return inputFaces[i];
+    }
+
+    /** Where input slot {@code i} goes ({@code PatternInputTargets}); 0 = into the machine. */
+    public int inputTarget(int i) {
+        return inputTargets[i];
     }
 
     public int alternativeCount(int i) {
@@ -295,7 +328,10 @@ public final class Pattern {
         private final List<Double> outChance = new ArrayList<>();
         private PatternLocation where = PatternLocation.HUB_INTERNAL;
         private int machine = -1;
+        private final List<Integer> subMachines = new ArrayList<>();
         private final List<Integer> inFaces = new ArrayList<>();
+        private final List<Integer> inTargets = new ArrayList<>();
+        private final List<Integer> nbtFreeOutputs = new ArrayList<>();
         private int priority;
         private boolean allowSubst;
         private Rational energyPerRun = Rational.ZERO;
@@ -375,6 +411,28 @@ public final class Pattern {
         public Builder machine(int machine) {
             this.machine = machine;
             this.where = PatternLocation.HUB_MACHINE;
+            return this;
+        }
+
+        /** A machine tried after the main one (and the sub-machines added before it). */
+        public Builder subMachine(int machine) {
+            if (machine >= 0 && machine != this.machine && !subMachines.contains(machine))
+                subMachines.add(machine);
+            return this;
+        }
+
+        /** Product {@code item} counts whatever its NBT. */
+        public Builder ignoreNbtOf(int item) {
+            if (!nbtFreeOutputs.contains(item))
+                nbtFreeOutputs.add(item);
+            return this;
+        }
+
+        /** Where the last input added goes ({@code PatternInputTargets}). */
+        public Builder target(int target) {
+            while (inTargets.size() < inItems.size())
+                inTargets.add(0);
+            inTargets.set(inItems.size() - 1, target);
             return this;
         }
 

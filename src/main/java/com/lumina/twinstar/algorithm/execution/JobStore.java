@@ -161,6 +161,7 @@ public final class JobStore {
                     alts[j] = key(p.alternative(i, j));
                 s.putIntArray("alt", alts);
                 s.putInt("faces", p.inputFaces(i));
+                s.putInt("target", p.inputTarget(i));
                 in.add(s);
             }
             t.put("in", in);
@@ -176,6 +177,16 @@ public final class JobStore {
             t.put("out", out);
             t.putString("where", p.where.name());
             t.putInt("machine", p.machine < 0 ? -1 : key(p.machine));
+            int[] free = p.nbtFreeOutputs();
+            for (int i = 0; i < free.length; i++)
+                free[i] = key(free[i]);
+            if (free.length > 0)
+                t.putIntArray("nbtFree", free);
+            int[] subs = new int[p.subMachineCount()];
+            for (int i = 0; i < subs.length; i++)
+                subs[i] = key(p.subMachine(i));
+            if (subs.length > 0)
+                t.putIntArray("subMachines", subs);
             t.putInt("priority", p.priority);
             t.putBoolean("subst", p.allowSubst);
             t.putString("energyNum", p.energyPerRun.num.toString());
@@ -238,6 +249,7 @@ public final class JobStore {
                     for (int i = 0; i < faces.length; i++)
                         faces[i] = part.faces.get(i) == null ? -1 : part.faces.get(i).get3DDataValue();
                     pt.putIntArray("faces", faces);
+                    pt.putInt("target", part.target);
                     parts.add(pt);
                 }
                 f.put("parts", parts);
@@ -259,6 +271,8 @@ public final class JobStore {
         CompoundTag job(Job job, long nowNanos, CompoundTag extra) {
             CompoundTag t = new CompoundTag();
             t.putLong("id", job.id);
+            if (job.player != null)
+                t.putUUID("player", job.player);
             t.putLong("elapsed", Math.max(0, nowNanos - job.startNanos));
             t.put("plan", plan(job));
             t.put("inventory", amounts(job.inventory, this::key));
@@ -450,7 +464,7 @@ public final class JobStore {
                     List<@Nullable Direction> faces = new ArrayList<>();
                     for (int f : ptt.getIntArray("faces"))
                         faces.add(f < 0 ? null : Direction.from3DDataValue(f));
-                    feed.parts.add(new HubState.Part(k, ptt.getLong("left"), faces));
+                    feed.parts.add(new HubState.Part(k, ptt.getLong("left"), faces, ptt.getInt("target")));
                 }
                 if (job == null || p == null) {
                     // its job did not come back: what had not gone in yet is kept as loose products
@@ -542,8 +556,13 @@ public final class JobStore {
             PatternLocation where = PatternLocation.valueOf(t.getString("where"));
             b.where(where);
             int machine = t.getInt("machine");
-            if (machine >= 0)
+            if (machine >= 0) {
                 b.machine(item(machine));
+                for (int sub : t.getIntArray("subMachines"))
+                    b.subMachine(item(sub));
+                for (int free : t.getIntArray("nbtFree"))
+                    b.ignoreNbtOf(item(free));
+            }
             for (Tag it : t.getList("in", Tag.TAG_COMPOUND)) {
                 CompoundTag s = (CompoundTag) it;
                 int[] alts = s.getIntArray("alt");
@@ -553,6 +572,8 @@ public final class JobStore {
                 b.input(item(s.getInt("k")), amount(s.getString("a")), InputKind.valueOf(s.getString("kind")), s.getInt("dur"), altIds);
                 if (s.getInt("faces") != 0)
                     b.faces(s.getInt("faces"));
+                if (s.getInt("target") != 0)
+                    b.target(s.getInt("target"));
             }
             for (Tag ot : t.getList("out", Tag.TAG_COMPOUND)) {
                 CompoundTag s = (CompoundTag) ot;
@@ -626,6 +647,8 @@ public final class JobStore {
         Job job(CompoundTag t, long nowNanos) {
             Plan plan = plan(t.getCompound("plan"));
             Job job = new Job(t.getLong("id"), plan, snap, nowNanos - t.getLong("elapsed"), amount(t.getString("occupancy")));
+            if (t.hasUUID("player"))
+                job.player = t.getUUID("player");
             amounts(t.getList("inventory", Tag.TAG_COMPOUND), this::item, job.inventory, false);
             for (Tag tt : t.getList("tasks", Tag.TAG_COMPOUND)) {
                 CompoundTag s = (CompoundTag) tt;

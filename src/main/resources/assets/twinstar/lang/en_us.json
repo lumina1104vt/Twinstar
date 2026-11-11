@@ -135,5 +135,6 @@
   "gui.twinstar.plan.keep.field.tooltip": "Amount to keep, Enter to replan; empty keeps all",
   "gui.twinstar.graph.failed": "[Twin Star] The crafting graph could not open: %s (details in logs/latest.log)",
   "gui.twinstar.graph.no_plan": "[Twin-Star] No plan yet",
-  "gui.twinstar.hub_name": "Twin-Star Hub"
+  "gui.twinstar.hub_name": "Twin-Star Hub",
+  "twinstar.job.done.title": "Crafting done"
 }

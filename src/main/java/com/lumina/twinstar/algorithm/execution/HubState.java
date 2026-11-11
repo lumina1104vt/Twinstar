@@ -8,6 +8,7 @@ import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.KeyCounter;
 import com.lumina.twinstar.algorithm.ae2.PatternInputFaces;
+import com.lumina.twinstar.algorithm.ae2.PatternInputTargets;
 import com.lumina.twinstar.algorithm.cache.Snapshot;
 import com.lumina.twinstar.algorithm.model.Amount;
 import com.lumina.twinstar.algorithm.model.AmountMap;
@@ -64,6 +65,13 @@ public final class HubState {
     private final RandomGenerator random = new SplittableRandom();
     /** the engine's detailed log (/twinstar debug), or null */
     private @Nullable Consumer<String> debug;
+
+    /** Told of each job that is done (not cancelled), once. */
+    private @Nullable Consumer<Job> onDone;
+
+    public void setOnDone(@Nullable Consumer<Job> onDone) {
+        this.onDone = onDone;
+    }
 
     public void setDebugLog(@Nullable Consumer<String> debug) {
         this.debug = debug;
@@ -880,6 +888,8 @@ public final class HubState {
         if (returnInventory(job, env)) {
             job.finished = true;
             release(job, job.occupancy);
+            if (onDone != null && !job.cancelled)
+                onDone.accept(job);
         }
     }
 
@@ -1097,6 +1107,14 @@ public final class HubState {
         final Map<AEKey, Long> overflow = new LinkedHashMap<>();
         /** where the machine is, kept for when the interface is gone (lost runs are kept by place) */
         @Nullable GlobalPos place;
+        /** cells in front of it that materials were placed or dropped in: products are picked up there */
+        final Set<BlockPos> frontCells = new HashSet<>();
+        /** its sub-machines for {@link #subsFor}, found at {@link #subsAt} (game time) */
+        @Nullable List<BlockPos> subs;
+        @Nullable Pattern subsFor;
+        long subsAt;
+        /** game time of the last redstone pulse asked for */
+        long pulsedAt = Long.MIN_VALUE / 2;
 
         MachineState(IMachineAccess access) {
             this.access = access;
@@ -1131,11 +1149,14 @@ public final class HubState {
         final AEKey key;
         long left;
         final List<@Nullable Direction> faces;
+        /** where it goes ({@link PatternInputTargets}) */
+        final int target;
 
-        Part(AEKey key, long left, List<@Nullable Direction> faces) {
+        Part(AEKey key, long left, List<@Nullable Direction> faces, int target) {
             this.key = key;
             this.left = left;
             this.faces = faces;
+            this.target = target;
         }
     }
 
@@ -1267,12 +1288,15 @@ public final class HubState {
             boolean[] took = {false};
             MachineIO.extractOutputs(level, pos, otherOutputs(m, env), (key, n) -> {
                 took[0] = true;
-                int id = env.index().idOf(key);
-                landed(m, id, Amount.of(n));
-                long rest = n - deliver(id, key, Amount.of(n), env).saturatedLong();
-                if (rest > 0)
-                    m.overflow.merge(key, rest, Long::sum);
+                takeProduct(m, key, n, env);
             });
+            // what the machine put out into its interface by itself
+            m.access.takeReceived((key, n) -> {
+                took[0] = true;
+                takeProduct(m, key, n, env);
+            });
+            pickUpFront(m, level, env);
+            pulseAgain(m, level, env);
             if (debug != null && !took[0] && !m.inFlight.isEmpty() && m.feed == null) {
                 Amount runs = Amount.ZERO;
                 for (Amount r : m.inFlight.values())
@@ -1338,6 +1362,48 @@ public final class HubState {
         return out;
     }
 
+    /**
+     * {@code n} of {@code key} out of machine {@code m}: the runs it finishes are no longer in flight, the
+     * jobs waiting for it take it, the rest goes to network storage (as it came).
+     */
+    private void takeProduct(MachineState m, AEKey key, long n, ExecutionEnv env) {
+        AEKey as = productAs(m, key, env);
+        int id = env.index().idOf(as);
+        landed(m, id, Amount.of(n));
+        long kept = onInsert(id, Amount.of(n), env.nowNanos()).saturatedLong();
+        long rest = n - kept;
+        if (rest > 0) {
+            long went = toNetwork(env, key, Amount.of(rest)).saturatedLong();
+            if (rest - went > 0)
+                m.overflow.merge(key, rest - went, Long::sum);
+        }
+    }
+
+    /**
+     * What {@code key} out of machine {@code m} counts as: itself, or, when it is not a product of the
+     * runs in it as it is, the product it is but for its NBT, of a pattern that does not mind (the hub
+     * then holds it as that product).
+     */
+    private AEKey productAs(MachineState m, AEKey key, ExecutionEnv env) {
+        if (!(key instanceof AEItemKey))
+            return key;
+        int exact = env.index().find(key);
+        AEKey match = null;
+        for (MachineState peer : peers(m))
+            for (Flight f : peer.inFlight.keySet()) {
+                Pattern pat = f.job().snap.pattern(f.pattern());
+                if (exact >= 0 && pat.produces(exact))
+                    return key;
+                for (int o = 0; o < pat.outputCount() && match == null; o++) {
+                    int item = pat.outputItem(o);
+                    AEKey out = env.index().keyOf(item);
+                    if (out != null && pat.ignoresNbtOf(item) && com.lumina.twinstar.algorithm.ae2.PatternIgnoreNbt.sameIgnoringNbt(out, key))
+                        match = out;
+                }
+            }
+        return match != null ? match : key;
+    }
+
     /** A cancelled job's run that is not all in: what is left goes to network storage, not into the machine. */
     private void dropFeedOfEndedJob(MachineState m, ExecutionEnv env) {
         Feed f = m.feed;
@@ -1399,10 +1465,34 @@ public final class HubState {
         if (f == null)
             return;
         StringBuilder stuck = debug == null ? null : new StringBuilder();
+        Pattern pat = f.job.snap.pattern(f.pattern);
         for (Part p : f.parts) {
             if (p.left <= 0)
                 continue;
-            long in = MachineIO.insert(level, pos, p.faces, p.key, p.left);
+            long in = switch (PatternInputTargets.kind(p.target)) {
+                case PatternInputTargets.SUB -> {
+                    long went = 0;
+                    for (BlockPos sub : subsOf(m, pat, level, pos)) {
+                        went += insertOrClick(m, level, sub, ANY_FACE, p.key, p.left - went);
+                        if (went >= p.left)
+                            break;
+                    }
+                    yield went;
+                }
+                case PatternInputTargets.FRONT_BLOCK, PatternInputTargets.FRONT_DROP -> {
+                    if (!(p.key instanceof AEItemKey item))
+                        yield 0;
+                    BlockPos cell = WorldIO.front(level, pos, m.access.getMachineFace(), PatternInputTargets.distance(p.target));
+                    m.frontCells.add(cell);
+                    long went = PatternInputTargets.kind(p.target) == PatternInputTargets.FRONT_BLOCK ? WorldIO.place(level, cell, item) : 0;
+                    // not a block (or a block it may not place): dropped instead
+                    if (went == 0 && !(PatternInputTargets.kind(p.target) == PatternInputTargets.FRONT_BLOCK
+                            && item.getItem() instanceof net.minecraft.world.item.BlockItem))
+                        went = WorldIO.drop(level, cell, item, p.left);
+                    yield went;
+                }
+                default -> insertOrClick(m, level, pos, p.faces, p.key, p.left);
+            };
             p.left -= in;
             f.fed += in;
             if (stuck != null && p.left > 0)
@@ -1410,11 +1500,110 @@ public final class HubState {
                         .append("）還剩 ").append(p.left).append("，這次放入 ").append(in).append("；")
                         .append(MachineIO.describeInsert(level, pos, p.faces, p.key, p.left));
         }
-        if (f.done())
+        if (f.done()) {
             m.feed = null;
+            // runs fed together in one tick (dropped in front all at once) get one pulse, not one each
+            if (m.pulsedAt != level.getGameTime()) {
+                m.access.onRunFed();
+                m.pulsedAt = level.getGameTime();
+            }
+        }
         else if (stuck != null)
             note(feedNotes, m, "[雙星] 機器放入 " + pos.toShortString() + "（放入方式 " + m.access.getInsertMode() + "，接口所在面 "
                     + m.access.getMachineFace().getName() + "）：" + stuck);
+    }
+
+    /** No face, then every face: a sub-machine is put into however it lets anything in. */
+    private static final List<@Nullable Direction> ANY_FACE = java.util.Arrays.asList(null, Direction.DOWN, Direction.UP,
+            Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST);
+
+    /**
+     * Puts {@code amount} of {@code key} into the block at {@code pos} through its capabilities; an
+     * item into a block that has no item capability at all goes in by a right-click with it instead
+     * (an altar that only takes what a player puts on it). What the click gives back goes to the network.
+     */
+    private long insertOrClick(MachineState m, ServerLevel level, BlockPos pos, List<@Nullable Direction> faces, AEKey key, long amount) {
+        long in = MachineIO.insert(level, pos, faces, key, amount);
+        if (in == 0 && key instanceof AEItemKey item && MachineIO.itemHandlers(level, pos).isEmpty()) {
+            Direction face = faces.isEmpty() || faces.get(0) == null ? m.access.getMachineFace() : faces.get(0);
+            in = WorldIO.rightClick(level, pos, face, item, amount, (k, n) -> m.overflow.merge(k, n, Long::sum));
+        }
+        return in;
+    }
+
+    /** The sub-machines of {@code pat} around machine {@code m} ({@link SubMachines}), looked for again once a second. */
+    private List<BlockPos> subsOf(MachineState m, Pattern pat, ServerLevel level, BlockPos pos) {
+        long now = level.getGameTime();
+        if (m.subs != null && m.subsFor == pat && now - m.subsAt < 20)
+            return m.subs;
+        List<Item> kinds = new ArrayList<>();
+        if (envNow != null)
+            for (int i = 0; i < pat.subMachineCount(); i++)
+                if (envNow.index().keyOf(pat.subMachine(i)) instanceof AEItemKey k)
+                    kinds.add(k.getItem());
+        List<BlockPos> others = new ArrayList<>();
+        for (MachineState other : machines.values())
+            if (other != m && other.access.getMachineLevel() == level)
+                others.add(other.access.getMachinePos());
+        m.subs = SubMachines.find(level, pos, m.access.getSubRange(), kinds, others);
+        m.subsFor = pat;
+        m.subsAt = now;
+        return m.subs;
+    }
+
+    /** How long the materials of a run may lie in a machine (or in front of it) before it gets another pulse. */
+    private static final int PULSE_AGAIN_TICKS = 20;
+
+    /**
+     * Another redstone pulse once a second while materials of its runs are still in the machine or in
+     * front of it: one shot of an atomic reconstructor converts only what its energy allows, the rest
+     * waits for the next.
+     */
+    private void pulseAgain(MachineState m, ServerLevel level, ExecutionEnv env) {
+        if (m.feed != null || m.inFlight.isEmpty() || level.getGameTime() - m.pulsedAt < PULSE_AGAIN_TICKS)
+            return;
+        Set<AEKey> inputs = new HashSet<>();
+        boolean inMachine = false;
+        for (Flight f : m.inFlight.keySet()) {
+            Pattern pat = f.job().snap.pattern(f.pattern());
+            inputs.addAll(inputKeys(pat, env));
+            inMachine |= holds(m, pat, env);
+        }
+        boolean lying = false;
+        for (BlockPos cell : m.frontCells)
+            lying |= WorldIO.holdsAny(level, cell, inputs);
+        if (inMachine || lying) {
+            m.access.onRunFed();
+            m.pulsedAt = level.getGameTime();
+        }
+    }
+
+    /**
+     * Products lying in the cells in front of machine {@code m} (or the block there): the outputs of
+     * its runs that are not one of their materials as well. The cells are forgotten once no run is in it.
+     */
+    private void pickUpFront(MachineState m, ServerLevel level, ExecutionEnv env) {
+        if (m.frontCells.isEmpty())
+            return;
+        if (m.inFlight.isEmpty() && m.feed == null) {
+            m.frontCells.clear();
+            return;
+        }
+        Set<AEKey> wanted = new HashSet<>(), inputs = new HashSet<>();
+        for (Flight f : m.inFlight.keySet()) {
+            Pattern pat = f.job().snap.pattern(f.pattern());
+            for (int o = 0; o < pat.outputCount(); o++) {
+                AEKey k = env.index().keyOf(pat.outputItem(o));
+                if (k instanceof AEItemKey)
+                    wanted.add(k);
+            }
+            inputs.addAll(inputKeys(pat, env));
+        }
+        wanted.removeAll(inputs);
+        Set<AEKey> wantedExact = wanted;
+        for (BlockPos cell : m.frontCells)
+            WorldIO.pickUp(level, cell, k -> wantedExact.contains(k) || (!inputs.contains(k) && productAs(m, k, env) != k),
+                    (key, n) -> takeProduct(m, key, n, env));
     }
 
     // ───────────────────────────── debug notes ─────────────────────────────
@@ -1503,11 +1692,47 @@ public final class HubState {
         return keys;
     }
 
-    /** Some input slot of the machine holds a material of {@code pat}. */
+    /**
+     * Materials of the runs in machine {@code m} (or of the last pattern fed; or only of {@code only}) are
+     * still in it, on its sub-machines or lying in front of it: a blocking interface waits for them to go.
+     */
+    private boolean stillHasMaterials(MachineState m, ExecutionEnv env, @Nullable Pattern only) {
+        ServerLevel level = m.access.getMachineLevel();
+        if (level == null)
+            return false;
+        List<Pattern> pats = new ArrayList<>();
+        if (only != null)
+            pats.add(only);
+        else {
+            for (Flight f : m.inFlight.keySet())
+                pats.add(f.job().snap.pattern(f.pattern()));
+            if (m.lastPat != null && !pats.contains(m.lastPat))
+                pats.add(m.lastPat);
+        }
+        for (Pattern pat : pats) {
+            if (holds(m, pat, env))
+                return true;
+            Set<AEKey> keys = inputKeys(pat, env);
+            keys.removeAll(m.access.getStockedKeys());
+            for (BlockPos cell : m.frontCells)
+                if (WorldIO.holdsAny(level, cell, keys))
+                    return true;
+            if (m.subs != null)
+                for (BlockPos sub : m.subs)
+                    if (level.isLoaded(sub) && MachineIO.holdsAny(level, sub, keys))
+                        return true;
+        }
+        return false;
+    }
+
+    /** Some input slot of the machine holds a material of {@code pat} (not one its interface keeps stocked). */
     private static boolean holds(MachineState m, Pattern pat, ExecutionEnv env) {
         ServerLevel level = m.access.getMachineLevel();
-        return level != null && level.isLoaded(m.access.getMachinePos())
-                && MachineIO.holdsAny(level, m.access.getMachinePos(), inputKeys(pat, env));
+        if (level == null || !level.isLoaded(m.access.getMachinePos()))
+            return false;
+        Set<AEKey> keys = inputKeys(pat, env);
+        keys.removeAll(m.access.getStockedKeys());
+        return MachineIO.holdsAny(level, m.access.getMachinePos(), keys);
     }
 
     /** Machine {@code m} still works on a run of {@code job}'s pattern {@code p}: being fed, or its materials still in. */
@@ -1538,8 +1763,12 @@ public final class HubState {
         for (MachineState m : all) {
             if (m.feed != null || m.access.getInsertMode() == IMachineAccess.InsertMode.OUTPUT)
                 continue;
-            if (m.access.isBlocking() && m.lastPat != null && m.lastPattern != t.pattern && holds(m, m.lastPat, env))
-                continue;   // the previous pattern's materials are still in
+            IMachineAccess.BlockMode block = m.access.getBlockMode();
+            if (block == IMachineAccess.BlockMode.FULL && stillHasMaterials(m, env, null))
+                continue;   // full blocking: the last run's materials are not all used up yet
+            if (block == IMachineAccess.BlockMode.BLOCKING && m.lastPat != null && m.lastPattern != t.pattern
+                    && stillHasMaterials(m, env, m.lastPat))
+                continue;   // blocking: the previous pattern's materials are still there
             free.add(m);
         }
         lastDispatchNote = all.size() + " 台機器都在餵料或阻擋中";
@@ -1557,6 +1786,8 @@ public final class HubState {
         for (int i = 0; i < k && sent < want; i++) {
             MachineState m = free.get((i + rotate) % k);
             long runs = share + (i < extra ? 1 : 0);
+            if (m.access.getBlockMode() == IMachineAccess.BlockMode.FULL)
+                runs = Math.min(runs, 1);       // one run, then wait until it is used up
             for (long c = 0; c < runs; c++) {
                 if (!startRun(job, t, pat, m, env)) {
                     lastDispatchNote += "，訂單裡的材料不夠了";
@@ -1611,7 +1842,8 @@ public final class HubState {
                 continue;
             List<@Nullable Direction> faces = facesFor(m.access, pat.inputFaces(s));
             for (Object2LongMap.Entry<AEKey> e : inputs[s]) {
-                f.parts.add(new Part(e.getKey(), e.getLongValue(), faces));
+                f.parts.add(new Part(e.getKey(), e.getLongValue(), faces,
+                        PatternInputTargets.resolve(pat.inputTarget(s), pat.subMachineCount() > 0, s == 0)));
                 f.total += e.getLongValue();
             }
         }
@@ -1623,18 +1855,19 @@ public final class HubState {
         return true;
     }
 
-    /** The faces a material goes in through, by the interface's mode and the pattern's faces for it. */
+    /**
+     * The faces a material goes in through: the pattern's faces for it when it gives any (unless the interface lets
+     * the machine choose), else the interface's own face, or no face for "any".
+     */
     private static List<@Nullable Direction> facesFor(IMachineAccess a, int patternFaces) {
         List<@Nullable Direction> out = new ArrayList<>();
-        switch (a.getInsertMode()) {
-            case ANY -> out.add(null);
-            case SPECIFIED -> {
-                out.addAll(PatternInputFaces.directions(patternFaces));
-                if (out.isEmpty())
-                    out.add(a.getMachineFace());
-            }
-            default -> out.add(a.getMachineFace());
+        if (a.getInsertMode() == IMachineAccess.InsertMode.ANY) {
+            out.add(null);
+            return out;
         }
+        out.addAll(PatternInputFaces.directions(patternFaces));
+        if (out.isEmpty())
+            out.add(a.getMachineFace());
         return out;
     }
 

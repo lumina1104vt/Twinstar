@@ -105,6 +105,14 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
     private final Map<IGridNode, ITwinStarHost> hosts = new LinkedHashMap<>();
     private final Map<IGridNode, IBigStorage> bigStorages = new LinkedHashMap<>();
     private final Map<IGridNode, IMachineAccess> machineAccess = new LinkedHashMap<>();
+
+    /** Every machine the grid's interfaces stand for: an interface may stand for several ({@link IMachineAccess#accessPoints}). */
+    private List<IMachineAccess> allAccess() {
+        List<IMachineAccess> all = new ArrayList<>();
+        for (IMachineAccess owner : machineAccess.values())
+            all.addAll(owner.accessPoints());
+        return all;
+    }
     private final TwinStarCpu idleCpu = new TwinStarCpu(this, null, null);
     private final List<TwinStarCpu> workingCpus = new ArrayList<>();
 
@@ -128,7 +136,75 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
     private volatile String lastPlan = "";
     private volatile long lastPlanAt;
 
-    private record Compiled(int[] ids, int priority, boolean hubInternal) {
+    /** {@code variants}: for a pattern with materials whose NBT does not matter, which stacks of them the network had; else 0. */
+    private record Compiled(int[] ids, int priority, boolean hubInternal, int variants) {
+    }
+
+    /** When the stacks behind materials whose NBT does not matter were last looked at (nanos). */
+    private long variantsCheckedAt;
+    /** per item the stacks of it the network has, for this sync (null outside one) */
+    private @Nullable Map<net.minecraft.world.item.Item, List<appeng.api.stacks.AEItemKey>> variantIndex;
+
+    /** The stacks of {@code key}'s item in network storage (any NBT), read once per sync. */
+    private List<appeng.api.stacks.AEItemKey> variantsOf(appeng.api.stacks.AEItemKey key) {
+        if (variantIndex == null) {
+            variantIndex = new HashMap<>();
+            for (var e : grid.getStorageService().getCachedInventory())
+                if (e.getKey() instanceof appeng.api.stacks.AEItemKey k && e.getLongValue() > 0)
+                    variantIndex.computeIfAbsent(k.getItem(), i -> new ArrayList<>()).add(k);
+        }
+        return variantIndex.getOrDefault(key.getItem(), List.of());
+    }
+
+    /** per item the stacks of it that patterns make, for this sync (null outside one) */
+    private @Nullable Map<net.minecraft.world.item.Item, List<appeng.api.stacks.AEItemKey>> craftableIndex;
+
+    /** The stacks of {@code key}'s item that patterns on the network make (any NBT), read once per sync. */
+    private List<appeng.api.stacks.AEItemKey> craftableOf(appeng.api.stacks.AEItemKey key) {
+        if (craftableIndex == null) {
+            craftableIndex = new HashMap<>();
+            NetworkCraftingProviders providers = ((CraftingServiceAccessor) grid.getCraftingService()).twinstar$getCraftingProviders();
+            for (AEKey k : providers.getCraftableKeys())
+                if (k instanceof appeng.api.stacks.AEItemKey i)
+                    craftableIndex.computeIfAbsent(i.getItem(), x -> new ArrayList<>()).add(i);
+        }
+        return craftableIndex.getOrDefault(key.getItem(), List.of());
+    }
+
+    /** Patterns naming a crafting table or the like, and whether each is that block's real recipe. */
+    private final Map<IPatternDetails, Boolean> workstationChecked = new java.util.WeakHashMap<>();
+
+    private boolean isWorkstationRecipe(IPatternDetails details, net.minecraft.world.item.Item machine) {
+        return workstationChecked.computeIfAbsent(details, d -> {
+            var server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
+            if (server == null)
+                return false;
+            boolean ok = com.lumina.twinstar.algorithm.ae2.WorkstationRecipes.matches(machine, d,
+                    server.getRecipeManager(), server.registryAccess());
+            if (!ok)
+                Twinstar.LOGGER.info("Twin-star engine leaves out a pattern that is no recipe of {}: {} → {}",
+                        machine, java.util.Arrays.toString(d.getInputs()), d.getOutputs());
+            return ok;
+        });
+    }
+
+    /** Which stacks the materials of {@code details} whose NBT does not matter have now; 0 when it has none. */
+    private int variantsHash(IPatternDetails details) {
+        var ignore = details.getDefinition().get(com.lumina.twinstar.storage.TwinstarContent.PATTERN_IGNORE_NBT.get());
+        if (ignore == null || ignore.inputs().isEmpty())
+            return 0;
+        int h = 1;
+        for (AEKey k : ignore.inputs())
+            if (k instanceof appeng.api.stacks.AEItemKey item)
+                for (appeng.api.stacks.AEItemKey v : variantsOf(item))
+                    if (com.lumina.twinstar.algorithm.ae2.PatternIgnoreNbt.sameIgnoringNbt(v, item))
+                        h = h * 31 + v.hashCode();
+        for (AEKey k : ignore.inputs())
+            if (k instanceof appeng.api.stacks.AEItemKey item)
+                for (appeng.api.stacks.AEItemKey v : craftableOf(item))
+                    if (com.lumina.twinstar.algorithm.ae2.PatternIgnoreNbt.sameIgnoringNbt(v, item))
+                        h = h * 17 + v.hashCode();
+        return h == 0 ? 1 : h;
     }
 
     public TwinStarService(IGrid grid, IEnergyService energy) {
@@ -139,6 +215,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
                 Twinstar.LOGGER.info(line);
         });
         theory.setUnits(units);
+        hub.setOnDone(this::tellDone);
         LIVE.add(this);
     }
 
@@ -349,9 +426,18 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
     private void syncPatterns() {
         NetworkCraftingProviders providers = ((CraftingServiceAccessor) grid.getCraftingService()).twinstar$getCraftingProviders();
         long modified = providers.getLastModifiedOnTick();
-        if (modified == patternsSeenTick)
+        // patterns with materials whose NBT does not matter take the stacks the network has: looked at again once a second
+        boolean variantsDue = compiled.values().stream().anyMatch(c -> c.variants != 0)
+                && System.nanoTime() - variantsCheckedAt > 1_000_000_000L;
+        if (modified == patternsSeenTick && !variantsDue)
             return;
         patternsSeenTick = modified;
+        if (variantsDue)
+            variantsCheckedAt = System.nanoTime();
+        variantIndex = null;
+        craftableIndex = null;
+        compiler.setVariants(this::variantsOf, this::craftableOf);
+        compiler.setWorkstationCheck(this::isWorkstationRecipe);
 
         Map<IPatternDetails, Compiled> now = new HashMap<>();
         List<Pattern> add = new ArrayList<>();
@@ -370,7 +456,8 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
                 if (priority == Integer.MIN_VALUE)
                     priority = 0;
                 Compiled old = compiled.get(details);
-                if (old != null && old.priority == priority && old.hubInternal == internal) {
+                int variants = variantsHash(details);
+                if (old != null && old.priority == priority && old.hubInternal == internal && old.variants == variants) {
                     now.put(details, old);
                     continue;
                 }
@@ -380,7 +467,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
                 try {
                     List<Pattern> patterns = compiler.compile(details, priority, internal);
                     add.addAll(patterns);
-                    now.put(details, new Compiled(patterns.stream().mapToInt(p -> p.id).toArray(), priority, internal));
+                    now.put(details, new Compiled(patterns.stream().mapToInt(p -> p.id).toArray(), priority, internal, variants));
                 } catch (RuntimeException e) {
                     Twinstar.LOGGER.warn("Twin-star engine skips a pattern it cannot read: {}", details, e);
                 }
@@ -650,6 +737,20 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
      */
     private static final Amount UNLIMITED_CAPACITY = Amount.of(BigInteger.ONE.shiftLeft(1 << 16));
 
+    /** A job is done: the player who ordered it (when online) gets a notice at the top left of the screen. */
+    private void tellDone(Job job) {
+        if (job.player == null)
+            return;
+        var server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
+        net.minecraft.server.level.ServerPlayer p = server == null ? null : server.getPlayerList().getPlayer(job.player);
+        AEKey key = index.keyOf(job.plan.target);
+        if (p == null || key == null)
+            return;
+        long seconds = Math.max(0, (System.nanoTime() - job.startNanos()) / 1_000_000_000L);
+        net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(p,
+                new com.lumina.twinstar.order.JobDonePacket(key, job.plan.amount.toString(), seconds));
+    }
+
     // ───────────────────────────── submit / cancel ─────────────────────────────
 
     /** Only plans this engine made can run here: they contain hub patterns other CPUs cannot run. */
@@ -688,6 +789,8 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
         }
 
         UUID craftId = UUID.randomUUID();
+        if (source.player().isPresent())
+            job.player = source.player().get().getUUID();
         TwinStarCpu cpu = new TwinStarCpu(this, job, null);
         CraftingLink link = new CraftingLink(CraftingCpuHelper.generateLinkData(craftId, requester == null, false), cpu);
         cpu.setLink(link);
@@ -776,7 +879,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
         BigInteger p = getParallelism();
         Amount parallelism = p == null ? null : Amount.of(p.max(BigInteger.ONE));
         return new ExecutionEnv(index, store(), energy, host != null ? host.getHostEnergySource() : null,
-                crafting::getProviders, List.copyOf(machineAccess.values()), parallelism, System.nanoTime(), TICK_BUDGET_NANOS);
+                crafting::getProviders, allAccess(), parallelism, System.nanoTime(), TICK_BUDGET_NANOS);
     }
 
     /**
@@ -785,7 +888,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
      */
     private Set<Integer> machinesOnGrid() {
         Set<Integer> out = new HashSet<>();
-        for (IMachineAccess a : machineAccess.values()) {
+        for (IMachineAccess a : allAccess()) {
             var level = a.getMachineLevel();
             if (level == null || !a.isAccessActive() || !level.isLoaded(a.getMachinePos()))
                 continue;
@@ -856,6 +959,46 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
     /** The machine items the hub patterns on the grid are for, read once per change of the patterns. */
     private Map<IPatternDetails, Compiled> machinesReadFrom = Map.of();
     private Set<net.minecraft.world.item.Item> patternMachines = Set.of();
+
+    /** Per interface its sub-machines as last looked for, and when (game time). */
+    private final Map<IMachineAccess, List<net.minecraft.core.BlockPos>> subsByAccess = new java.util.WeakHashMap<>();
+    private final Map<IMachineAccess, Long> subsAtByAccess = new java.util.WeakHashMap<>();
+
+    /**
+     * The sub-machines around the machine of {@code access}: of the kinds the hub patterns for that
+     * machine name, within its range ({@link com.lumina.twinstar.algorithm.execution.SubMachines}). For
+     * the interface to power them. Looked for again once a second. Server thread.
+     */
+    public List<net.minecraft.core.BlockPos> subMachinesOf(IMachineAccess access) {
+        net.minecraft.server.level.ServerLevel level = access.getMachineLevel();
+        if (level == null || !level.isLoaded(access.getMachinePos()))
+            return List.of();
+        long now = level.getGameTime();
+        Long at = subsAtByAccess.get(access);
+        if (at != null && now - at < 20)
+            return subsByAccess.getOrDefault(access, List.of());
+        net.minecraft.world.item.Item block = level.getBlockState(access.getMachinePos()).getBlock().asItem();
+        List<net.minecraft.world.item.Item> kinds = new ArrayList<>();
+        compiled.forEach((details, c) -> {
+            if (!c.hubInternal)
+                return;
+            net.minecraft.world.item.Item m = com.lumina.twinstar.api.PatternMachines.of(details.getDefinition());
+            if (m == null || (m != block && m != access.getMachine()))
+                return;
+            for (net.minecraft.world.item.Item sub : com.lumina.twinstar.api.PatternMachines.subMachinesOf(details.getDefinition()))
+                if (!kinds.contains(sub))
+                    kinds.add(sub);
+        });
+        List<net.minecraft.core.BlockPos> others = new ArrayList<>();
+        for (IMachineAccess a : allAccess())
+            if (a != access && a.getMachineLevel() == level)
+                others.add(a.getMachinePos());
+        List<net.minecraft.core.BlockPos> found = com.lumina.twinstar.algorithm.execution.SubMachines.find(level, access.getMachinePos(),
+                access.getSubRange(), kinds, others);
+        subsByAccess.put(access, found);
+        subsAtByAccess.put(access, now);
+        return found;
+    }
 
     /** For the screen of machine access interface {@code access} (server thread). */
     public MachineView machineView(IMachineAccess access) {

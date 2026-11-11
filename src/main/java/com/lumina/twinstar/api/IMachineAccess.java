@@ -31,8 +31,22 @@ public interface IMachineAccess {
      */
     @Nullable Item getMachine();
 
+    /** How a machine waits before it gets more. */
+    enum BlockMode {
+        /** as much as it takes */
+        NONE,
+        /** another pattern's materials wait until the previous pattern's are gone (AE2's blocking mode) */
+        BLOCKING,
+        /** one run at a time: the next waits until the last one's materials are all used up */
+        FULL
+    }
+
     /** Wait until the previous pattern's materials are gone before putting in another pattern's. */
     boolean isBlocking();
+
+    default BlockMode getBlockMode() {
+        return isBlocking() ? BlockMode.BLOCKING : BlockMode.NONE;
+    }
 
     InsertMode getInsertMode();
 
@@ -51,6 +65,44 @@ public interface IMachineAccess {
      */
     default int getGroup() {
         return 0;
+    }
+
+    /**
+     * How far from the machine its sub-machines are looked for (the blocks of the kinds a pattern
+     * names, for its materials set to go there): this many blocks across, one up and down.
+     */
+    default int getSubRange() {
+        return 3;
+    }
+
+    /**
+     * A run's materials are all in (and on its sub-machines, in front of it), or some are still there a
+     * second after the last pulse: an interface may send a redstone pulse.
+     */
+    default void onRunFed() {
+    }
+
+    /**
+     * What the interface keeps in the machine on its own (a furnace's fuel, a catalyst): not a run's
+     * material, so blocking does not wait for it to be used up.
+     */
+    default java.util.Set<appeng.api.stacks.AEKey> getStockedKeys() {
+        return java.util.Set.of();
+    }
+
+    /**
+     * Takes out what the machine pushed into the interface (machines that put their products out
+     * themselves): each kind and amount to {@code taken}, which counts them as the machine's products.
+     */
+    default void takeReceived(java.util.function.BiConsumer<appeng.api.stacks.AEKey, Long> taken) {
+    }
+
+    /**
+     * The machines this interface stands for, each as an access of its own (same settings, its own place):
+     * an interface bound to several machines from afar. The same objects until the binding changes.
+     */
+    default java.util.List<IMachineAccess> accessPoints() {
+        return java.util.List.of(this);
     }
 
     /** Powered and on the grid. */

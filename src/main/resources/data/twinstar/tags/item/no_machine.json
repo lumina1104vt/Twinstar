@@ -1,0 +1,13 @@
+{
+  "values": [
+    "minecraft:crafting_table",
+    "minecraft:stonecutter",
+    "minecraft:smithing_table",
+    "minecraft:loom",
+    "minecraft:cartography_table",
+    {
+      "id": "#c:player_workstations/crafting_tables",
+      "required": false
+    }
+  ]
+}

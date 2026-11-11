@@ -1,0 +1,5 @@
+A twin-star crafting engine for Applied Energistics 2. It plans crafting jobs using AE2 patterns.
+
+----
+
+AE2 的雙星合成引擎，依 AE2 樣板規劃合成工作。

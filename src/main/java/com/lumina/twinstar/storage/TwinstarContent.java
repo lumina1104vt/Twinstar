@@ -7,6 +7,8 @@ import appeng.menu.implementations.MenuTypeBuilder;
 import com.lumina.twinstar.Twinstar;
 import com.lumina.twinstar.algorithm.ae2.PatternChances;
 import com.lumina.twinstar.algorithm.ae2.PatternInputFaces;
+import com.lumina.twinstar.algorithm.ae2.PatternIgnoreNbt;
+import com.lumina.twinstar.algorithm.ae2.PatternInputTargets;
 import com.lumina.twinstar.order.OrderMenu;
 import com.lumina.twinstar.order.PlanMenu;
 import net.minecraft.core.component.DataComponentType;
@@ -44,6 +46,16 @@ public final class TwinstarContent {
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<PatternInputFaces>> PATTERN_INPUT_FACES =
             COMPONENTS.registerComponentType("pattern_input_faces",
                     b -> b.persistent(PatternInputFaces.CODEC).networkSynchronized(PatternInputFaces.STREAM_CODEC));
+
+    /** The materials and products of a hub pattern whose NBT does not matter. */
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<PatternIgnoreNbt>> PATTERN_IGNORE_NBT =
+            COMPONENTS.registerComponentType("pattern_ignore_nbt",
+                    b -> b.persistent(PatternIgnoreNbt.CODEC).networkSynchronized(PatternIgnoreNbt.STREAM_CODEC));
+
+    /** Where each material of a hub pattern goes when not into the machine: its sub-machines, or in front of it. */
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<PatternInputTargets>> PATTERN_INPUT_TARGETS =
+            COMPONENTS.registerComponentType("pattern_input_targets",
+                    b -> b.persistent(PatternInputTargets.CODEC).networkSynchronized(PatternInputTargets.STREAM_CODEC));
 
     /** The twin-star order screen (replaces AE2's amount screen on grids with a hub). */
     public static final DeferredHolder<MenuType<?>, MenuType<OrderMenu>> ORDER_MENU = MENUS.register("order",

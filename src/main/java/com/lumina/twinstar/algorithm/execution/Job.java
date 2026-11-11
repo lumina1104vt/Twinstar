@@ -79,6 +79,8 @@ public final class Job {
     boolean finished;
     /** Where finished products go first (the requester behind AE2's crafting link); the rest goes to storage. */
     @Nullable FinalSink sink;
+    /** The player who ordered it, told when it is done; null when nobody did (an automated request). */
+    public @Nullable java.util.UUID player;
 
     /** Takes up to {@code amount} of a finished product; returns how much it took. */
     @FunctionalInterface
