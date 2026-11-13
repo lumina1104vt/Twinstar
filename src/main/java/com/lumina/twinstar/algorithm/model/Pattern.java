@@ -30,12 +30,15 @@ public final class Pattern {
     private final int[] inputDurability;        // TOOL only: runs one tool lasts
     private final int[][] inputAlternatives;    // other items accepted in the slot (allowSubst only)
     private final int[] inputFaces;             // HUB_MACHINE: machine faces the slot goes in through (bits), 0 = not set
+    private final int[] inputGuiSlots;         // HUB_MACHINE: GUI slot the material goes into, 0 = the first that takes it
+    private final int[] inputRoles;             // HUB_MACHINE: PatternInputRoles per slot, 0 = used up
     private final int[] inputTargets;           // HUB_MACHINE: where the slot goes (PatternInputTargets), 0 = the machine
 
     private final int[] outputItems;
     private final Amount[] outputAmounts;
     private final boolean[] outputByproduct;
     private final double[] outputChance;        // 1: always
+    private final java.util.Map<Integer, Integer> outputGuiSlots;   // HUB_MACHINE: product item id -> GUI slot it is taken out of
     private final int[] nbtFreeOutputs;         // HUB_MACHINE: products that count whatever their NBT
 
     public final PatternLocation where;
@@ -59,6 +62,8 @@ public final class Pattern {
         this.inputAlternatives = new int[n][];
         this.inputFaces = new int[n];
         this.inputTargets = new int[n];
+        this.inputRoles = new int[n];
+        this.inputGuiSlots = new int[n];
         for (int i = 0; i < n; i++) {
             inputItems[i] = b.inItems.get(i);
             inputAmounts[i] = b.inAmounts.get(i);
@@ -67,6 +72,8 @@ public final class Pattern {
             inputAlternatives[i] = b.inAlternatives.get(i).clone();
             inputFaces[i] = i < b.inFaces.size() ? b.inFaces.get(i) : 0;
             inputTargets[i] = i < b.inTargets.size() ? b.inTargets.get(i) : 0;
+            inputRoles[i] = i < b.inRoles.size() ? b.inRoles.get(i) : 0;
+            inputGuiSlots[i] = i < b.inGuiSlots.size() ? b.inGuiSlots.get(i) : 0;
         }
         // outputs: merge repeated items so outputAmount(x) is a single lookup
         // (an item that is also a main output is a main output for the whole amount)
@@ -100,6 +107,7 @@ public final class Pattern {
         for (int i = 0; i < ob.size(); i++)
             outputByproduct[i] = ob.get(i);
         this.outputChance = oc.stream().mapToDouble(Double::doubleValue).toArray();
+        this.outputGuiSlots = java.util.Map.copyOf(b.outGuiSlots);
         this.nbtFreeOutputs = b.nbtFreeOutputs.stream().mapToInt(Integer::intValue).toArray();
         this.where = b.where;
         this.machine = b.machine;
@@ -108,6 +116,11 @@ public final class Pattern {
         this.allowSubst = b.allowSubst;
         this.energyPerRun = b.energyPerRun;
         this.source = b.source;
+    }
+
+    /** The GUI slot product {@code item} is taken out of (1 and up); 0 = from any slot that does not take it. */
+    public int outputGuiSlotOf(int item) {
+        return outputGuiSlots.getOrDefault(item, 0);
     }
 
     /** Product {@code item} counts when a machine gives it with other NBT (durability aside). */
@@ -153,6 +166,16 @@ public final class Pattern {
     /** Machine faces input slot {@code i} goes in through (bits by {@code Direction.get3DDataValue}); 0 = not set. */
     public int inputFaces(int i) {
         return inputFaces[i];
+    }
+
+    /** The GUI slot input slot {@code i} goes into (1 and up); 0 = the first slot that takes it. */
+    public int inputGuiSlot(int i) {
+        return inputGuiSlots[i];
+    }
+
+    /** What input slot {@code i} is besides used up ({@code PatternInputRoles}): 0 = nothing, it is used up. */
+    public int inputRole(int i) {
+        return inputRoles[i];
     }
 
     /** Where input slot {@code i} goes ({@code PatternInputTargets}); 0 = into the machine. */
@@ -326,11 +349,14 @@ public final class Pattern {
         private final List<Amount> outAmounts = new ArrayList<>();
         private final List<Boolean> outByproduct = new ArrayList<>();
         private final List<Double> outChance = new ArrayList<>();
+        private final java.util.Map<Integer, Integer> outGuiSlots = new java.util.HashMap<>();
         private PatternLocation where = PatternLocation.HUB_INTERNAL;
         private int machine = -1;
         private final List<Integer> subMachines = new ArrayList<>();
         private final List<Integer> inFaces = new ArrayList<>();
         private final List<Integer> inTargets = new ArrayList<>();
+        private final List<Integer> inRoles = new ArrayList<>();
+        private final List<Integer> inGuiSlots = new ArrayList<>();
         private final List<Integer> nbtFreeOutputs = new ArrayList<>();
         private int priority;
         private boolean allowSubst;
@@ -362,6 +388,12 @@ public final class Pattern {
 
         public Builder tool(int item, int durability) {
             return input(item, Amount.ONE, InputKind.TOOL, durability, new int[0]);
+        }
+
+        /** The GUI slot product {@code item} is taken out of. */
+        public Builder outputGuiSlot(int item, int slot) {
+            outGuiSlots.put(item, slot);
+            return this;
         }
 
         public Builder output(int item, long amount) {
@@ -433,6 +465,22 @@ public final class Pattern {
             while (inTargets.size() < inItems.size())
                 inTargets.add(0);
             inTargets.set(inItems.size() - 1, target);
+            return this;
+        }
+
+        /** The GUI slot the last input added goes into. */
+        public Builder guiSlot(int slot) {
+            while (inGuiSlots.size() < inItems.size())
+                inGuiSlots.add(0);
+            inGuiSlots.set(inItems.size() - 1, slot);
+            return this;
+        }
+
+        /** What the last input added is besides used up ({@code PatternInputRoles}). */
+        public Builder role(int role) {
+            while (inRoles.size() < inItems.size())
+                inRoles.add(0);
+            inRoles.set(inItems.size() - 1, role);
             return this;
         }
 

@@ -17,6 +17,7 @@ import java.util.function.Function;
 public final class PatternMachines {
     private static Function<AEItemKey, @Nullable Item> reader = key -> null;
     private static Function<AEItemKey, List<Item>> subReader = key -> List.of();
+    private static Function<AEItemKey, @Nullable Item> toolReader = key -> null;
 
     private PatternMachines() {
     }
@@ -29,6 +30,19 @@ public final class PatternMachines {
     /** Called once by the mod whose pattern items name sub-machines. */
     public static void setSubMachineReader(Function<AEItemKey, List<Item>> reader) {
         PatternMachines.subReader = reader;
+    }
+
+    /** Called once by the mod whose pattern items name a tool. */
+    public static void setToolReader(Function<AEItemKey, @Nullable Item> reader) {
+        PatternMachines.toolReader = reader;
+    }
+
+    /**
+     * The tool of the encoded pattern {@code definition}, or null: once every material of a run is in the
+     * machine, the machine is right-clicked with it.
+     */
+    public static @Nullable Item toolOf(AEItemKey definition) {
+        return toolReader.apply(definition);
     }
 
     /** The sub-machines of the encoded pattern {@code definition}, in the order they are tried. */

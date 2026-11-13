@@ -134,6 +134,29 @@ public final class PatternCompiler {
         return List.of(translateDeclared(details, where, priority, chances, machine, subs));
     }
 
+    /** One slot of a processing pattern, as it is: its material, all of it, and nothing left over. */
+    private record SparseInput(GenericStack stack) implements IPatternDetails.IInput {
+        @Override
+        public GenericStack[] getPossibleInputs() {
+            return new GenericStack[]{stack};
+        }
+
+        @Override
+        public long getMultiplier() {
+            return 1;
+        }
+
+        @Override
+        public boolean isValid(AEKey input, net.minecraft.world.level.Level level) {
+            return input.equals(stack.what());
+        }
+
+        @Override
+        public @Nullable AEKey getRemainingKey(AEKey template) {
+            return null;
+        }
+    }
+
     private Pattern translateDeclared(IPatternDetails details, PatternLocation where, int priority, @Nullable PatternChances chances,
                                       @Nullable Item machine, List<Item> subMachines) {
         Pattern.Builder b = new Pattern.Builder().where(where).priority(priority).source(details);
@@ -144,11 +167,22 @@ public final class PatternCompiler {
         }
         PatternInputFaces faces = machine != null ? details.getDefinition().get(TwinstarContent.PATTERN_INPUT_FACES.get()) : null;
         PatternInputTargets targets = machine != null ? details.getDefinition().get(TwinstarContent.PATTERN_INPUT_TARGETS.get()) : null;
+        PatternInputGuiSlots guiSlots = machine != null ? details.getDefinition().get(TwinstarContent.PATTERN_INPUT_GUI_SLOTS.get()) : null;
+        PatternOutputGuiSlots outGuiSlots = machine != null ? details.getDefinition().get(TwinstarContent.PATTERN_OUTPUT_GUI_SLOTS.get()) : null;
+        PatternInputRoles roles = machine != null ? details.getDefinition().get(TwinstarContent.PATTERN_INPUT_ROLES.get()) : null;
         PatternIgnoreNbt ignoreNbt = details.getDefinition().get(TwinstarContent.PATTERN_IGNORE_NBT.get());
         boolean subst = false;
         Rational energy = Rational.ZERO;
         List<GenericStack> remainders = new ArrayList<>();
-        for (IPatternDetails.IInput in : details.getInputs()) {
+        int ordinal = -1;
+        // AE2 merges identical materials of a processing pattern into one input; a pattern that says which GUI slot each
+        // material slot goes into keeps its slots apart (the same material goes into many places)
+        List<IPatternDetails.IInput> inputList = guiSlots != null && details instanceof AEProcessingPattern processing
+                ? processing.getSparseInputs().stream().filter(java.util.Objects::nonNull).map(SparseInput::new)
+                        .<IPatternDetails.IInput>map(i -> i).toList()
+                : List.of(details.getInputs());
+        for (IPatternDetails.IInput in : inputList) {
+            ordinal++;
             GenericStack[] possible = in.getPossibleInputs();
             AEKey key = possible[0].what();
             long amount = Math.multiplyExact(possible[0].amount(), in.getMultiplier());
@@ -184,10 +218,16 @@ public final class PatternCompiler {
                 if (!left.isEmpty())
                     rest = AEItemKey.of(left);
             }
-            InputKind kind = rest != null && rest.equals(key) ? InputKind.CONTAINER : InputKind.CONSUME;
-            if (rest != null && !rest.equals(key))
+            int role = roles != null ? roles.roleOf(key) : PatternInputRoles.NORMAL;
+            // a catalyst or a tool is not used up: a container's way, one copy is enough and it comes back
+            InputKind kind = role != PatternInputRoles.NORMAL || rest != null && rest.equals(key) ? InputKind.CONTAINER : InputKind.CONSUME;
+            if (role == PatternInputRoles.NORMAL && rest != null && !rest.equals(key))
                 remainders.add(new GenericStack(rest, amount));
             b.input(index.idOf(main), Amount.of(amount), kind, 0, alts);
+            if (role != PatternInputRoles.NORMAL)
+                b.role(role);
+            if (guiSlots != null && guiSlots.slotAt(ordinal) > 0)
+                b.guiSlot(guiSlots.slotAt(ordinal));
             if (faces != null)
                 b.faces(faces.facesOf(key));
             if (targets != null)
@@ -195,9 +235,28 @@ public final class PatternCompiler {
             energy = energy.add(Rational.of(java.math.BigInteger.valueOf(amount),
                     java.math.BigInteger.valueOf(Math.max(1, key.getAmountPerOperation()))));
         }
+        Item tool = machine != null ? PatternMachines.toolOf(details.getDefinition()) : null;
+        if (tool != null) {
+            // not put into the machine: it right-clicks it once a run's materials are all in, then goes back to the job
+            // wear does not matter: the same tool in any state of wear (any damage) does as well, in stock or made
+            AEItemKey toolKey = AEItemKey.of(tool);
+            List<Integer> worn = new ArrayList<>();
+            for (AEItemKey v : variants.apply(toolKey))
+                if (!v.equals(toolKey) && v.getItem() == tool && !worn.contains(index.idOf(v)))
+                    worn.add(index.idOf(v));
+            for (AEItemKey v : craftable.apply(toolKey))
+                if (!v.equals(toolKey) && v.getItem() == tool && !worn.contains(index.idOf(v)))
+                    worn.add(index.idOf(v));
+            b.input(index.idOf(toolKey), Amount.of(1), InputKind.CONTAINER, 0, worn.stream().mapToInt(Integer::intValue).toArray());
+            b.role(PatternInputRoles.TOOL);
+            if (!worn.isEmpty())
+                subst = true;
+        }
         for (GenericStack out : details.getOutputs()) {
             double chance = chances == null ? 1 : chances.chanceOf(out.what());
             b.output(index.idOf(out.what()), Amount.of(out.amount()), chance > 0 && chance < 1 ? chance : 1);
+            if (outGuiSlots != null && outGuiSlots.slotOf(out.what()) > 0)
+                b.outputGuiSlot(index.idOf(out.what()), outGuiSlots.slotOf(out.what()));
         }
         for (GenericStack r : remainders)
             b.byproduct(index.idOf(r.what()), r.amount());

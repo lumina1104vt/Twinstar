@@ -162,6 +162,8 @@ public final class JobStore {
                 s.putIntArray("alt", alts);
                 s.putInt("faces", p.inputFaces(i));
                 s.putInt("target", p.inputTarget(i));
+                s.putInt("role", p.inputRole(i));
+                s.putInt("guiSlot", p.inputGuiSlot(i));
                 in.add(s);
             }
             t.put("in", in);
@@ -172,6 +174,7 @@ public final class JobStore {
                 s.putString("a", amount(p.outputAmount(o)));
                 s.putBoolean("by", p.isByproduct(o));
                 s.putDouble("chance", p.outputChance(o));
+                s.putInt("guiSlot", p.outputGuiSlotOf(p.outputItem(o)));
                 out.add(s);
             }
             t.put("out", out);
@@ -250,9 +253,18 @@ public final class JobStore {
                         faces[i] = part.faces.get(i) == null ? -1 : part.faces.get(i).get3DDataValue();
                     pt.putIntArray("faces", faces);
                     pt.putInt("target", part.target);
+                    pt.putInt("role", part.role);
+                    pt.putInt("guiSlot", part.guiSlot);
                     parts.add(pt);
                 }
                 f.put("parts", parts);
+                ListTag tools = new ListTag();
+                for (AEKey tool : feed.tools) {
+                    CompoundTag tt = new CompoundTag();
+                    tt.putInt("k", key(tool));
+                    tools.add(tt);
+                }
+                f.put("tools", tools);
                 t.put("feed", f);
             }
             t.putInt("last", lastPat == null ? -1 : pattern(lastPat));
@@ -464,7 +476,12 @@ public final class JobStore {
                     List<@Nullable Direction> faces = new ArrayList<>();
                     for (int f : ptt.getIntArray("faces"))
                         faces.add(f < 0 ? null : Direction.from3DDataValue(f));
-                    feed.parts.add(new HubState.Part(k, ptt.getLong("left"), faces, ptt.getInt("target")));
+                    feed.parts.add(new HubState.Part(k, ptt.getLong("left"), faces, ptt.getInt("target"), ptt.getInt("role"), ptt.getInt("guiSlot")));
+                }
+                for (Tag tt : ft.getList("tools", Tag.TAG_COMPOUND)) {
+                    AEKey k = r.key(((CompoundTag) tt).getInt("k"));
+                    if (k != null)
+                        feed.tools.add(k);
                 }
                 if (job == null || p == null) {
                     // its job did not come back: what had not gone in yet is kept as loose products
@@ -574,10 +591,16 @@ public final class JobStore {
                     b.faces(s.getInt("faces"));
                 if (s.getInt("target") != 0)
                     b.target(s.getInt("target"));
+                if (s.getInt("role") != 0)
+                    b.role(s.getInt("role"));
+                if (s.getInt("guiSlot") != 0)
+                    b.guiSlot(s.getInt("guiSlot"));
             }
             for (Tag ot : t.getList("out", Tag.TAG_COMPOUND)) {
                 CompoundTag s = (CompoundTag) ot;
                 b.output(item(s.getInt("k")), amount(s.getString("a")), s.getBoolean("by"), s.getDouble("chance"));
+                if (s.getInt("guiSlot") > 0)
+                    b.outputGuiSlot(item(s.getInt("k")), s.getInt("guiSlot"));
             }
             b.priority(t.getInt("priority")).allowSubst(t.getBoolean("subst"))
                     .energyPerRun(Rational.of(new BigInteger(t.getString("energyNum")), new BigInteger(t.getString("energyDen"))));

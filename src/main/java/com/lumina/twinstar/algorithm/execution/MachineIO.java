@@ -140,13 +140,17 @@ final class MachineIO {
     /**
      * Takes everything out of the output slots and tanks, and of other key types what can be taken
      * from outside among {@code wantOther} only (an energy key type would otherwise drain a battery);
-     * each amount taken goes to {@code taken}.
+     * each amount taken goes to {@code taken}. Items of {@code keep} (materials of the runs in the machine)
+     * are left where they are.
      */
-    static void extractOutputs(ServerLevel level, BlockPos pos, Set<AEKey> wantOther, BiConsumer<AEKey, Long> taken) {
+    static void extractOutputs(ServerLevel level, BlockPos pos, Set<AEKey> wantOther, Set<AEKey> keep, BiConsumer<AEKey, Long> taken) {
         for (IItemHandler h : itemHandlers(level, pos))
             for (int s = 0; s < h.getSlots(); s++) {
                 ItemStack in = h.getStackInSlot(s);
                 if (in.isEmpty() || !isOutput(h, s, in))
+                    continue;
+                // what a run's materials look like in a slot that refuses more (a single-item chamber) is not a product
+                if (!keep.isEmpty() && keep.contains(AEItemKey.of(in)))
                     continue;
                 ItemStack got = h.extractItem(s, in.getCount(), false);
                 if (!got.isEmpty())
@@ -171,6 +175,27 @@ final class MachineIO {
                 if (got > 0)
                     taken.accept(e.getKey(), got);
             }
+    }
+
+    /**
+     * Takes up to {@code amount} of {@code key} back out of the machine, from any slot (an input slot too: a catalyst
+     * that stayed in); each piece taken goes to {@code taken}. Returns how much came out. A machine's own rules may
+     * refuse to give a slot's stack up: then it stays.
+     */
+    static long retrieve(ServerLevel level, BlockPos pos, AEItemKey key, long amount, BiConsumer<AEKey, Long> taken) {
+        long left = amount;
+        for (IItemHandler h : itemHandlers(level, pos))
+            for (int s = 0; s < h.getSlots() && left > 0; s++) {
+                ItemStack in = h.getStackInSlot(s);
+                if (in.isEmpty() || !key.matches(in))
+                    continue;
+                ItemStack got = h.extractItem(s, (int) Math.min(left, in.getCount()), false);
+                if (!got.isEmpty()) {
+                    left -= got.getCount();
+                    taken.accept(AEItemKey.of(got), (long) got.getCount());
+                }
+            }
+        return amount - left;
     }
 
     /** Some input slot or tank holds one of {@code keys}. */

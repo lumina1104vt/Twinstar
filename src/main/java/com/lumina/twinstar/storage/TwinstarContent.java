@@ -7,7 +7,10 @@ import appeng.menu.implementations.MenuTypeBuilder;
 import com.lumina.twinstar.Twinstar;
 import com.lumina.twinstar.algorithm.ae2.PatternChances;
 import com.lumina.twinstar.algorithm.ae2.PatternInputFaces;
+import com.lumina.twinstar.algorithm.ae2.PatternInputGuiSlots;
+import com.lumina.twinstar.algorithm.ae2.PatternOutputGuiSlots;
 import com.lumina.twinstar.algorithm.ae2.PatternIgnoreNbt;
+import com.lumina.twinstar.algorithm.ae2.PatternInputRoles;
 import com.lumina.twinstar.algorithm.ae2.PatternInputTargets;
 import com.lumina.twinstar.order.OrderMenu;
 import com.lumina.twinstar.order.PlanMenu;
@@ -56,6 +59,21 @@ public final class TwinstarContent {
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<PatternInputTargets>> PATTERN_INPUT_TARGETS =
             COMPONENTS.registerComponentType("pattern_input_targets",
                     b -> b.persistent(PatternInputTargets.CODEC).networkSynchronized(PatternInputTargets.STREAM_CODEC));
+
+    /** The GUI slot each material of a hub pattern goes into, for machines that take items only in a GUI. */
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<PatternInputGuiSlots>> PATTERN_INPUT_GUI_SLOTS =
+            COMPONENTS.registerComponentType("pattern_input_gui_slots",
+                    b -> b.persistent(PatternInputGuiSlots.CODEC).networkSynchronized(PatternInputGuiSlots.STREAM_CODEC));
+
+    /** The GUI slot each product of a hub pattern is taken out of, for machines that give them only in a GUI. */
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<PatternOutputGuiSlots>> PATTERN_OUTPUT_GUI_SLOTS =
+            COMPONENTS.registerComponentType("pattern_output_gui_slots",
+                    b -> b.persistent(PatternOutputGuiSlots.CODEC).networkSynchronized(PatternOutputGuiSlots.STREAM_CODEC));
+
+    /** What each material of a hub pattern is besides used up: catalyst, catalyst kept for the batch, tool to right-click with. */
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<PatternInputRoles>> PATTERN_INPUT_ROLES =
+            COMPONENTS.registerComponentType("pattern_input_roles",
+                    b -> b.persistent(PatternInputRoles.CODEC).networkSynchronized(PatternInputRoles.STREAM_CODEC));
 
     /** The twin-star order screen (replaces AE2's amount screen on grids with a hub). */
     public static final DeferredHolder<MenuType<?>, MenuType<OrderMenu>> ORDER_MENU = MENUS.register("order",

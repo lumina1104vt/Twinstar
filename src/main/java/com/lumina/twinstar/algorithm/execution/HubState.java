@@ -8,6 +8,7 @@ import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.KeyCounter;
 import com.lumina.twinstar.algorithm.ae2.PatternInputFaces;
+import com.lumina.twinstar.algorithm.ae2.PatternInputRoles;
 import com.lumina.twinstar.algorithm.ae2.PatternInputTargets;
 import com.lumina.twinstar.algorithm.cache.Snapshot;
 import com.lumina.twinstar.algorithm.model.Amount;
@@ -217,6 +218,9 @@ public final class HubState {
         for (Part p : feed.parts)
             if (p.left > 0)
                 into.merge(p.key, p.left, Long::sum);
+        // the tools of the run that had not been used yet
+        for (AEKey tool : feed.tools)
+            into.merge(tool, 1L, Long::sum);
     }
 
     /**
@@ -444,7 +448,7 @@ public final class HubState {
                     have = have.add(usable(job, t, pat.alternative(s, a), withLater));
             Amount lim;
             switch (pat.inputKind(s)) {
-                case CONSUME -> lim = have.div(pat.inputAmount(s));
+                case CONSUME -> lim = have.div(totalUse(pat, s));
                 case TOOL -> {
                     int dur = pat.inputDurability(s);
                     if (dur <= 0)
@@ -456,6 +460,10 @@ public final class HubState {
                     }
                 }
                 default -> {
+                    if (pat.where != PatternLocation.HUB_INTERNAL && pat.inputRole(s) == PatternInputRoles.CATALYST && keptHeld(job, t.pattern))
+                        continue;   // already in a machine for this batch: the next runs need no copy
+                    if (pat.where != PatternLocation.HUB_INTERNAL && pat.inputRole(s) == PatternInputRoles.TOOL && envNow != null)
+                        have = have.add(wornTotal(job, pat.inputItem(s), envNow));
                     if (pat.where != PatternLocation.HUB_INTERNAL)
                         lim = have.div(pat.inputAmount(s));   // sent along and expected back
                     else if (have.compareTo(pat.inputAmount(s)) < 0)
@@ -467,6 +475,15 @@ public final class HubState {
             max = max == null ? lim : max.min(lim);
         }
         return max == null ? UNBOUNDED : max.clampNonNegative();
+    }
+
+    /** What a run uses of slot {@code s}'s material in all: slots that hold the same material add up (a shaped recipe). */
+    private static Amount totalUse(Pattern pat, int s) {
+        Amount sum = Amount.ZERO;
+        for (int o = 0; o < pat.inputCount(); o++)
+            if (pat.inputItem(o) == pat.inputItem(s) && pat.inputKind(o) == InputKind.CONSUME)
+                sum = sum.add(pat.inputAmount(o));
+        return sum.signum() > 0 ? sum : pat.inputAmount(s);
     }
 
     private static final Amount UNBOUNDED = Amount.of(Long.MAX_VALUE).mul(Amount.of(Long.MAX_VALUE));
@@ -694,6 +711,11 @@ public final class HubState {
 
     /** One run's inputs, slot by slot as AE2 expects; null (nothing taken) when the job lacks them. */
     private KeyCounter @Nullable [] extractInputs(Job job, Pattern pat, ExecutionEnv env) {
+        return extractInputs(job, pat, env, null);
+    }
+
+    /** {@code into}: the machine the run goes to; a kept catalyst it already holds for this batch is not taken again. */
+    private KeyCounter @Nullable [] extractInputs(Job job, Pattern pat, ExecutionEnv env, @Nullable MachineState into) {
         KeyCounter[] out = new KeyCounter[pat.inputCount()];
         AmountMap taken = new AmountMap();
         for (int s = 0; s < pat.inputCount(); s++) {
@@ -701,6 +723,13 @@ public final class HubState {
                 return rollback(job, taken);
             Amount amt = pat.inputAmount(s);
             int item = pat.inputItem(s);
+            if (into != null && pat.inputRole(s) == PatternInputRoles.CATALYST && holdsKept(into, job, pat, s, env))
+                continue;
+            if (pat.inputRole(s) == PatternInputRoles.TOOL && job.inventory.get(item).compareTo(amt) < 0) {
+                int worn = wornCopy(job, item, amt, env);
+                if (worn >= 0)
+                    item = worn;
+            }
             if (job.inventory.get(item).compareTo(amt) < 0 && pat.allowSubst) {
                 for (int a = 0; a < pat.alternativeCount(s); a++)
                     if (job.inventory.get(pat.alternative(s, a)).compareTo(amt) >= 0) {
@@ -749,7 +778,9 @@ public final class HubState {
             if (!pat.isChance(o))
                 expect(job, pat.outputItem(o), pat.outputAmount(o).mul(r), now);
         for (int s = 0; s < pat.inputCount(); s++)
-            if (pat.inputKind(s) == InputKind.CONTAINER || pat.inputKind(s) == InputKind.CATALYST)
+            if ((pat.inputKind(s) == InputKind.CONTAINER || pat.inputKind(s) == InputKind.CATALYST)
+                    // a tool goes back into the job by itself, a kept catalyst is expected once per batch (startRun)
+                    && pat.inputRole(s) != PatternInputRoles.TOOL && pat.inputRole(s) != PatternInputRoles.CATALYST)
                 expect(job, pat.inputItem(s), pat.inputAmount(s).mul(r), now);
         t.inFlight = t.inFlight.add(r);
     }
@@ -999,7 +1030,7 @@ public final class HubState {
             if (later.signum() <= 0)
                 continue;
             Amount need = switch (pat.inputKind(s)) {
-                case CONSUME -> pat.inputAmount(s).mul(n);
+                case CONSUME -> totalUse(pat, s).mul(n);   // slots that hold the same material add up
                 case TOOL -> pat.inputDurability(s) > 0 ? n.ceilDiv(pat.inputDurability(s)) : pat.inputAmount(s).mul(n);
                 default -> pat.where == PatternLocation.HUB_INTERNAL ? pat.inputAmount(s) : pat.inputAmount(s).mul(n);
             };
@@ -1113,8 +1144,19 @@ public final class HubState {
         @Nullable List<BlockPos> subs;
         @Nullable Pattern subsFor;
         long subsAt;
+        /** game time the GUI was last opened to look for products */
+        long guiPolledAt = Long.MIN_VALUE / 2;
         /** game time of the last redstone pulse asked for */
         long pulsedAt = Long.MIN_VALUE / 2;
+        /**
+         * sub-machines that took something by a right-click (no item slots: an altar's pedestal) and still hold it: a
+         * second right-click would swap what is on it, so they are left alone until the machine has no run left
+         */
+        final Set<BlockPos> filledSubs = new HashSet<>();
+        /** catalysts (role CATALYST) put into the machine and not yet back out, per batch of runs */
+        final Map<Flight, Map<AEKey, Long>> held = new LinkedHashMap<>();
+        /** catalysts to take out of the machine now: those of batches that are done */
+        final Map<AEKey, Long> due = new LinkedHashMap<>();
 
         MachineState(IMachineAccess access) {
             this.access = access;
@@ -1129,6 +1171,10 @@ public final class HubState {
         final Job job;
         final int pattern;
         final List<Part> parts = new ArrayList<>();
+        /** tools to right-click the machine with once every material is in (role TOOL) */
+        final List<AEKey> tools = new ArrayList<>();
+        /** game time the tools are used at, once every material is in (-1: not set yet) */
+        long toolAt = -1;
         long total;
         long fed;
 
@@ -1151,12 +1197,18 @@ public final class HubState {
         final List<@Nullable Direction> faces;
         /** where it goes ({@link PatternInputTargets}) */
         final int target;
+        /** what it is besides used up ({@link PatternInputRoles}) */
+        final int role;
+        /** the slot of the machine's GUI it goes into, for machines that take items only there (0 = the first that takes it) */
+        final int guiSlot;
 
-        Part(AEKey key, long left, List<@Nullable Direction> faces, int target) {
+        Part(AEKey key, long left, List<@Nullable Direction> faces, int target, int role, int guiSlot) {
+            this.guiSlot = guiSlot;
             this.key = key;
             this.left = left;
             this.faces = faces;
             this.target = target;
+            this.role = role;
         }
     }
 
@@ -1284,9 +1336,11 @@ public final class HubState {
             if (m.place == null)
                 m.place = GlobalPos.of(level.dimension(), pos);
             dropFeedOfEndedJob(m, env);
+            if (m.feed == null && m.inFlight.isEmpty())
+                m.filledSubs.clear();
             flushOverflow(m, env);
             boolean[] took = {false};
-            MachineIO.extractOutputs(level, pos, otherOutputs(m, env), (key, n) -> {
+            MachineIO.extractOutputs(level, pos, otherOutputs(m, env), materialsInside(m, env), (key, n) -> {
                 took[0] = true;
                 takeProduct(m, key, n, env);
             });
@@ -1296,6 +1350,8 @@ public final class HubState {
                 takeProduct(m, key, n, env);
             });
             pickUpFront(m, level, env);
+            takeFromGui(m, level, pos, env, took);
+            retrieveCatalysts(m, level, pos, env);
             pulseAgain(m, level, env);
             if (debug != null && !took[0] && !m.inFlight.isEmpty() && m.feed == null) {
                 Amount runs = Amount.ZERO;
@@ -1334,6 +1390,38 @@ public final class HubState {
         }
     }
 
+    /**
+     * The materials of the runs in machine {@code m} (and of the one being fed) that are used up or are catalysts: while
+     * they are in it they are not products, whatever the look of the slot they lie in, unless a run makes them too.
+     * What a machine gives back by design (a container) is not among them.
+     */
+    private Set<AEKey> materialsInside(MachineState m, ExecutionEnv env) {
+        List<Pattern> pats = new ArrayList<>();
+        for (MachineState peer : peers(m)) {
+            for (Flight f : peer.inFlight.keySet())
+                pats.add(f.job().snap.pattern(f.pattern()));
+            if (peer.feed != null)
+                pats.add(peer.feed.job.snap.pattern(peer.feed.pattern));
+        }
+        Set<AEKey> keep = new HashSet<>(), products = new HashSet<>();
+        for (Pattern pat : pats) {
+            for (int o = 0; o < pat.outputCount(); o++) {
+                AEKey k = env.index().keyOf(pat.outputItem(o));
+                if (k != null)
+                    products.add(k);
+            }
+            for (int s = 0; s < pat.inputCount(); s++) {
+                if (pat.inputKind(s) != InputKind.CONSUME && pat.inputRole(s) != PatternInputRoles.CATALYST)
+                    continue;
+                AEKey k = env.index().keyOf(pat.inputItem(s));
+                if (k != null)
+                    keep.add(k);
+            }
+        }
+        keep.removeAll(products);
+        return keep;
+    }
+
     /** The outputs of the runs in machine {@code m} that are neither items nor fluids (chemicals). */
     private Set<AEKey> otherOutputs(MachineState m, ExecutionEnv env) {
         Set<AEKey> out = new HashSet<>();
@@ -1367,6 +1455,21 @@ public final class HubState {
      * jobs waiting for it take it, the rest goes to network storage (as it came).
      */
     private void takeProduct(MachineState m, AEKey key, long n, ExecutionEnv env) {
+        // a catalyst coming back out of the machine is no longer in it, nor due
+        for (Iterator<Map.Entry<Flight, Map<AEKey, Long>>> it = m.held.entrySet().iterator(); it.hasNext() && n > 0; ) {
+            Map<AEKey, Long> h = it.next().getValue();
+            Long c = h.get(key);
+            if (c != null) {
+                long back = Math.min(c, n);
+                if (c - back > 0)
+                    h.put(key, c - back);
+                else
+                    h.remove(key);
+                if (h.isEmpty())
+                    it.remove();
+                m.due.computeIfPresent(key, (k, d) -> d - back > 0 ? d - back : null);
+            }
+        }
         AEKey as = productAs(m, key, env);
         int id = env.index().idOf(as);
         landed(m, id, Amount.of(n));
@@ -1416,6 +1519,11 @@ public final class HubState {
                 if (rest > 0)
                     m.overflow.merge(p.key, rest, Long::sum);
             }
+        for (AEKey tool : f.tools) {
+            long rest = 1 - toNetwork(env, tool, Amount.ONE).saturatedLong();
+            if (rest > 0)
+                m.overflow.merge(tool, rest, Long::sum);
+        }
         m.feed = null;
     }
 
@@ -1459,6 +1567,157 @@ public final class HubState {
         }
     }
 
+    // ───────────────────────────── catalysts and tools of machine patterns ─────────────────────────────
+
+    /** Machine {@code m} already holds the kept catalyst of slot {@code s} for {@code job}'s run of {@code pat}. */
+    private boolean holdsKept(MachineState m, Job job, Pattern pat, int s, ExecutionEnv env) {
+        AEKey key = env.index().keyOf(pat.inputItem(s));
+        if (key == null)
+            return false;
+        for (Map.Entry<Flight, Map<AEKey, Long>> e : m.held.entrySet())
+            if (e.getKey().job() == job && job.snap.pattern(e.getKey().pattern()) == pat && e.getValue().getOrDefault(key, 0L) > 0)
+                return true;
+        return false;
+    }
+
+    /** Some machine holds a kept catalyst for {@code job}'s pattern {@code p}. */
+    private boolean keptHeld(Job job, int p) {
+        for (MachineState m : machines.values())
+            for (Map.Entry<Flight, Map<AEKey, Long>> e : m.held.entrySet())
+                if (e.getKey().job() == job && e.getKey().pattern() == p && !e.getValue().isEmpty())
+                    return true;
+        return false;
+    }
+
+    /** The job's copies of a tool in other states of wear (same item, other data): the id of one with {@code amt}, or -1. */
+    private int wornCopy(Job job, int item, Amount amt, ExecutionEnv env) {
+        AEKey main = env.index().keyOf(item);
+        if (!(main instanceof AEItemKey tool))
+            return -1;
+        for (int id : job.inventory.keys()) {
+            if (id != item && job.inventory.get(id).compareTo(amt) >= 0 && env.index().keyOf(id) instanceof AEItemKey other
+                    && other.getItem() == tool.getItem())
+                return id;
+        }
+        return -1;
+    }
+
+    private Amount wornTotal(Job job, int item, ExecutionEnv env) {
+        AEKey main = env.index().keyOf(item);
+        Amount sum = Amount.ZERO;
+        if (main instanceof AEItemKey tool)
+            for (int id : job.inventory.keys())
+                if (id != item && env.index().keyOf(id) instanceof AEItemKey other && other.getItem() == tool.getItem())
+                    sum = sum.add(job.inventory.get(id));
+        return sum;
+    }
+
+    /** A batch is over: nothing of it is being fed, in flight, or still to be sent. */
+    private boolean batchOver(MachineState m, Flight f) {
+        if (f.job().finished || f.job().cancelled || !jobs.contains(f.job()))
+            return true;
+        if (m.feed != null && m.feed.job == f.job() && m.feed.pattern == f.pattern())
+            return false;
+        if (m.inFlight.containsKey(f))
+            return false;
+        for (Task t : f.job().tasks)
+            if (t.pattern == f.pattern() && t.remaining.signum() > 0)
+                return false;
+        return true;
+    }
+
+    /** how often (ticks) a machine without item slots has its GUI opened to see whether a product is in it */
+    private static final long GUI_POLL_TICKS = 30;
+    /** how long (ticks) the machine is left alone between its last material and the tool right-click */
+    private static final long TOOL_DELAY_TICKS = 1;
+
+    /**
+     * A machine with no item slots at all whose results lie in a GUI slot (a forge's result slot): while runs are
+     * in it and nothing is being fed, its GUI is opened now and then and the products of those runs are taken.
+     */
+    private void takeFromGui(MachineState m, ServerLevel level, BlockPos pos, ExecutionEnv env, boolean[] took) {
+        if (took[0] || m.inFlight.isEmpty() || m.feed != null)
+            return;
+        long now = level.getGameTime();
+        if (now - m.guiPolledAt < GUI_POLL_TICKS)
+            return;
+        m.guiPolledAt = now;
+        Map<AEKey, Integer> products = new HashMap<>();
+        for (MachineState peer : peers(m))
+            for (Flight f : peer.inFlight.keySet()) {
+                Pattern pat = f.job().snap.pattern(f.pattern());
+                for (int o = 0; o < pat.outputCount(); o++) {
+                    AEKey k = env.index().keyOf(pat.outputItem(o));
+                    if (k != null)
+                        products.merge(k, pat.outputGuiSlotOf(pat.outputItem(o)), Math::max);
+                }
+            }
+        // a machine with item slots is looked into only for products the pattern says come out of a GUI slot
+        if (products.isEmpty() || !MachineIO.itemHandlers(level, pos).isEmpty() && products.values().stream().noneMatch(v -> v > 0))
+            return;
+        long got = WorldIO.extractViaGui(level, pos, m.access.getMachineFace(), products, (k, n) -> {
+            took[0] = true;
+            takeProduct(m, k, n, env);
+        }, (k, n) -> m.overflow.merge(k, n, Long::sum));
+        if (debug != null && got > 0)
+            note(outNotes, m, "[雙星] 從 GUI 取出 " + pos.toShortString() + "：" + got + " 個產物");
+    }
+
+    /**
+     * Takes catalysts back out of the machine: those of finished runs, and the kept ones of finished batches.
+     * What does not come out this tick is tried again on the next.
+     */
+    private void retrieveCatalysts(MachineState m, ServerLevel level, BlockPos pos, ExecutionEnv env) {
+        if (m.held.isEmpty() && m.due.isEmpty())
+            return;
+        for (Map.Entry<Flight, Map<AEKey, Long>> e : new ArrayList<>(m.held.entrySet())) {
+            if (!batchOver(m, e.getKey()))
+                continue;
+            Pattern pat = e.getKey().job().snap.pattern(e.getKey().pattern());
+            for (int s = 0; s < pat.inputCount(); s++) {
+                int role = pat.inputRole(s);
+                AEKey key = env.index().keyOf(pat.inputItem(s));
+                if (key == null || role != PatternInputRoles.CATALYST)
+                    continue;
+                long inside = e.getValue().getOrDefault(key, 0L);
+                if (inside > 0)
+                    m.due.merge(key, inside, Math::max);
+            }
+        }
+        for (Map.Entry<AEKey, Long> d : new ArrayList<>(m.due.entrySet())) {
+            if (!(d.getKey() instanceof AEItemKey item))
+                continue;
+            long want = d.getValue();
+            long got = MachineIO.retrieve(level, pos, item, want, (k, n) -> takeProduct(m, k, n, env));
+            if (got < want && MachineIO.itemHandlers(level, pos).isEmpty())
+                // a block that only gives with a hand (an altar, an infusion chamber): an empty-hand click
+                WorldIO.emptyClick(level, pos, m.access.getMachineFace(), (k, n) -> takeProduct(m, k, n, env));
+            // what was put into its sub-machines (an altar's pedestals) comes out of them; by their item slots only,
+            // as a hand on a pedestal would take whatever else lies there
+            for (Map.Entry<Flight, Map<AEKey, Long>> h : new ArrayList<>(m.held.entrySet())) {
+                if (m.due.getOrDefault(item, 0L) <= 0)
+                    break;
+                for (BlockPos sub : subsOf(m, h.getKey().job().snap.pattern(h.getKey().pattern()), level, pos))
+                    if (level.isLoaded(sub))
+                        MachineIO.retrieve(level, sub, item, m.due.getOrDefault(item, 0L), (k, n) -> takeProduct(m, k, n, env));
+            }
+        }
+    }
+
+    /** Every material of the run is in: right-click the machine with each of its tools, and keep the tools as the clicks left them. */
+    private void useTools(MachineState m, Feed f, ServerLevel level, BlockPos pos) {
+        for (AEKey key : f.tools) {
+            if (!(key instanceof AEItemKey tool))
+                continue;
+            AEItemKey back = WorldIO.useTool(level, pos, m.access.getMachineFace(), tool, (k, n) -> m.overflow.merge(k, n, Long::sum));
+            if (back != null && envNow != null) {
+                int id = envNow.index().idOf(back);
+                f.job.inventory.add(id, Amount.ONE);
+                reoccupy(f.job, id, Amount.ONE);
+            }
+        }
+    }
+
     /** Puts in what the machine takes of its current run. */
     private void feed(MachineState m, ServerLevel level, BlockPos pos) {
         Feed f = m.feed;
@@ -1473,7 +1732,12 @@ public final class HubState {
                 case PatternInputTargets.SUB -> {
                     long went = 0;
                     for (BlockPos sub : subsOf(m, pat, level, pos)) {
-                        went += insertOrClick(m, level, sub, ANY_FACE, p.key, p.left - went);
+                        if (m.filledSubs.contains(sub))
+                            continue;
+                        long got = insertOrClick(m, level, sub, ANY_FACE, p.key, p.left - went, p.guiSlot);
+                        if (got > 0 && MachineIO.itemHandlers(level, sub).isEmpty())
+                            m.filledSubs.add(sub);
+                        went += got;
                         if (went >= p.left)
                             break;
                     }
@@ -1491,17 +1755,31 @@ public final class HubState {
                         went = WorldIO.drop(level, cell, item, p.left);
                     yield went;
                 }
-                default -> insertOrClick(m, level, pos, p.faces, p.key, p.left);
+                default -> insertOrClick(m, level, pos, p.faces, p.key, p.left, p.guiSlot);
             };
             p.left -= in;
             f.fed += in;
+            if (in > 0 && p.role != PatternInputRoles.NORMAL)
+                m.held.computeIfAbsent(new Flight(f.job, f.pattern), k -> new LinkedHashMap<>()).merge(p.key, in, Long::sum);
             if (stuck != null && p.left > 0)
                 stuck.append("\n    ").append(p.key.getDisplayName().getString()).append("（").append(p.key.getType().getDescription().getString())
                         .append("）還剩 ").append(p.left).append("，這次放入 ").append(in).append("；")
-                        .append(MachineIO.describeInsert(level, pos, p.faces, p.key, p.left));
+                        .append(MachineIO.describeInsert(level, pos, p.faces, p.key, p.left))
+                        .append(WorldIO.lastClick.isEmpty() ? "" : "；最後一次右鍵：" + WorldIO.lastClick);
         }
         if (f.done()) {
+            if (!f.tools.isEmpty()) {
+                // the machine is given a moment to take in what it was fed (a forge works out its pedestals a little later)
+                // before it is struck: started the very tick the last material lands, the machine tells its clients about
+                // the run while it is already going, which Forbidden Arcanus' client cannot take
+                long now = level.getGameTime();
+                if (f.toolAt < 0)
+                    f.toolAt = now + TOOL_DELAY_TICKS;
+                if (now < f.toolAt)
+                    return;
+            }
             m.feed = null;
+            useTools(m, f, level, pos);
             // runs fed together in one tick (dropped in front all at once) get one pulse, not one each
             if (m.pulsedAt != level.getGameTime()) {
                 m.access.onRunFed();
@@ -1522,11 +1800,20 @@ public final class HubState {
      * item into a block that has no item capability at all goes in by a right-click with it instead
      * (an altar that only takes what a player puts on it). What the click gives back goes to the network.
      */
-    private long insertOrClick(MachineState m, ServerLevel level, BlockPos pos, List<@Nullable Direction> faces, AEKey key, long amount) {
+    private long insertOrClick(MachineState m, ServerLevel level, BlockPos pos, List<@Nullable Direction> faces, AEKey key, long amount, int guiSlot) {
+        if (guiSlot > 0 && key instanceof AEItemKey item) {
+            // a GUI slot the pattern names: that slot, nowhere else (an ordered crafting table puts it by place; the machine's
+            // own item slots would put it wherever they like)
+            Direction face = faces.isEmpty() || faces.get(0) == null ? m.access.getMachineFace() : faces.get(0);
+            return WorldIO.insertViaGui(level, pos, face, item, amount, guiSlot, (k, n) -> m.overflow.merge(k, n, Long::sum));
+        }
         long in = MachineIO.insert(level, pos, faces, key, amount);
         if (in == 0 && key instanceof AEItemKey item && MachineIO.itemHandlers(level, pos).isEmpty()) {
             Direction face = faces.isEmpty() || faces.get(0) == null ? m.access.getMachineFace() : faces.get(0);
             in = WorldIO.rightClick(level, pos, face, item, amount, (k, n) -> m.overflow.merge(k, n, Long::sum));
+            if (in == 0)
+                // not a block that takes a hand-held item: one that keeps its items inside and shows them in a GUI
+                in = WorldIO.insertViaGui(level, pos, face, item, amount, guiSlot, (k, n) -> m.overflow.merge(k, n, Long::sum));
         }
         return in;
     }
@@ -1833,18 +2120,26 @@ public final class HubState {
 
     /** Takes one run's materials out of the job and starts feeding them to {@code m}. */
     private boolean startRun(Job job, Task t, Pattern pat, MachineState m, ExecutionEnv env) {
-        KeyCounter[] inputs = extractInputs(job, pat, env);
+        KeyCounter[] inputs = extractInputs(job, pat, env, m);
         if (inputs == null)
             return false;
         Feed f = new Feed(job, t.pattern);
         for (int s = 0; s < inputs.length; s++) {
             if (inputs[s] == null)
                 continue;
+            int role = pat.inputRole(s);
             List<@Nullable Direction> faces = facesFor(m.access, pat.inputFaces(s));
             for (Object2LongMap.Entry<AEKey> e : inputs[s]) {
+                if (role == PatternInputRoles.TOOL) {
+                    f.tools.add(e.getKey());
+                    continue;
+                }
                 f.parts.add(new Part(e.getKey(), e.getLongValue(), faces,
-                        PatternInputTargets.resolve(pat.inputTarget(s), pat.subMachineCount() > 0, s == 0)));
+                        PatternInputTargets.resolve(pat.inputTarget(s), pat.subMachineCount() > 0, s == 0), role, pat.inputGuiSlot(s)));
                 f.total += e.getLongValue();
+                // a kept catalyst is expected back once, when its batch is done, not with every run
+                if (role == PatternInputRoles.CATALYST)
+                    expect(job, env.index().idOf(e.getKey()), Amount.of(e.getLongValue()), env.nowNanos());
             }
         }
         m.feed = f;
