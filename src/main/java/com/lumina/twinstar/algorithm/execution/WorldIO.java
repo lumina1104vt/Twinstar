@@ -258,6 +258,17 @@ final class WorldIO {
         lastClick = "空手右鍵：" + clickResult;
         if (p.containerMenu != p.inventoryMenu)
             return p.containerMenu;
+        // a block that answers only some of its faces (a multiblock's parts): the other faces are tried
+        for (Direction other : Direction.values()) {
+            if (other == face)
+                continue;
+            clickBlock(level, pos, other, p, ItemStack.EMPTY);
+            if (p.containerMenu != p.inventoryMenu) {
+                lastClick += "；" + other + " 面右鍵：" + clickResult;
+                return p.containerMenu;
+            }
+        }
+        lastClick += "；其他五面也都沒有開 GUI";
         BlockState state = level.getBlockState(pos);
         net.minecraft.world.MenuProvider provider = null;
         try {
