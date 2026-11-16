@@ -1626,8 +1626,8 @@ public final class HubState {
         return true;
     }
 
-    /** how often (ticks) a machine without item slots has its GUI opened to see whether a product is in it */
-    private static final long GUI_POLL_TICKS = 30;
+    /** how often (ticks) a machine without item slots has its GUI opened to see whether a product is in it: every tick */
+    private static final long GUI_POLL_TICKS = 1;
     /** how long (ticks) the machine is left alone between its last material and the tool right-click */
     private static final long TOOL_DELAY_TICKS = 1;
 
