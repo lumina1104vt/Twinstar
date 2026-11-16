@@ -41,7 +41,7 @@ final class WorldIO {
     }
 
     private static FakePlayer player(ServerLevel level, BlockPos at) {
-        FakePlayer p = FakePlayerFactory.get(level, PROFILE);
+        FakePlayer p = GuiFakePlayer.get(level, PROFILE);
         p.setPos(Vec3.atCenterOf(at));
         return p;
     }
