@@ -231,8 +231,9 @@ final class WorldIO {
         BlockState state = level.getBlockState(pos);
         BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(pos).relative(face, 0.5), face, pos, false);
         try {
-            ItemInteractionResult r = hand.isEmpty() ? ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION
-                    : state.useItemOn(hand, level, p, InteractionHand.MAIN_HAND, hit);
+            // the block's useItemOn first, with an empty hand too, as the game does: a block that handles the click there
+            // (Immersive Engineering's multiblocks open their GUI in it) never reaches useWithoutItem
+            ItemInteractionResult r = state.useItemOn(hand, level, p, InteractionHand.MAIN_HAND, hit);
             if (r == ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION)
                 clickResult = "useWithoutItem=" + state.useWithoutItem(level, p, hit);
             else
