@@ -1626,10 +1626,6 @@ public final class HubState {
         return true;
     }
 
-    /** how often (ticks) a machine without item slots has its GUI opened to see whether a product is in it: every tick */
-    private static final long GUI_POLL_TICKS = 1;
-    /** how long (ticks) the machine is left alone between its last material and the tool right-click */
-    private static final long TOOL_DELAY_TICKS = 1;
 
     /**
      * A machine with no item slots at all whose results lie in a GUI slot (a forge's result slot): while runs are
@@ -1639,7 +1635,7 @@ public final class HubState {
         if (took[0] || m.inFlight.isEmpty() || m.feed != null)
             return;
         long now = level.getGameTime();
-        if (now - m.guiPolledAt < GUI_POLL_TICKS)
+        if (now - m.guiPolledAt < ExecutionSettings.guiPollTicks())
             return;
         m.guiPolledAt = now;
         Map<AEKey, Integer> products = new HashMap<>();
@@ -1774,7 +1770,7 @@ public final class HubState {
                 // the run while it is already going, which Forbidden Arcanus' client cannot take
                 long now = level.getGameTime();
                 if (f.toolAt < 0)
-                    f.toolAt = now + TOOL_DELAY_TICKS;
+                    f.toolAt = now + ExecutionSettings.toolDelayTicks();
                 if (now < f.toolAt)
                     return;
             }
