@@ -105,6 +105,35 @@ public interface IMachineAccess {
         return java.util.List.of(this);
     }
 
+    /** What a block bound to an interface is, next to the machine it belongs to. */
+    enum PortRole {
+        /** a machine of its own (the default) */
+        MACHINE,
+        /** an item input of the machine before it, by its slot number (an assembly line's input buses) */
+        ITEM_IN,
+        /** a fluid input of the machine before it, by its slot number */
+        FLUID_IN,
+        /** takes the products out of this block */
+        OUTPUT,
+        /** gets the FE the machine needs */
+        ENERGY
+    }
+
+    /**
+     * A block that belongs to this machine: where it is, what it is for and, for the inputs, its slot number (1 and up, the
+     * number a pattern's material slot names; each kind of input is numbered apart).
+     */
+    record Port(BlockPos pos, PortRole role, int slot) {
+    }
+
+    /**
+     * The blocks bound to the interface after this machine, until the next machine: a multiblock's hatches. A material whose pattern
+     * slot is N goes into the hatch with slot N; with none, as before (the machine's own GUI slot N).
+     */
+    default java.util.List<Port> ports() {
+        return java.util.List.of();
+    }
+
     /** Powered and on the grid. */
     boolean isAccessActive();
 }

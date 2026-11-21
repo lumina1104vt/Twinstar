@@ -1344,6 +1344,13 @@ public final class HubState {
                 took[0] = true;
                 takeProduct(m, key, n, env);
             });
+            // the output hatches bound to it
+            for (IMachineAccess.Port port : m.access.ports())
+                if (port.role() == IMachineAccess.PortRole.OUTPUT && level.isLoaded(port.pos()))
+                    MachineIO.extractOutputs(level, port.pos(), otherOutputs(m, env), materialsInside(m, env), (key, n) -> {
+                        took[0] = true;
+                        takeProduct(m, key, n, env);
+                    });
             // what the machine put out into its interface by itself
             m.access.takeReceived((key, n) -> {
                 took[0] = true;
@@ -1751,7 +1758,14 @@ public final class HubState {
                         went = WorldIO.drop(level, cell, item, p.left);
                     yield went;
                 }
-                default -> insertOrClick(m, level, pos, p.faces, p.key, p.left, p.guiSlot);
+                default -> {
+                    // the machine's hatches first (a multiblock's input buses, by the slot number the pattern gives): a material whose
+                    // slot has a hatch goes there and nowhere else; the rest goes into the machine as it always did
+                    boolean[] only = {false};
+                    long went = intoHatches(m, level, p, only);
+                    yield only[0] || went >= p.left ? went
+                            : went + insertOrClick(m, level, pos, p.faces, p.key, p.left - went, p.guiSlot);
+                }
             };
             p.left -= in;
             f.fed += in;
@@ -1785,6 +1799,36 @@ public final class HubState {
         else if (stuck != null)
             note(feedNotes, m, "[雙星] 機器放入 " + pos.toShortString() + "（放入方式 " + m.access.getInsertMode() + "，接口所在面 "
                     + m.access.getMachineFace().getName() + "）：" + stuck);
+    }
+
+    /**
+     * Puts a material into the hatches bound to the machine ({@link IMachineAccess#ports}): one whose slot number is the material's
+     * slot (items into the item inputs, fluids into the fluid inputs, each numbered apart); a fluid with no slot into the first
+     * fluid input that takes it. {@code only[0]} is set when a hatch is named for it, so it goes nowhere else even when that hatch
+     * is full (the order of an assembly line matters). Returns how much went in.
+     */
+    private long intoHatches(MachineState m, ServerLevel level, Part p, boolean[] only) {
+        List<IMachineAccess.Port> ports = m.access.ports();
+        if (ports.isEmpty())
+            return 0;
+        boolean fluid = p.key instanceof appeng.api.stacks.AEFluidKey;
+        IMachineAccess.PortRole role = fluid ? IMachineAccess.PortRole.FLUID_IN : IMachineAccess.PortRole.ITEM_IN;
+        long went = 0;
+        for (IMachineAccess.Port port : ports) {
+            if (port.role() != role || !level.isLoaded(port.pos()))
+                continue;
+            if (p.guiSlot > 0) {
+                if (port.slot() != p.guiSlot)
+                    continue;
+                only[0] = true;
+            } else if (!fluid) {
+                continue;               // an item with no slot goes into the machine
+            }
+            went += insertOrClick(m, level, port.pos(), ANY_FACE, p.key, p.left - went, 0);
+            if (went >= p.left || p.guiSlot > 0)
+                break;
+        }
+        return went;
     }
 
     /** No face, then every face: a sub-machine is put into however it lets anything in. */
