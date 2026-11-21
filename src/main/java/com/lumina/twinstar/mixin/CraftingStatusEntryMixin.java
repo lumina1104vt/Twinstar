@@ -29,11 +29,10 @@ public abstract class CraftingStatusEntryMixin implements BigStatusEntry {
     }
 
     @Inject(method = "write", at = @At("TAIL"))
-    private static void twinstar$writeBig(FriendlyByteBuf buf, CraftingStatusEntry entry, CallbackInfo ci) {
-        BigStatusAmounts big = ((BigStatusEntry) entry).twinstar$big();
-        buf.writeBoolean(big != null);
-        if (big != null)
-            big.write(buf);
+    private void twinstar$writeBig(FriendlyByteBuf buf, CallbackInfo ci) {
+        buf.writeBoolean(twinstar$big != null);
+        if (twinstar$big != null)
+            twinstar$big.write(buf);
     }
 
     @Inject(method = "read", at = @At("RETURN"))
