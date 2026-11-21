@@ -3,7 +3,7 @@
 plugins {
     id 'java-library'
     id 'idea'
-    id 'net.neoforged.moddev'   // version from the root project
+    id 'net.neoforged.moddev.legacyforge'   // version from the root project
 }
 
 // version comes from the root gradle.properties (twinstar_mod_version); must be set before mod-common reads it
@@ -14,7 +14,7 @@ ext.mod_description = file('description.txt').getText('UTF-8')
 
 apply from: rootProject.file('gradle/mod-common.gradle')
 
-neoForge {
+legacyForge {
     mods {
         "${mod_id}" {
             sourceSet(sourceSets.main)
@@ -26,38 +26,20 @@ repositories {
     mavenCentral()  // JUnit
 }
 
-configurations {
-    ldlibJar { transitive = false }
-}
-
-// LDLib2 bundles taffy and yoga as jar-in-jar; they are only needed to compile against its API
-def ldlibNested = layout.buildDirectory.dir('ldlib-nested')
-tasks.register('extractLdlibNested', Copy) {
-    from({ configurations.ldlibJar.collect { zipTree(it) } }) {
-        include 'META-INF/jarjar/taffy-*.jar', 'META-INF/jarjar/yoga-*.jar'
-        eachFile { path = name }
-    }
-    into ldlibNested
-    includeEmptyDirs = false
-}
-
 dependencies {
     // the engine hooks AE2's crafting service; AE2 itself is provided by the player
-    compileOnly "maven.modrinth:ae2:${ae2_version}"
+    modCompileOnly "maven.modrinth:ae2:${ae2_version}"
     // gen_patterns / dump_recipes read recipes (amounts, fluids, all outputs) from the player's JEI
-    compileOnly "maven.modrinth:jei:${jei_version}"
-    // LDLib2's UI (layout, stylesheets) for the plan screen; client only, provided by the player
-    compileOnly "maven.modrinth:ldlib:${ldlib_version}"
-    ldlibJar "maven.modrinth:ldlib:${ldlib_version}"
-    // its layout engines, whose types are in its layout API, ship inside its jar (no public maven)
-    compileOnly fileTree(dir: ldlibNested, include: '*.jar').builtBy('extractLdlibNested')
+    modCompileOnly "maven.modrinth:jei:${jei_version}"
+    // The plan screen is built with LDLib2's UI on 1.21.1; 1.20.1's LDLib has another UI API, so the screen is not ported yet
+    // (its classes will not compile on this branch until it is).
 
     // planner tests (algorithm.model / cache / planning / allocation are plain Java on int ids)
     testImplementation platform('org.junit:junit-bom:5.10.3')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    // recipeBench reads the recipe dump (same Gson as Minecraft 1.21.1, which is not on the test classpath)
-    testImplementation 'com.google.code.gson:gson:2.11.0'
+    // recipeBench reads the recipe dump (same Gson as Minecraft 1.20.1, which is not on the test classpath)
+    testImplementation 'com.google.code.gson:gson:2.10.1'
     // the crafting graphs' layout test builds graphs whose item keys are left null
     testCompileOnly "maven.modrinth:ae2:${ae2_version}"
 }

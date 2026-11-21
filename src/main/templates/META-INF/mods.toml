@@ -1,3 +1,4 @@
+# Forge 1.20.1 mods.toml (filled in by generateModMetadata from the gradle properties)
 modLoader="javafml"
 loaderVersion="${loader_version_range}"
 license="${mod_license}"
@@ -7,36 +8,27 @@ modId="${mod_id}"
 version="${mod_version}"
 displayName="${mod_name}"
 authors="${mod_authors}"
-description='''${mod_description}'''
-
-[[mixins]]
-config="${mod_id}.mixins.json"
+description='''
+${mod_description}
+'''
 
 [[dependencies."${mod_id}"]]
-    modId="neoforge"
-    type="required"
-    versionRange="${neo_version_range}"
+    modId="forge"
+    mandatory=true
+    versionRange="${forge_version_range}"
     ordering="NONE"
     side="BOTH"
 
 [[dependencies."${mod_id}"]]
     modId="minecraft"
-    type="required"
+    mandatory=true
     versionRange="${minecraft_version_range}"
     ordering="NONE"
     side="BOTH"
 
 [[dependencies."${mod_id}"]]
     modId="ae2"
-    type="required"
-    versionRange="[19.2,20)"
+    mandatory=true
+    versionRange="[15.4,16)"
     ordering="AFTER"
     side="BOTH"
-
-# the plan screen is built with LDLib2's UI (client only; servers do not need it)
-[[dependencies."${mod_id}"]]
-    modId="ldlib2"
-    type="required"
-    versionRange="[2.2.41,)"
-    ordering="NONE"
-    side="CLIENT"
