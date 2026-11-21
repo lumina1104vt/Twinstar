@@ -335,6 +335,20 @@ final class MachineIO {
         return sb.isEmpty() ? "（什麼都沒看到）" : sb.toString();
     }
 
+    /** For the debug log: when a face has no interface, what block it is and which faces do have one. */
+    private static String whatIsThere(ServerLevel level, BlockPos pos, boolean items) {
+        StringBuilder has = new StringBuilder();
+        for (Direction d : Direction.values()) {
+            boolean there = items ? com.lumina.twinstar.util.Caps.item(level, pos, d) != null : com.lumina.twinstar.util.Caps.fluid(level, pos, d) != null;
+            if (there)
+                has.append(has.isEmpty() ? "" : "、").append(d.getName());
+        }
+        boolean none = items ? com.lumina.twinstar.util.Caps.item(level, pos, null) == null : com.lumina.twinstar.util.Caps.fluid(level, pos, null) == null;
+        var be = level.getBlockEntity(pos);
+        return "（方塊 " + net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(level.getBlockState(pos).getBlock()) + "，方塊實體 "
+                + (be == null ? "無" : be.getClass().getSimpleName()) + "；有介面的面：" + (has.isEmpty() ? "沒有" : has) + "；不指定面：" + (none ? "也沒有" : "有") + "）";
+    }
+
     /** For the debug log: how much of {@code key} each face would take now (simulated). */
     static String describeInsert(ServerLevel level, BlockPos pos, List<@Nullable Direction> faces, AEKey key, long amount) {
         StringBuilder sb = new StringBuilder();
@@ -343,7 +357,7 @@ final class MachineIO {
             if (key instanceof AEItemKey item) {
                 IItemHandler h = level.getCapability(Capabilities.ItemHandler.BLOCK, pos, face);
                 if (h == null) {
-                    sb.append("沒有物品介面");
+                    sb.append("沒有物品介面").append(whatIsThere(level, pos, true));
                     continue;
                 }
                 int n = (int) Math.min(item.getMaxStackSize(), amount);
@@ -352,7 +366,7 @@ final class MachineIO {
             } else if (key instanceof AEFluidKey fluid) {
                 IFluidHandler h = level.getCapability(Capabilities.FluidHandler.BLOCK, pos, face);
                 if (h == null) {
-                    sb.append("沒有流體介面");
+                    sb.append("沒有流體介面").append(whatIsThere(level, pos, false));
                     continue;
                 }
                 int n = (int) Math.min(Integer.MAX_VALUE, amount);
