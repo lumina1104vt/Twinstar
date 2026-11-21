@@ -66,16 +66,8 @@ public abstract class CraftingCPUMenuMixin extends AEBaseMenu implements PullFro
         }
     }
 
-    /** Pause button: the job keeps its capacity and still receives returns, but nothing runs. */
-    @Inject(method = "toggleScheduling", at = @At("HEAD"), cancellable = true)
-    private void twinstar$toggleScheduling(CallbackInfo ci) {
-        if (isServerSide() && twinstar$cpu != null) {
-            twinstar$cpu.toggleSuspended();
-            ci.cancel();
-        }
-    }
-
-    @Inject(method = "broadcastChanges", at = @At("HEAD"))
+    // vanilla's method: named here, SRG in a production AE2 (this mixin does not remap AE2's class)
+    @Inject(method = {"broadcastChanges", "m_38946_"}, at = @At("HEAD"))
     private void twinstar$broadcastChanges(CallbackInfo ci) {
         if (isServerSide() && twinstar$cpu != null) {
             var status = twinstar$cpu.createStatus(key -> twinstar$serials.computeIfAbsent(key, k -> twinstar$nextSerial++));
