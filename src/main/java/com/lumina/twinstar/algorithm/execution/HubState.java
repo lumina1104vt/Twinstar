@@ -1775,6 +1775,7 @@ public final class HubState {
                 stuck.append("\n    ").append(p.key.getDisplayName().getString()).append("（").append(p.key.getType().getDescription().getString())
                         .append("）還剩 ").append(p.left).append("，這次放入 ").append(in).append("；")
                         .append(MachineIO.describeInsert(level, pos, p.faces, p.key, p.left))
+                        .append(hatchNote(m, level, p))
                         .append(WorldIO.lastClick.isEmpty() ? "" : "；最後一次右鍵：" + WorldIO.lastClick);
         }
         if (f.done()) {
@@ -1799,6 +1800,26 @@ public final class HubState {
         else if (stuck != null)
             note(feedNotes, m, "[雙星] 機器放入 " + pos.toShortString() + "（放入方式 " + m.access.getInsertMode() + "，接口所在面 "
                     + m.access.getMachineFace().getName() + "）：" + stuck);
+    }
+
+    /** For the debug log: the hatch a material's slot number names, and what it does with it. */
+    private String hatchNote(MachineState m, ServerLevel level, Part p) {
+        List<IMachineAccess.Port> ports = m.access.ports();
+        if (ports.isEmpty())
+            return "";
+        boolean fluid = p.key instanceof appeng.api.stacks.AEFluidKey;
+        IMachineAccess.PortRole role = fluid ? IMachineAccess.PortRole.FLUID_IN : IMachineAccess.PortRole.ITEM_IN;
+        StringBuilder sb = new StringBuilder("；艙口（" + (fluid ? "流體" : "物品") + "輸入，欄位 " + p.guiSlot + "）：");
+        boolean any = false;
+        for (IMachineAccess.Port port : ports) {
+            if (port.role() != role || (p.guiSlot > 0 && port.slot() != p.guiSlot))
+                continue;
+            any = true;
+            sb.append("\n      #").append(port.slot()).append(" ").append(port.pos().toShortString()).append(" ")
+                    .append(net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(level.getBlockState(port.pos()).getBlock())).append("：")
+                    .append(MachineIO.describeInsert(level, port.pos(), ANY_FACE, p.key, p.left));
+        }
+        return any ? sb.toString() : sb.append("沒有這個欄位號碼的艙口（綁了 ").append(ports.size()).append(" 個艙口）").toString();
     }
 
     /**
