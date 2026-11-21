@@ -2,7 +2,7 @@ package com.lumina.twinstar.mixin;
 
 import appeng.api.networking.crafting.ICraftingCPU;
 import appeng.api.stacks.AEKey;
-import appeng.core.network.clientbound.CraftingStatusPacket;
+import appeng.core.sync.packets.CraftingStatusPacket;
 import appeng.menu.AEBaseMenu;
 import appeng.menu.me.crafting.CraftingCPUMenu;
 import com.lumina.twinstar.cpu.TwinStarCpu;
@@ -18,7 +18,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import java.util.HashMap;
 import java.util.Map;
 
-@Mixin(CraftingCPUMenu.class)
+@Mixin(value = CraftingCPUMenu.class, remap = false)
 public abstract class CraftingCPUMenuMixin extends AEBaseMenu implements PullFromNetworkMenu {
     @Unique
     private final Map<AEKey, Long> twinstar$serials = new HashMap<>();

@@ -1,12 +1,11 @@
 package com.lumina.twinstar.algorithm.ae2;
 
+import com.lumina.twinstar.util.AEKeyCodec;
+
 import appeng.api.stacks.AEKey;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.core.Direction;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,16 +20,12 @@ public record PatternInputFaces(List<Entry> entries) {
     /** {@code faces}: bit {@link Direction#get3DDataValue()} set for each face. */
     public record Entry(AEKey key, int faces) {
         static final Codec<Entry> CODEC = RecordCodecBuilder.create(i -> i.group(
-                AEKey.CODEC.fieldOf("key").forGetter(Entry::key),
+                AEKeyCodec.KEY.fieldOf("key").forGetter(Entry::key),
                 Codec.INT.fieldOf("faces").forGetter(Entry::faces)).apply(i, Entry::new));
-        static final StreamCodec<RegistryFriendlyByteBuf, Entry> STREAM_CODEC = StreamCodec.composite(
-                AEKey.STREAM_CODEC, Entry::key, ByteBufCodecs.VAR_INT, Entry::faces, Entry::new);
     }
 
     public static final Codec<PatternInputFaces> CODEC = Entry.CODEC.listOf()
             .xmap(PatternInputFaces::new, PatternInputFaces::entries);
-    public static final StreamCodec<RegistryFriendlyByteBuf, PatternInputFaces> STREAM_CODEC = Entry.STREAM_CODEC
-            .apply(ByteBufCodecs.list()).map(PatternInputFaces::new, PatternInputFaces::entries);
 
     public PatternInputFaces {
         entries = List.copyOf(entries);

@@ -9,7 +9,7 @@ import appeng.menu.ISubMenu;
 import appeng.menu.MenuOpener;
 import appeng.menu.SlotSemantics;
 import appeng.menu.guisync.GuiSync;
-import appeng.menu.locator.MenuHostLocator;
+import appeng.menu.locator.MenuLocator;
 import appeng.menu.me.crafting.CraftAmountMenu;
 import appeng.menu.slot.AppEngSlot;
 import appeng.menu.slot.InaccessibleSlot;
@@ -71,11 +71,11 @@ public class OrderMenu extends AEBaseMenu implements ISubMenu {
         registerClientAction(ORIGINAL, String.class, this::useOriginal);
     }
 
-    public static void open(ServerPlayer player, MenuHostLocator locator, AEKey whatToCraft, int initialAmount) {
+    public static void open(ServerPlayer player, MenuLocator locator, AEKey whatToCraft, int initialAmount) {
         open(player, locator, whatToCraft, BigInteger.valueOf(Math.max(1, initialAmount)));
     }
 
-    public static void open(ServerPlayer player, MenuHostLocator locator, AEKey whatToCraft, BigInteger initialAmount) {
+    public static void open(ServerPlayer player, MenuLocator locator, AEKey whatToCraft, BigInteger initialAmount) {
         MenuOpener.open(TwinstarContent.ORDER_MENU.get(), player, locator);
         if (player.containerMenu instanceof OrderMenu menu) {
             menu.whatToCraft = Objects.requireNonNull(whatToCraft, "whatToCraft");
@@ -151,7 +151,7 @@ public class OrderMenu extends AEBaseMenu implements ISubMenu {
             sendClientAction(ORIGINAL, amount);
             return;
         }
-        MenuHostLocator locator = getLocator();
+        MenuLocator locator = getLocator();
         if (whatToCraft == null || locator == null || !(getPlayer() instanceof ServerPlayer player))
             return;
         int initial = 1;

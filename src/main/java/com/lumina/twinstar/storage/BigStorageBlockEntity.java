@@ -7,19 +7,15 @@ import appeng.api.stacks.KeyCounter;
 import appeng.api.storage.IStorageMounts;
 import appeng.api.storage.IStorageProvider;
 import appeng.api.storage.MEStorage;
-import appeng.blockentity.grid.AENetworkedBlockEntity;
+import appeng.blockentity.grid.AENetworkBlockEntity;
 import appeng.util.SettingsFrom;
 import com.lumina.twinstar.api.IBigStorage;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.HolderLookup;
-import net.minecraft.core.component.DataComponentMap;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.component.CustomData;
 import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.Nullable;
 
@@ -34,7 +30,7 @@ import java.util.function.BiConsumer;
  * long maximum); the twin-star engine inserts and extracts exact amounts through {@link IBigStorage}.
  * Breaking it keeps the contents in the dropped item; placing it restores them.
  */
-public class BigStorageBlockEntity extends AENetworkedBlockEntity implements IStorageProvider, IBigStorage {
+public class BigStorageBlockEntity extends AENetworkBlockEntity implements IStorageProvider, IBigStorage {
     private static final String CONTENTS = "twinstar_contents";
     private static final BigInteger LONG_MAX = BigInteger.valueOf(Long.MAX_VALUE);
 
@@ -148,33 +144,33 @@ public class BigStorageBlockEntity extends AENetworkedBlockEntity implements ISt
     // ── saving ──
 
     @Override
-    public void saveAdditional(CompoundTag data, HolderLookup.Provider registries) {
-        super.saveAdditional(data, registries);
-        data.put(CONTENTS, writeContents(registries));
+    public void saveAdditional(CompoundTag data) {
+        super.saveAdditional(data);
+        data.put(CONTENTS, writeContents());
     }
 
     @Override
-    public void loadTag(CompoundTag data, HolderLookup.Provider registries) {
-        super.loadTag(data, registries);
-        readContents(data.getList(CONTENTS, Tag.TAG_COMPOUND), registries);
+    public void loadTag(CompoundTag data) {
+        super.loadTag(data);
+        readContents(data.getList(CONTENTS, Tag.TAG_COMPOUND));
     }
 
-    private ListTag writeContents(HolderLookup.Provider registries) {
+    private ListTag writeContents() {
         ListTag list = new ListTag();
         for (Map.Entry<AEKey, BigInteger> e : amounts.entrySet()) {
             CompoundTag entry = new CompoundTag();
-            entry.put("key", e.getKey().toTagGeneric(registries));
+            entry.put("key", e.getKey().toTagGeneric());
             entry.putString("amount", e.getValue().toString());
             list.add(entry);
         }
         return list;
     }
 
-    private void readContents(ListTag list, HolderLookup.Provider registries) {
+    private void readContents(ListTag list) {
         amounts.clear();
         for (int i = 0; i < list.size(); i++) {
             CompoundTag entry = list.getCompound(i);
-            AEKey key = AEKey.fromTagGeneric(registries, entry.getCompound("key"));
+            AEKey key = AEKey.fromTagGeneric(entry.getCompound("key"));
             if (key == null)
                 continue;
             try {
@@ -189,26 +185,19 @@ public class BigStorageBlockEntity extends AENetworkedBlockEntity implements ISt
 
     /** The dropped item carries the contents (AE2 calls this for the block's own item in the drops). */
     @Override
-    public void exportSettings(SettingsFrom mode, DataComponentMap.Builder builder, @Nullable Player player) {
-        super.exportSettings(mode, builder, player);
-        if (mode == SettingsFrom.DISMANTLE_ITEM && !amounts.isEmpty() && level != null) {
-            CompoundTag tag = new CompoundTag();
-            tag.put(CONTENTS, writeContents(level.registryAccess()));
-            builder.set(DataComponents.CUSTOM_DATA, CustomData.of(tag));
-        }
+    public void exportSettings(SettingsFrom mode, CompoundTag output, @Nullable Player player) {
+        super.exportSettings(mode, output, player);
+        if (mode == SettingsFrom.DISMANTLE_ITEM && !amounts.isEmpty() && level != null)
+            output.put(CONTENTS, writeContents());
     }
 
     /** Placing the item restores them. */
     @Override
-    public void importSettings(SettingsFrom mode, DataComponentMap input, @Nullable Player player) {
+    public void importSettings(SettingsFrom mode, CompoundTag input, @Nullable Player player) {
         super.importSettings(mode, input, player);
-        CustomData data = input.get(DataComponents.CUSTOM_DATA);
-        if (mode == SettingsFrom.DISMANTLE_ITEM && data != null && level != null) {
-            CompoundTag tag = data.copyTag();
-            if (tag.contains(CONTENTS)) {
-                readContents(tag.getList(CONTENTS, Tag.TAG_COMPOUND), level.registryAccess());
-                saveChanges();
-            }
+        if (mode == SettingsFrom.DISMANTLE_ITEM && level != null && input.contains(CONTENTS)) {
+            readContents(input.getList(CONTENTS, Tag.TAG_COMPOUND));
+            saveChanges();
         }
     }
 }

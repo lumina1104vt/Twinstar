@@ -1,7 +1,7 @@
 package com.lumina.twinstar.mixin;
 
 import appeng.api.stacks.AEKey;
-import appeng.menu.locator.MenuHostLocator;
+import appeng.menu.locator.MenuLocator;
 import appeng.menu.me.crafting.CraftAmountMenu;
 import com.lumina.twinstar.order.OrderFlow;
 import com.lumina.twinstar.order.OrderMenu;
@@ -17,10 +17,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * "original screen" button comes back here once without being redirected, and from there on AE2's
  * own order path (as other mods extend it) runs untouched.
  */
-@Mixin(CraftAmountMenu.class)
+@Mixin(value = CraftAmountMenu.class, remap = false)
 public abstract class CraftAmountMenuMixin {
     @Inject(method = "open", at = @At("HEAD"), cancellable = true)
-    private static void twinstar$orderScreen(ServerPlayer player, MenuHostLocator locator, AEKey whatToCraft, int initialAmount,
+    private static void twinstar$orderScreen(ServerPlayer player, MenuLocator locator, AEKey whatToCraft, int initialAmount,
                                              CallbackInfo ci) {
         if (OrderFlow.replaces(player, locator)) {
             OrderMenu.open(player, locator, whatToCraft, initialAmount);

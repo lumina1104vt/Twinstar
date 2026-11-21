@@ -1,7 +1,7 @@
 package com.lumina.twinstar.theory;
 
 import appeng.api.stacks.AEKey;
-import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.FriendlyByteBuf;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -51,7 +51,7 @@ public record TheoryItem(AEKey key, boolean known, int level, double logCost, bo
         return new TheoryItem(key, false, 0, Double.POSITIVE_INFINITY, true, false, false, List.of(), 0, List.of(), null);
     }
 
-    public void write(RegistryFriendlyByteBuf buf) {
+    public void write(FriendlyByteBuf buf) {
         AEKey.writeKey(buf, key);
         buf.writeBoolean(known);
         buf.writeVarInt(level);
@@ -84,7 +84,7 @@ public record TheoryItem(AEKey key, boolean known, int level, double logCost, bo
         }
     }
 
-    public static TheoryItem read(RegistryFriendlyByteBuf buf) {
+    public static TheoryItem read(FriendlyByteBuf buf) {
         AEKey key = AEKey.readKey(buf);
         boolean known = buf.readBoolean();
         int level = buf.readVarInt();
@@ -112,17 +112,17 @@ public record TheoryItem(AEKey key, boolean known, int level, double logCost, bo
         return new TheoryItem(key, known, level, logCost, raw, mined, infinite, routes, more, bom, loop);
     }
 
-    private static void writeNullableKey(RegistryFriendlyByteBuf buf, @Nullable AEKey key) {
+    private static void writeNullableKey(FriendlyByteBuf buf, @Nullable AEKey key) {
         buf.writeBoolean(key != null);
         if (key != null)
             AEKey.writeKey(buf, key);
     }
 
-    private static @Nullable AEKey readNullableKey(RegistryFriendlyByteBuf buf) {
+    private static @Nullable AEKey readNullableKey(FriendlyByteBuf buf) {
         return buf.readBoolean() ? AEKey.readKey(buf) : null;
     }
 
-    static void writeStacks(RegistryFriendlyByteBuf buf, List<Stack> stacks) {
+    static void writeStacks(FriendlyByteBuf buf, List<Stack> stacks) {
         buf.writeVarInt(stacks.size());
         for (Stack s : stacks) {
             AEKey.writeKey(buf, s.key());
@@ -131,7 +131,7 @@ public record TheoryItem(AEKey key, boolean known, int level, double logCost, bo
         }
     }
 
-    static List<Stack> readStacks(RegistryFriendlyByteBuf buf) {
+    static List<Stack> readStacks(FriendlyByteBuf buf) {
         int n = Math.min(buf.readVarInt(), MAX_LIST);
         List<Stack> stacks = new ArrayList<>(n);
         for (int i = 0; i < n; i++)

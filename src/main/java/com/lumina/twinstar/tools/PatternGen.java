@@ -25,16 +25,15 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
-import net.minecraft.world.item.crafting.RecipeHolder;
+import com.lumina.twinstar.util.RecipeHolder;
 import net.minecraft.world.item.crafting.ShapedRecipe;
 import net.minecraft.world.item.crafting.SmithingTrimRecipe;
 import net.minecraft.world.item.crafting.StonecutterRecipe;
-import net.neoforged.neoforge.capabilities.Capabilities;
-import net.neoforged.neoforge.event.RegisterCommandsEvent;
-import net.neoforged.neoforge.event.server.ServerStoppingEvent;
-import net.neoforged.neoforge.event.tick.ServerTickEvent;
-import net.neoforged.neoforge.items.IItemHandler;
-import net.neoforged.neoforge.items.ItemHandlerHelper;
+import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.items.IItemHandler;
+import net.minecraftforge.items.ItemHandlerHelper;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayDeque;
@@ -149,7 +148,9 @@ public final class PatternGen {
         return JOBS.isEmpty();
     }
 
-    public static void onServerTick(ServerTickEvent.Post event) {
+    public static void onServerTick(TickEvent.ServerTickEvent event) {
+        if (event.phase != TickEvent.Phase.END)
+            return;
         if (JOBS.isEmpty())
             return;
         long deadline = System.nanoTime() + TICK_BUDGET_NANOS;
@@ -168,7 +169,7 @@ public final class PatternGen {
     private static @Nullable IItemHandler handlerAt(ServerLevel level, BlockPos pos) {
         if (!level.isLoaded(pos))
             return null;
-        return level.getCapability(Capabilities.ItemHandler.BLOCK, pos, null);
+        return com.lumina.twinstar.util.Caps.item(level, pos, null);
     }
 
     /**
@@ -215,7 +216,7 @@ public final class PatternGen {
             this.processingPos = processingPos;
             this.mode = mode;
             this.filter = filter;
-            for (RecipeHolder<?> h : level.getRecipeManager().getRecipes())
+            for (RecipeHolder<?> h : RecipeHolder.all(level.getRecipeManager().getRecipes()))
                 if ((h.value() instanceof CraftingRecipe || h.value() instanceof StonecutterRecipe)
                         && (filter.isEmpty() || h.id().toString().contains(filter)))
                     recipes.add(h);
@@ -285,11 +286,11 @@ public final class PatternGen {
             try {
                 JeiRecipes.Converted c = JeiRecipes.convert(r, level, jeiTally);
                 if (c != null) {
-                    pattern = PatternDetailsHelper.encodeProcessingPattern(c.patternInputs(), c.patternOutputs());
+                    pattern = PatternDetailsHelper.encodeProcessingPattern(c.patternInputs().toArray(new GenericStack[0]), c.patternOutputs().toArray(new GenericStack[0]));
                     if (!c.chances().isEmpty()) {
                         List<PatternChances.Entry> entries = new ArrayList<>();
                         c.chances().forEach((k, p) -> entries.add(new PatternChances.Entry(k, p)));
-                        pattern.set(TwinstarContent.PATTERN_CHANCES.get(), new PatternChances(entries));
+                        TwinstarContent.PATTERN_CHANCES.set(pattern, new PatternChances(entries));
                     }
                     if (PatternDetailsHelper.decodePattern(pattern, level) == null) {
                         pattern = null;
@@ -460,11 +461,11 @@ public final class PatternGen {
         if (r instanceof CraftingRecipe) {
             ItemStack[] grid = grid(r);
             if (grid != null)
-                pattern = PatternDetailsHelper.encodeCraftingPattern((RecipeHolder<CraftingRecipe>) holder, grid, result, true, false);
+                pattern = PatternDetailsHelper.encodeCraftingPattern((CraftingRecipe) r, grid, result, true, false);
         } else if (r instanceof StonecutterRecipe && !r.getIngredients().isEmpty()) {
             ItemStack[] in = r.getIngredients().get(0).getItems();
             if (in.length > 0)
-                pattern = PatternDetailsHelper.encodeStonecuttingPattern((RecipeHolder<StonecutterRecipe>) holder,
+                pattern = PatternDetailsHelper.encodeStonecuttingPattern((StonecutterRecipe) r,
                         AEItemKey.of(in[0]), AEItemKey.of(result), true);
         }
         if (pattern != null && PatternDetailsHelper.decodePattern(pattern, level) != null)
@@ -514,7 +515,7 @@ public final class PatternGen {
         in.forEach((k, v) -> inputs.add(new GenericStack(k, v)));
         List<GenericStack> outputs = new ArrayList<>();
         out.forEach((k, v) -> outputs.add(new GenericStack(k, v)));
-        ItemStack pattern = PatternDetailsHelper.encodeProcessingPattern(inputs, outputs);
+        ItemStack pattern = PatternDetailsHelper.encodeProcessingPattern(inputs.toArray(new GenericStack[0]), outputs.toArray(new GenericStack[0]));
         return PatternDetailsHelper.decodePattern(pattern, level) != null ? pattern : null;
     }
 }

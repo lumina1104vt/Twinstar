@@ -21,11 +21,11 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
-import net.minecraft.world.item.crafting.RecipeHolder;
+import com.lumina.twinstar.util.RecipeHolder;
 import net.minecraft.world.item.crafting.StonecutterRecipe;
-import net.neoforged.neoforge.event.RegisterCommandsEvent;
-import net.neoforged.neoforge.event.server.ServerStartedEvent;
-import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.server.ServerStartedEvent;
+import net.minecraftforge.event.TickEvent;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -115,7 +115,9 @@ public final class RecipeDump {
     private static boolean stopWhenDone;
 
     /** Runs the scheduled startup commands; with stopAfterDump, stops once they and any pattern generation are done. */
-    public static void onServerTick(ServerTickEvent.Post event) {
+    public static void onServerTick(TickEvent.ServerTickEvent event) {
+        if (event.phase != TickEvent.Phase.END)
+            return;
         MinecraftServer server = event.getServer();
         int now = server.getTickCount();
         for (int i = 0; i < SCHEDULED.size(); i++) {
@@ -138,7 +140,7 @@ public final class RecipeDump {
             source.sendFailure(Component.literal("[雙星] 合成表要從玩家的 JEI 讀取，需要由裝有 JEI 的玩家下指令"));
             return 0;
         }
-        Path path = file != null ? Path.of(file) : server.getServerDirectory().resolve("twinstar").resolve("recipes.json");
+        Path path = file != null ? Path.of(file) : server.getServerDirectory().toPath().resolve("twinstar").resolve("recipes.json");
         Dump d = new Dump(source, server.overworld(), path);
         RUNNING.add(d);
         JeiRequests.request(player, d);
@@ -168,7 +170,7 @@ public final class RecipeDump {
             this.level = level;
             this.path = path;
             RegistryAccess registries = level.registryAccess();
-            for (RecipeHolder<?> holder : level.getRecipeManager().getRecipes()) {
+            for (RecipeHolder<?> holder : RecipeHolder.all(level.getRecipeManager().getRecipes())) {
                 if (!(holder.value() instanceof CraftingRecipe) && !(holder.value() instanceof StonecutterRecipe))
                     continue;
                 JsonObject json;

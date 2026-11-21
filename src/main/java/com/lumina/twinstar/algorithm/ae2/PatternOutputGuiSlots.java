@@ -1,11 +1,10 @@
 package com.lumina.twinstar.algorithm.ae2;
 
+import com.lumina.twinstar.util.AEKeyCodec;
+
 import appeng.api.stacks.AEKey;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
 
 import java.util.List;
 
@@ -20,16 +19,12 @@ public record PatternOutputGuiSlots(List<Entry> entries) {
 
     public record Entry(AEKey key, int slot) {
         static final Codec<Entry> CODEC = RecordCodecBuilder.create(i -> i.group(
-                AEKey.CODEC.fieldOf("key").forGetter(Entry::key),
+                AEKeyCodec.KEY.fieldOf("key").forGetter(Entry::key),
                 Codec.INT.fieldOf("slot").forGetter(Entry::slot)).apply(i, Entry::new));
-        static final StreamCodec<RegistryFriendlyByteBuf, Entry> STREAM_CODEC = StreamCodec.composite(
-                AEKey.STREAM_CODEC, Entry::key, ByteBufCodecs.VAR_INT, Entry::slot, Entry::new);
     }
 
     public static final Codec<PatternOutputGuiSlots> CODEC = Entry.CODEC.listOf()
             .xmap(PatternOutputGuiSlots::new, PatternOutputGuiSlots::entries);
-    public static final StreamCodec<RegistryFriendlyByteBuf, PatternOutputGuiSlots> STREAM_CODEC = Entry.STREAM_CODEC
-            .apply(ByteBufCodecs.list()).map(PatternOutputGuiSlots::new, PatternOutputGuiSlots::entries);
 
     public PatternOutputGuiSlots {
         entries = List.copyOf(entries);

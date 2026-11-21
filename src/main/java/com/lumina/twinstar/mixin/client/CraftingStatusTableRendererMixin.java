@@ -19,7 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /** CPU-status entries of hub jobs: exact amounts (beyond a long too), a hint for infinite sources, 機率產物不足. */
-@Mixin(CraftingStatusTableRenderer.class)
+@Mixin(value = CraftingStatusTableRenderer.class, remap = false)
 public abstract class CraftingStatusTableRendererMixin {
     @Inject(method = "getEntryDescription(Lappeng/menu/me/crafting/CraftingStatusEntry;)Ljava/util/List;",
             at = @At("RETURN"), cancellable = true)

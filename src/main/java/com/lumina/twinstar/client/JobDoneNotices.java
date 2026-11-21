@@ -24,7 +24,7 @@ public final class JobDoneNotices {
     }
 
     private static final class DoneToast implements Toast {
-        private static final ResourceLocation BACKGROUND = ResourceLocation.withDefaultNamespace("toast/advancement");
+        private static final ResourceLocation BACKGROUND = new ResourceLocation("textures/gui/toasts.png");
         private static final long SHOW_MS = 5000;
         private final JobDonePacket job;
 
@@ -36,7 +36,7 @@ public final class JobDoneNotices {
         public Visibility render(GuiGraphics g, ToastComponent toasts, long timeSinceLastVisible) {
             Minecraft mc = toasts.getMinecraft();
             Font font = mc.font;
-            g.blitSprite(BACKGROUND, 0, 0, width(), height());
+            g.blit(BACKGROUND, 0, 0, 0, 0, width(), height());
             // the item's own picture, as on an advancement toast
             AEKeyRendering.drawInGui(mc, g, 8, 8, job.what());
 

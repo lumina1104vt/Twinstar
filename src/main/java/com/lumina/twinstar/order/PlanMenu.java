@@ -11,7 +11,7 @@ import appeng.menu.AEBaseMenu;
 import appeng.menu.ISubMenu;
 import appeng.menu.MenuOpener;
 import appeng.menu.guisync.GuiSync;
-import appeng.menu.locator.MenuHostLocator;
+import appeng.menu.locator.MenuLocator;
 import com.lumina.twinstar.Twinstar;
 import com.lumina.twinstar.algorithm.ae2.PlanWrapper;
 import com.lumina.twinstar.algorithm.model.Amount;
@@ -21,7 +21,6 @@ import com.lumina.twinstar.storage.TwinstarContent;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
-import net.neoforged.neoforge.network.PacketDistributor;
 import org.jetbrains.annotations.Nullable;
 
 import java.math.BigInteger;
@@ -83,7 +82,7 @@ public class PlanMenu extends AEBaseMenu implements ISubMenu {
         registerClientAction(MARK, MarkRequest.class, this::mark);
     }
 
-    public static void open(ServerPlayer player, MenuHostLocator locator, AEKey what, BigInteger amount, boolean bestEffort,
+    public static void open(ServerPlayer player, MenuLocator locator, AEKey what, BigInteger amount, boolean bestEffort,
                             boolean autoStart) {
         MenuOpener.open(TwinstarContent.PLAN_MENU.get(), player, locator);
         if (player.containerMenu instanceof PlanMenu menu) {
@@ -153,7 +152,7 @@ public class PlanMenu extends AEBaseMenu implements ISubMenu {
             return;
         PlanView v = PlanTree.build(pw, System.nanoTime() - startedNanos, service.freeCapacityExact(), service.getParallelism());
         view = v;
-        PacketDistributor.sendToPlayer(player, new PlanViewPacket(containerId, v));
+        com.lumina.twinstar.TwinNet.toPlayer(player, new PlanViewPacket(containerId, v));
         if (autoStart && pw.plan().isComplete()) {
             autoStart = false;
             start();
@@ -230,7 +229,7 @@ public class PlanMenu extends AEBaseMenu implements ISubMenu {
             sendClientAction(BACK);
             return;
         }
-        MenuHostLocator locator = getLocator();
+        MenuLocator locator = getLocator();
         if (what != null && locator != null && getPlayer() instanceof ServerPlayer player)
             OrderMenu.open(player, locator, what, amount);
     }

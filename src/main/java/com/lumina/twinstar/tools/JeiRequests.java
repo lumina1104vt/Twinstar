@@ -3,9 +3,8 @@ package com.lumina.twinstar.tools;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
-import net.neoforged.neoforge.event.server.ServerStoppingEvent;
-import net.neoforged.neoforge.event.tick.ServerTickEvent;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.event.server.ServerStoppingEvent;
+import net.minecraftforge.event.TickEvent;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -50,7 +49,7 @@ public final class JeiRequests {
     public static void request(ServerPlayer player, Receiver receiver) {
         int id = next++;
         PENDING.put(id, new Pending(player.getUUID(), receiver));
-        PacketDistributor.sendToPlayer(player, new JeiPackets.Request(id));
+        com.lumina.twinstar.TwinNet.toPlayer(player, new JeiPackets.Request(id));
     }
 
     static void received(JeiPackets.Recipes packet, Player from) {
@@ -70,7 +69,9 @@ public final class JeiRequests {
         }
     }
 
-    public static void onServerTick(ServerTickEvent.Post event) {
+    public static void onServerTick(TickEvent.ServerTickEvent event) {
+        if (event.phase != TickEvent.Phase.END)
+            return;
         long now = System.nanoTime();
         for (Iterator<Pending> it = PENDING.values().iterator(); it.hasNext(); ) {
             Pending p = it.next();

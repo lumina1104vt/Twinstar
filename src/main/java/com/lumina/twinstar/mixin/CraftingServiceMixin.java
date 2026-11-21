@@ -33,7 +33,7 @@ import java.util.concurrent.Future;
  * Every hook first asks whether the grid has an active hub; without one AE2 runs unchanged.
  * AE2's own CPUs keep working beside the hub; a plan only ever runs on the engine that made it.
  */
-@Mixin(CraftingService.class)
+@Mixin(value = CraftingService.class, remap = false)
 public abstract class CraftingServiceMixin {
     @Shadow
     @Final

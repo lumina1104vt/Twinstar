@@ -2,7 +2,6 @@ package com.lumina.twinstar.theory;
 
 import appeng.api.stacks.AEKey;
 import com.lumina.twinstar.service.TwinStarService;
-import net.neoforged.neoforge.network.PacketDistributor;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
@@ -52,14 +51,14 @@ public final class TheoryCache {
     }
 
     public static void askStatus() {
-        PacketDistributor.sendToServer(new TheoryPackets.Request(TheoryPackets.Request.STATUS, null));
+        com.lumina.twinstar.TwinNet.toServer(new TheoryPackets.Request(TheoryPackets.Request.STATUS, null));
     }
 
     /** The item's details, asking the server if they are not here yet (null until they come). */
     public static @Nullable TheoryItem item(AEKey key) {
         TheoryItem item = items.get(key);
         if (item == null && asked.add(key))
-            PacketDistributor.sendToServer(new TheoryPackets.Request(TheoryPackets.Request.ITEM, key));
+            com.lumina.twinstar.TwinNet.toServer(new TheoryPackets.Request(TheoryPackets.Request.ITEM, key));
         return item;
     }
 
@@ -93,11 +92,11 @@ public final class TheoryCache {
             asked.clear();
             for (AEKey key : Set.copyOf(items.keySet()))
                 if (asked.add(key))
-                    PacketDistributor.sendToServer(new TheoryPackets.Request(TheoryPackets.Request.ITEM, key));
+                    com.lumina.twinstar.TwinNet.toServer(new TheoryPackets.Request(TheoryPackets.Request.ITEM, key));
         }
         if (s.version() >= 0 && s.version() != mapAsked && (map == null || map.version() != s.version())) {
             mapAsked = s.version();
-            PacketDistributor.sendToServer(new TheoryPackets.Request(TheoryPackets.Request.MAP, null));
+            com.lumina.twinstar.TwinNet.toServer(new TheoryPackets.Request(TheoryPackets.Request.MAP, null));
         }
         changes++;
     }

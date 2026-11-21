@@ -1,18 +1,16 @@
 package com.lumina.twinstar.tools;
 
-import com.lumina.twinstar.Twinstar;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import com.lumina.twinstar.TwinNet;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
-import net.neoforged.fml.ModList;
-import net.neoforged.neoforge.network.PacketDistributor;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraftforge.fml.ModList;
+import net.minecraftforge.network.NetworkEvent;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * The two packets that bring JEI's recipes from a player's client to the server: the server asks
@@ -23,25 +21,26 @@ public final class JeiPackets {
     }
 
     /** Server → client: send me what your JEI shows. */
-    public record Request(int request) implements CustomPacketPayload {
-        public static final Type<Request> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(Twinstar.MODID, "jei_request"));
-        public static final StreamCodec<RegistryFriendlyByteBuf, Request> STREAM_CODEC = StreamCodec.of(
-                (buf, p) -> buf.writeVarInt(p.request), buf -> new Request(buf.readVarInt()));
+    public record Request(int request) {
+        public void write(FriendlyByteBuf buf) {
+            buf.writeVarInt(request);
+        }
 
-        @Override
-        public Type<? extends CustomPacketPayload> type() {
-            return TYPE;
+        public static Request read(FriendlyByteBuf buf) {
+            return new Request(buf.readVarInt());
         }
 
         /** Client side. Without JEI the answer is a refusal; the collector is only loaded when JEI is there. */
-        public static void handle(Request packet, IPayloadContext context) {
-            context.enqueueWork(() -> {
+        public static void handle(Request packet, Supplier<NetworkEvent.Context> context) {
+            NetworkEvent.Context ctx = context.get();
+            ctx.enqueueWork(() -> {
                 if (!ModList.get().isLoaded("jei")) {
-                    PacketDistributor.sendToServer(Recipes.failure(packet.request, "客戶端沒有安裝 JEI"));
+                    TwinNet.toServer(Recipes.failure(packet.request, "客戶端沒有安裝 JEI"));
                     return;
                 }
                 com.lumina.twinstar.client.jei.JeiCollector.start(packet.request);
             });
+            ctx.setPacketHandled(true);
         }
     }
 
@@ -52,46 +51,42 @@ public final class JeiPackets {
      * non-empty means the client could not do it at all.
      */
     public record Recipes(int request, List<JeiRecipeData> recipes, Map<ResourceLocation, Integer> skipped, boolean last,
-                          String error) implements CustomPacketPayload {
-        public static final Type<Recipes> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath(Twinstar.MODID, "jei_recipes"));
-        public static final StreamCodec<RegistryFriendlyByteBuf, Recipes> STREAM_CODEC = StreamCodec.of(
-                (buf, p) -> {
-                    buf.writeVarInt(p.request);
-                    buf.writeVarInt(p.recipes.size());
-                    for (JeiRecipeData r : p.recipes)
-                        JeiRecipeData.STREAM_CODEC.encode(buf, r);
-                    buf.writeVarInt(p.skipped.size());
-                    p.skipped.forEach((k, v) -> {
-                        buf.writeResourceLocation(k);
-                        buf.writeVarInt(v);
-                    });
-                    buf.writeBoolean(p.last);
-                    buf.writeUtf(p.error);
-                },
-                buf -> {
-                    int request = buf.readVarInt();
-                    int n = buf.readVarInt();
-                    List<JeiRecipeData> recipes = new ArrayList<>(n);
-                    for (int i = 0; i < n; i++)
-                        recipes.add(JeiRecipeData.STREAM_CODEC.decode(buf));
-                    int m = buf.readVarInt();
-                    Map<ResourceLocation, Integer> skipped = new LinkedHashMap<>();
-                    for (int i = 0; i < m; i++)
-                        skipped.put(buf.readResourceLocation(), buf.readVarInt());
-                    return new Recipes(request, recipes, skipped, buf.readBoolean(), buf.readUtf());
-                });
+                          String error) {
+        public void write(FriendlyByteBuf buf) {
+            buf.writeVarInt(request);
+            buf.writeVarInt(recipes.size());
+            for (JeiRecipeData r : recipes)
+                r.write(buf);
+            buf.writeVarInt(skipped.size());
+            skipped.forEach((k, v) -> {
+                buf.writeResourceLocation(k);
+                buf.writeVarInt(v);
+            });
+            buf.writeBoolean(last);
+            buf.writeUtf(error);
+        }
+
+        public static Recipes read(FriendlyByteBuf buf) {
+            int request = buf.readVarInt();
+            int n = buf.readVarInt();
+            List<JeiRecipeData> recipes = new ArrayList<>(n);
+            for (int i = 0; i < n; i++)
+                recipes.add(JeiRecipeData.read(buf));
+            int m = buf.readVarInt();
+            Map<ResourceLocation, Integer> skipped = new LinkedHashMap<>();
+            for (int i = 0; i < m; i++)
+                skipped.put(buf.readResourceLocation(), buf.readVarInt());
+            return new Recipes(request, recipes, skipped, buf.readBoolean(), buf.readUtf());
+        }
 
         public static Recipes failure(int request, String why) {
             return new Recipes(request, List.of(), Map.of(), true, why);
         }
 
-        @Override
-        public Type<? extends CustomPacketPayload> type() {
-            return TYPE;
-        }
-
-        public static void handle(Recipes packet, IPayloadContext context) {
-            context.enqueueWork(() -> JeiRequests.received(packet, context.player()));
+        public static void handle(Recipes packet, Supplier<NetworkEvent.Context> context) {
+            NetworkEvent.Context ctx = context.get();
+            ctx.enqueueWork(() -> JeiRequests.received(packet, ctx.getSender()));
+            ctx.setPacketHandled(true);
         }
     }
 }

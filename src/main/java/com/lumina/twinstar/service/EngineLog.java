@@ -14,7 +14,7 @@ import com.lumina.twinstar.algorithm.model.OrderMode;
 import com.lumina.twinstar.algorithm.model.Pattern;
 import com.lumina.twinstar.algorithm.planning.Plan;
 import com.lumina.twinstar.util.BigAmountFormat;
-import net.neoforged.fml.loading.FMLEnvironment;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 
 import java.text.NumberFormat;
 import java.util.ArrayDeque;

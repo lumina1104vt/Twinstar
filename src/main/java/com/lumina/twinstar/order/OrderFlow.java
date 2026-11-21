@@ -4,7 +4,7 @@ import appeng.api.networking.IGrid;
 import appeng.api.networking.IGridNode;
 import appeng.api.networking.security.IActionHost;
 import appeng.api.stacks.AEKey;
-import appeng.menu.locator.MenuHostLocator;
+import appeng.menu.locator.MenuLocator;
 import com.lumina.twinstar.api.ITwinStarService;
 import com.lumina.twinstar.service.TwinStarService;
 import com.lumina.twinstar.util.AmountParser;
@@ -39,7 +39,7 @@ public final class OrderFlow {
      * "Next" in the twin-star order screen: craft only what is missing (exact stock), then the
      * twin-star plan screen.
      */
-    public static void startTwinStar(ServerPlayer player, @Nullable IGrid grid, @Nullable MenuHostLocator locator,
+    public static void startTwinStar(ServerPlayer player, @Nullable IGrid grid, @Nullable MenuLocator locator,
                                      Runnable back, AEKey what, BigInteger amount, boolean craftMissingAmount,
                                      boolean bestEffort, boolean autoStart) {
         if (locator == null || amount.compareTo(AmountParser.MAX_EXTERNAL) > 0)
@@ -69,7 +69,7 @@ public final class OrderFlow {
     }
 
     /** True if AE2's amount screen should be replaced by ours: a working hub on the grid, and not skipped. */
-    public static boolean replaces(ServerPlayer player, MenuHostLocator locator) {
+    public static boolean replaces(ServerPlayer player, MenuLocator locator) {
         if (SKIP_ONCE.remove(player.getUUID()))
             return false;
         IActionHost host = locator.locate(player, IActionHost.class);

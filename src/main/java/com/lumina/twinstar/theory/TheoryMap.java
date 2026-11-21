@@ -1,7 +1,7 @@
 package com.lumina.twinstar.theory;
 
 import appeng.api.stacks.AEKey;
-import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.FriendlyByteBuf;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -42,7 +42,7 @@ public record TheoryMap(long version, List<Item> items, List<Pattern> patterns) 
     public record Part(long version, int index, int count, int itemTotal, int patternTotal, int itemStart, List<Item> items,
                        int patternStart, List<Pattern> patterns) {
 
-        public void write(RegistryFriendlyByteBuf buf) {
+        public void write(FriendlyByteBuf buf) {
             buf.writeLong(version);
             buf.writeVarInt(index);
             buf.writeVarInt(count);
@@ -80,7 +80,7 @@ public record TheoryMap(long version, List<Item> items, List<Pattern> patterns) 
             }
         }
 
-        public static Part read(RegistryFriendlyByteBuf buf) {
+        public static Part read(FriendlyByteBuf buf) {
             long version = buf.readLong();
             int index = buf.readVarInt(), count = buf.readVarInt();
             int itemTotal = buf.readVarInt(), patternTotal = buf.readVarInt();

@@ -6,7 +6,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.crafting.CraftingRecipe;
 import net.minecraft.world.item.crafting.Recipe;
-import net.minecraft.world.item.crafting.RecipeHolder;
+import com.lumina.twinstar.util.RecipeHolder;
 import net.minecraft.world.item.crafting.SmithingTrimRecipe;
 import net.minecraft.world.item.crafting.StonecutterRecipe;
 import org.jetbrains.annotations.Nullable;
@@ -122,7 +122,7 @@ final class JeiRecipes {
             tally.noId++;
             return null;
         }
-        RecipeHolder<?> holder = level.getRecipeManager().byKey(r.id()).orElse(null);
+        RecipeHolder<?> holder = level.getRecipeManager().byKey(r.id()).map(x -> (RecipeHolder<?>) RecipeHolder.of(x)).orElse(null);
         if (holder == null) {
             tally.unknown++;
             if (tally.unknownIds.size() < 5)

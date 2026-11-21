@@ -1,11 +1,10 @@
 package com.lumina.twinstar.algorithm.ae2;
 
+import com.lumina.twinstar.util.AEKeyCodec;
+
 import appeng.api.stacks.AEKey;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
 
 import java.util.List;
 
@@ -39,16 +38,12 @@ public record PatternInputTargets(List<Entry> entries) {
 
     public record Entry(AEKey key, int target) {
         static final Codec<Entry> CODEC = RecordCodecBuilder.create(i -> i.group(
-                AEKey.CODEC.fieldOf("key").forGetter(Entry::key),
+                AEKeyCodec.KEY.fieldOf("key").forGetter(Entry::key),
                 Codec.INT.fieldOf("target").forGetter(Entry::target)).apply(i, Entry::new));
-        static final StreamCodec<RegistryFriendlyByteBuf, Entry> STREAM_CODEC = StreamCodec.composite(
-                AEKey.STREAM_CODEC, Entry::key, ByteBufCodecs.VAR_INT, Entry::target, Entry::new);
     }
 
     public static final Codec<PatternInputTargets> CODEC = Entry.CODEC.listOf()
             .xmap(PatternInputTargets::new, PatternInputTargets::entries);
-    public static final StreamCodec<RegistryFriendlyByteBuf, PatternInputTargets> STREAM_CODEC = Entry.STREAM_CODEC
-            .apply(ByteBufCodecs.list()).map(PatternInputTargets::new, PatternInputTargets::entries);
 
     public PatternInputTargets {
         entries = List.copyOf(entries);

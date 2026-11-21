@@ -1,9 +1,6 @@
 package com.lumina.twinstar.algorithm.ae2;
 
 import com.mojang.serialization.Codec;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
 
 import java.util.List;
 
@@ -18,8 +15,6 @@ public record PatternInputGuiSlots(List<Integer> slots) {
     public static final int MAX = 99;
 
     public static final Codec<PatternInputGuiSlots> CODEC = Codec.INT.listOf().xmap(PatternInputGuiSlots::new, PatternInputGuiSlots::slots);
-    public static final StreamCodec<io.netty.buffer.ByteBuf, PatternInputGuiSlots> STREAM_CODEC = ByteBufCodecs.VAR_INT
-            .apply(ByteBufCodecs.list()).map(PatternInputGuiSlots::new, PatternInputGuiSlots::slots);
 
     public PatternInputGuiSlots {
         slots = List.copyOf(slots);

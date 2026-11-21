@@ -144,7 +144,7 @@ public final class Amount implements Comparable<Amount> {
         if (o.signum() <= 0)
             throw new ArithmeticException("divisor must be positive");
         if (big == null && o.big == null)
-            return of(Math.ceilDiv(small, o.small));
+            return of(-Math.floorDiv(-small, o.small));
         BigInteger[] qr = bigValue().divideAndRemainder(o.bigValue());
         BigInteger q = qr[0];
         if (qr[1].signum() > 0)

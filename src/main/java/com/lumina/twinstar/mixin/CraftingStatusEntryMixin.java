@@ -3,7 +3,7 @@ package com.lumina.twinstar.mixin;
 import appeng.menu.me.crafting.CraftingStatusEntry;
 import com.lumina.twinstar.menu.BigStatusAmounts;
 import com.lumina.twinstar.menu.BigStatusEntry;
-import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.FriendlyByteBuf;
 import org.jetbrains.annotations.Nullable;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /** The exact amounts ride after AE2's own fields (one flag byte when there are none). */
-@Mixin(CraftingStatusEntry.class)
+@Mixin(value = CraftingStatusEntry.class, remap = false)
 public abstract class CraftingStatusEntryMixin implements BigStatusEntry {
     @Unique
     private @Nullable BigStatusAmounts twinstar$big;
@@ -29,7 +29,7 @@ public abstract class CraftingStatusEntryMixin implements BigStatusEntry {
     }
 
     @Inject(method = "write", at = @At("TAIL"))
-    private static void twinstar$writeBig(RegistryFriendlyByteBuf buf, CraftingStatusEntry entry, CallbackInfo ci) {
+    private static void twinstar$writeBig(FriendlyByteBuf buf, CraftingStatusEntry entry, CallbackInfo ci) {
         BigStatusAmounts big = ((BigStatusEntry) entry).twinstar$big();
         buf.writeBoolean(big != null);
         if (big != null)
@@ -37,7 +37,7 @@ public abstract class CraftingStatusEntryMixin implements BigStatusEntry {
     }
 
     @Inject(method = "read", at = @At("RETURN"))
-    private static void twinstar$readBig(RegistryFriendlyByteBuf buf, CallbackInfoReturnable<CraftingStatusEntry> cir) {
+    private static void twinstar$readBig(FriendlyByteBuf buf, CallbackInfoReturnable<CraftingStatusEntry> cir) {
         if (buf.readBoolean())
             ((BigStatusEntry) cir.getReturnValue()).twinstar$setBig(BigStatusAmounts.read(buf));
     }

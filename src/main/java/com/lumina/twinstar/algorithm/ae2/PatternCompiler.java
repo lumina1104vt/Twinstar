@@ -108,7 +108,7 @@ public final class PatternCompiler {
         PatternLocation where = hubInternal ? PatternLocation.HUB_INTERNAL
                 : details instanceof AEProcessingPattern ? PatternLocation.EXTERNAL_PROCESS
                 : PatternLocation.EXTERNAL_CRAFT;
-        PatternChances chances = details.getDefinition().get(TwinstarContent.PATTERN_CHANCES.get());
+        PatternChances chances = TwinstarContent.PATTERN_CHANCES.get(details.getDefinition());
         if (!hubInternal && chances != null && !chances.entries().isEmpty())
             return List.of();   // a pattern with probable outputs only runs in the hub
         Item machine = hubInternal ? PatternMachines.of(details.getDefinition()) : null;
@@ -165,12 +165,12 @@ public final class PatternCompiler {
             for (Item sub : subMachines)
                 b.subMachine(index.idOf(AEItemKey.of(sub)));
         }
-        PatternInputFaces faces = machine != null ? details.getDefinition().get(TwinstarContent.PATTERN_INPUT_FACES.get()) : null;
-        PatternInputTargets targets = machine != null ? details.getDefinition().get(TwinstarContent.PATTERN_INPUT_TARGETS.get()) : null;
-        PatternInputGuiSlots guiSlots = machine != null ? details.getDefinition().get(TwinstarContent.PATTERN_INPUT_GUI_SLOTS.get()) : null;
-        PatternOutputGuiSlots outGuiSlots = machine != null ? details.getDefinition().get(TwinstarContent.PATTERN_OUTPUT_GUI_SLOTS.get()) : null;
-        PatternInputRoles roles = machine != null ? details.getDefinition().get(TwinstarContent.PATTERN_INPUT_ROLES.get()) : null;
-        PatternIgnoreNbt ignoreNbt = details.getDefinition().get(TwinstarContent.PATTERN_IGNORE_NBT.get());
+        PatternInputFaces faces = machine != null ? TwinstarContent.PATTERN_INPUT_FACES.get(details.getDefinition()) : null;
+        PatternInputTargets targets = machine != null ? TwinstarContent.PATTERN_INPUT_TARGETS.get(details.getDefinition()) : null;
+        PatternInputGuiSlots guiSlots = machine != null ? TwinstarContent.PATTERN_INPUT_GUI_SLOTS.get(details.getDefinition()) : null;
+        PatternOutputGuiSlots outGuiSlots = machine != null ? TwinstarContent.PATTERN_OUTPUT_GUI_SLOTS.get(details.getDefinition()) : null;
+        PatternInputRoles roles = machine != null ? TwinstarContent.PATTERN_INPUT_ROLES.get(details.getDefinition()) : null;
+        PatternIgnoreNbt ignoreNbt = TwinstarContent.PATTERN_IGNORE_NBT.get(details.getDefinition());
         boolean subst = false;
         Rational energy = Rational.ZERO;
         List<GenericStack> remainders = new ArrayList<>();
@@ -178,7 +178,7 @@ public final class PatternCompiler {
         // AE2 merges identical materials of a processing pattern into one input; a pattern that says which GUI slot each
         // material slot goes into keeps its slots apart (the same material goes into many places)
         List<IPatternDetails.IInput> inputList = guiSlots != null && details instanceof AEProcessingPattern processing
-                ? processing.getSparseInputs().stream().filter(java.util.Objects::nonNull).map(SparseInput::new)
+                ? java.util.Arrays.stream(processing.getSparseInputs()).filter(java.util.Objects::nonNull).map(SparseInput::new)
                         .<IPatternDetails.IInput>map(i -> i).toList()
                 : List.of(details.getInputs());
         for (IPatternDetails.IInput in : inputList) {

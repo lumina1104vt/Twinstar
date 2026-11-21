@@ -176,7 +176,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
 
     private boolean isWorkstationRecipe(IPatternDetails details, net.minecraft.world.item.Item machine) {
         return workstationChecked.computeIfAbsent(details, d -> {
-            var server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
+            var server = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
             if (server == null)
                 return false;
             boolean ok = com.lumina.twinstar.algorithm.ae2.WorkstationRecipes.matches(machine, d,
@@ -190,7 +190,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
 
     /** Which stacks the materials of {@code details} whose NBT does not matter have now; 0 when it has none. */
     private int variantsHash(IPatternDetails details) {
-        var ignore = details.getDefinition().get(com.lumina.twinstar.storage.TwinstarContent.PATTERN_IGNORE_NBT.get());
+        var ignore = com.lumina.twinstar.storage.TwinstarContent.PATTERN_IGNORE_NBT.get(details.getDefinition());
         if (ignore == null || ignore.inputs().isEmpty())
             return 0;
         int h = 1;
@@ -741,13 +741,13 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
     private void tellDone(Job job) {
         if (job.player == null)
             return;
-        var server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
+        var server = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
         net.minecraft.server.level.ServerPlayer p = server == null ? null : server.getPlayerList().getPlayer(job.player);
         AEKey key = index.keyOf(job.plan.target);
         if (p == null || key == null)
             return;
         long seconds = Math.max(0, (System.nanoTime() - job.startNanos()) / 1_000_000_000L);
-        net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(p,
+        com.lumina.twinstar.TwinNet.toPlayer(p,
                 new com.lumina.twinstar.order.JobDonePacket(key, job.plan.amount.toString(), seconds));
     }
 

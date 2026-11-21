@@ -1,8 +1,7 @@
 package com.lumina.twinstar.tools;
 
 import appeng.api.stacks.GenericStack;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.Nullable;
 
@@ -20,35 +19,37 @@ public record JeiRecipeData(@Nullable ResourceLocation id, ResourceLocation cate
     /** options kept per slot (big tags such as "any planks" are cut) */
     public static final int MAX_OPTIONS = 32;
 
-    public static final StreamCodec<RegistryFriendlyByteBuf, JeiRecipeData> STREAM_CODEC = StreamCodec.of(
-            (buf, r) -> {
-                buf.writeBoolean(r.id != null);
-                if (r.id != null)
-                    buf.writeResourceLocation(r.id);
-                buf.writeResourceLocation(r.category);
-                writeSlots(buf, r.inputs);
-                writeSlots(buf, r.outputs);
-            },
-            buf -> new JeiRecipeData(buf.readBoolean() ? buf.readResourceLocation() : null, buf.readResourceLocation(),
-                    readSlots(buf), readSlots(buf)));
+    public void write(FriendlyByteBuf buf) {
+        buf.writeBoolean(id != null);
+        if (id != null)
+            buf.writeResourceLocation(id);
+        buf.writeResourceLocation(category);
+        writeSlots(buf, inputs);
+        writeSlots(buf, outputs);
+    }
 
-    private static void writeSlots(RegistryFriendlyByteBuf buf, List<List<GenericStack>> slots) {
+    public static JeiRecipeData read(FriendlyByteBuf buf) {
+        return new JeiRecipeData(buf.readBoolean() ? buf.readResourceLocation() : null, buf.readResourceLocation(),
+                readSlots(buf), readSlots(buf));
+    }
+
+    private static void writeSlots(FriendlyByteBuf buf, List<List<GenericStack>> slots) {
         buf.writeVarInt(slots.size());
         for (List<GenericStack> options : slots) {
             buf.writeVarInt(options.size());
             for (GenericStack s : options)
-                GenericStack.STREAM_CODEC.encode(buf, s);
+                GenericStack.writeBuffer(s, buf);
         }
     }
 
-    private static List<List<GenericStack>> readSlots(RegistryFriendlyByteBuf buf) {
+    private static List<List<GenericStack>> readSlots(FriendlyByteBuf buf) {
         int n = buf.readVarInt();
         List<List<GenericStack>> slots = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
             int m = buf.readVarInt();
             List<GenericStack> options = new ArrayList<>(m);
             for (int j = 0; j < m; j++)
-                options.add(GenericStack.STREAM_CODEC.decode(buf));
+                options.add(GenericStack.readBuffer(buf));
             slots.add(options);
         }
         return slots;

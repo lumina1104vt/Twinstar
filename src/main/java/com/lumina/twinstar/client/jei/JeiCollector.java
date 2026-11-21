@@ -11,7 +11,7 @@ import mezz.jei.api.constants.VanillaTypes;
 import mezz.jei.api.gui.IRecipeLayoutDrawable;
 import mezz.jei.api.gui.ingredient.IRecipeSlotView;
 import mezz.jei.api.ingredients.ITypedIngredient;
-import mezz.jei.api.neoforge.NeoForgeTypes;
+import mezz.jei.api.forge.ForgeTypes;
 import mezz.jei.api.recipe.IFocusGroup;
 import mezz.jei.api.recipe.IRecipeManager;
 import mezz.jei.api.recipe.RecipeIngredientRole;
@@ -20,10 +20,9 @@ import mezz.jei.api.recipe.category.IRecipeCategory;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.client.event.ClientTickEvent;
-import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.fluids.FluidStack;
-import net.neoforged.neoforge.network.PacketDistributor;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.fluids.FluidStack;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -56,8 +55,8 @@ public final class JeiCollector {
             RecipeTypes.COMPOSTING.getUid(), RecipeTypes.ANVIL.getUid());
 
     private static @Nullable JeiCollector active;
-    private static final Consumer<ClientTickEvent.Post> TICK = e -> {
-        if (active != null && active.step())
+    private static final Consumer<TickEvent.ClientTickEvent> TICK = e -> {
+        if (e.phase == TickEvent.Phase.END && active != null && active.step())
             active = null;
     };
     private static boolean listening;
@@ -82,12 +81,12 @@ public final class JeiCollector {
     public static void start(int request) {
         IJeiRuntime rt = runtime;
         if (rt == null) {
-            PacketDistributor.sendToServer(JeiPackets.Recipes.failure(request, "JEI 還沒載入完成，請稍後再試"));
+            com.lumina.twinstar.TwinNet.toServer(JeiPackets.Recipes.failure(request, "JEI 還沒載入完成，請稍後再試"));
             return;
         }
         active = new JeiCollector(request, rt);
         if (!listening) {
-            NeoForge.EVENT_BUS.addListener(TICK);
+            MinecraftForge.EVENT_BUS.addListener(TICK);
             listening = true;
         }
     }
@@ -99,7 +98,7 @@ public final class JeiCollector {
             while (System.nanoTime() < deadline) {
                 if (inCategory == null || !inCategory.hasNext()) {
                     if (!categories.hasNext()) {
-                        PacketDistributor.sendToServer(new JeiPackets.Recipes(request, List.copyOf(batch), skipped, true, ""));
+                        com.lumina.twinstar.TwinNet.toServer(new JeiPackets.Recipes(request, List.copyOf(batch), skipped, true, ""));
                         return true;
                     }
                     category = categories.next();
@@ -108,13 +107,13 @@ public final class JeiCollector {
                 }
                 one(category, inCategory.next());
                 if (batch.size() >= BATCH) {
-                    PacketDistributor.sendToServer(new JeiPackets.Recipes(request, List.copyOf(batch), Map.of(), false, ""));
+                    com.lumina.twinstar.TwinNet.toServer(new JeiPackets.Recipes(request, List.copyOf(batch), Map.of(), false, ""));
                     batch.clear();
                 }
             }
         } catch (RuntimeException e) {
             Twinstar.LOGGER.error("[雙星] 讀取 JEI 配方時出錯", e);
-            PacketDistributor.sendToServer(JeiPackets.Recipes.failure(request, "讀取 JEI 配方時出錯：" + e));
+            com.lumina.twinstar.TwinNet.toServer(JeiPackets.Recipes.failure(request, "讀取 JEI 配方時出錯：" + e));
             return true;
         }
         return false;
@@ -174,7 +173,7 @@ public final class JeiCollector {
         Optional<ItemStack> item = t.getIngredient(VanillaTypes.ITEM_STACK);
         if (item.isPresent() && !item.get().isEmpty())
             return new GenericStack(AEItemKey.of(item.get()), item.get().getCount());
-        Optional<FluidStack> fluid = t.getIngredient(NeoForgeTypes.FLUID_STACK);
+        Optional<FluidStack> fluid = t.getIngredient(ForgeTypes.FLUID_STACK);
         if (fluid.isPresent() && !fluid.get().isEmpty())
             return new GenericStack(AEFluidKey.of(fluid.get()), fluid.get().getAmount());
         return null;

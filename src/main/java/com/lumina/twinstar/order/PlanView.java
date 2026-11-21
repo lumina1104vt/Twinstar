@@ -1,7 +1,7 @@
 package com.lumina.twinstar.order;
 
 import appeng.api.stacks.AEKey;
-import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.FriendlyByteBuf;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -38,7 +38,7 @@ public record PlanView(AEKey target, String amount, int patterns, long planNanos
     public record Missing(AEKey key, String amount, boolean machine) {
     }
 
-    public void write(RegistryFriendlyByteBuf buf) {
+    public void write(FriendlyByteBuf buf) {
         AEKey.writeKey(buf, target);
         buf.writeUtf(amount);
         buf.writeVarInt(patterns);
@@ -72,7 +72,7 @@ public record PlanView(AEKey target, String amount, int patterns, long planNanos
         graph.write(buf);
     }
 
-    public static PlanView read(RegistryFriendlyByteBuf buf) {
+    public static PlanView read(FriendlyByteBuf buf) {
         AEKey target = AEKey.readKey(buf);
         String amount = buf.readUtf();
         int patterns = buf.readVarInt();

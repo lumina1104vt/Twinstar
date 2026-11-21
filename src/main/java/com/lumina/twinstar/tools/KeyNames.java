@@ -15,8 +15,8 @@ final class KeyNames {
     }
 
     static String of(AEKey key, HolderLookup.Provider registries) {
-        if (key instanceof AEItemKey item && !item.hasComponents())
+        if (key instanceof AEItemKey item && !item.hasTag())
             return item.getId().toString();
-        return key.toTagGeneric(registries).toString();
+        return key.toTagGeneric().toString();
     }
 }

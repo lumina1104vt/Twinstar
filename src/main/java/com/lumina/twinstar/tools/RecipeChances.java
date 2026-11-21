@@ -3,7 +3,7 @@ package com.lumina.twinstar.tools;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
-import com.mojang.serialization.JsonOps;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.world.item.crafting.Recipe;
 
@@ -30,18 +30,16 @@ public final class RecipeChances {
     /** fields that name the item or fluid of an output */
     private static final Set<String> ID_FIELDS = Set.of("id", "item", "fluid");
 
+    /** Every recipe's JSON as the datapacks gave it (set when the recipes are loaded; the same map the manager read). */
+    public static volatile Map<ResourceLocation, JsonElement> JSON = Map.of();
+
     private RecipeChances() {
     }
 
     /** item or fluid id → probability, for the outputs found with one */
     public static Map<String, Double> of(Recipe<?> recipe, RegistryAccess registries) {
         Map<String, Double> out = new HashMap<>();
-        JsonElement json;
-        try {
-            json = Recipe.CODEC.encodeStart(registries.createSerializationContext(JsonOps.INSTANCE), recipe).result().orElse(null);
-        } catch (RuntimeException e) {
-            json = null;    // a serializer that cannot write what it reads
-        }
+        JsonElement json = JSON.get(recipe.getId());      // 1.20.1: the JSON the datapack held, kept by RecipeManagerMixin
         if (json != null)
             walk(json, out);
         return out;

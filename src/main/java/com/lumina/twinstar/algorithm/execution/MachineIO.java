@@ -14,11 +14,10 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.capabilities.Capabilities;
-import net.neoforged.neoforge.fluids.FluidStack;
-import net.neoforged.neoforge.fluids.capability.IFluidHandler;
-import net.neoforged.neoforge.items.IItemHandler;
-import net.neoforged.neoforge.items.ItemHandlerHelper;
+import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.fluids.capability.IFluidHandler;
+import net.minecraftforge.items.IItemHandler;
+import net.minecraftforge.items.ItemHandlerHelper;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -57,7 +56,7 @@ final class MachineIO {
         Set<IItemHandler> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         List<IItemHandler> out = new ArrayList<>();
         for (Direction d : SIDES) {
-            IItemHandler h = level.getCapability(Capabilities.ItemHandler.BLOCK, pos, d);
+            IItemHandler h = com.lumina.twinstar.util.Caps.item(level, pos, d);
             if (h != null && seen.add(h))
                 out.add(h);
         }
@@ -68,7 +67,7 @@ final class MachineIO {
         Set<IFluidHandler> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         List<IFluidHandler> out = new ArrayList<>();
         for (Direction d : SIDES) {
-            IFluidHandler h = level.getCapability(Capabilities.FluidHandler.BLOCK, pos, d);
+            IFluidHandler h = com.lumina.twinstar.util.Caps.fluid(level, pos, d);
             if (h != null && seen.add(h))
                 out.add(h);
         }
@@ -237,7 +236,7 @@ final class MachineIO {
             if (left <= 0)
                 break;
             if (key instanceof AEItemKey item) {
-                IItemHandler h = level.getCapability(Capabilities.ItemHandler.BLOCK, pos, face);
+                IItemHandler h = com.lumina.twinstar.util.Caps.item(level, pos, face);
                 if (h == null)
                     continue;
                 int max = Math.max(1, item.getMaxStackSize());
@@ -250,7 +249,7 @@ final class MachineIO {
                         break;      // full: next face
                 }
             } else if (key instanceof AEFluidKey fluid) {
-                IFluidHandler h = level.getCapability(Capabilities.FluidHandler.BLOCK, pos, face);
+                IFluidHandler h = com.lumina.twinstar.util.Caps.fluid(level, pos, face);
                 if (h == null)
                     continue;
                 while (left > 0) {
@@ -289,7 +288,7 @@ final class MachineIO {
     static String describe(ServerLevel level, BlockPos pos) {
         StringBuilder sb = new StringBuilder();
         for (Direction d : SIDES) {
-            IItemHandler h = level.getCapability(Capabilities.ItemHandler.BLOCK, pos, d);
+            IItemHandler h = com.lumina.twinstar.util.Caps.item(level, pos, d);
             if (h != null)
                 for (int s = 0; s < h.getSlots(); s++) {
                     ItemStack in = h.getStackInSlot(s);
@@ -304,14 +303,14 @@ final class MachineIO {
                             .append(" 模擬放入被拒=").append(refused).append(" → ")
                             .append(isOutput(h, s, in) ? "輸出" : "輸入").append("，模擬抽出=").append(canTake);
                 }
-            IFluidHandler f = level.getCapability(Capabilities.FluidHandler.BLOCK, pos, d);
+            IFluidHandler f = com.lumina.twinstar.util.Caps.fluid(level, pos, d);
             if (f != null)
                 for (int t = 0; t < f.getTanks(); t++) {
                     FluidStack in = f.getFluidInTank(t);
                     if (in.isEmpty())
                         continue;
                     sb.append("\n    流體 ").append(faceName(d)).append(" 槽").append(t).append("：")
-                            .append(in.getHoverName().getString()).append("×").append(in.getAmount())
+                            .append(in.getDisplayName().getString()).append("×").append(in.getAmount())
                             .append(" 接受=").append(f.isFluidValid(t, in)).append(" → ")
                             .append(f.isFluidValid(t, in) ? "輸入" : "輸出").append("，模擬抽出=")
                             .append(f.drain(in.copy(), IFluidHandler.FluidAction.SIMULATE).getAmount());
@@ -341,7 +340,7 @@ final class MachineIO {
         for (Direction face : faces) {
             sb.append(sb.isEmpty() ? "" : "、").append(faceName(face)).append("：");
             if (key instanceof AEItemKey item) {
-                IItemHandler h = level.getCapability(Capabilities.ItemHandler.BLOCK, pos, face);
+                IItemHandler h = com.lumina.twinstar.util.Caps.item(level, pos, face);
                 if (h == null) {
                     sb.append("沒有物品介面");
                     continue;
@@ -350,7 +349,7 @@ final class MachineIO {
                 ItemStack rest = ItemHandlerHelper.insertItemStacked(h, item.toStack(n), true);
                 sb.append("模擬放入 ").append(n - rest.getCount()).append("／").append(n).append("（").append(h.getSlots()).append(" 格）");
             } else if (key instanceof AEFluidKey fluid) {
-                IFluidHandler h = level.getCapability(Capabilities.FluidHandler.BLOCK, pos, face);
+                IFluidHandler h = com.lumina.twinstar.util.Caps.fluid(level, pos, face);
                 if (h == null) {
                     sb.append("沒有流體介面");
                     continue;

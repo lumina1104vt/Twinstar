@@ -14,7 +14,7 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.network.chat.Component;
-import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.RegisterCommandsEvent;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -53,7 +53,7 @@ public final class NetworkDump {
             source.sendFailure(Component.literal("[雙星] 沒有任何網路有運作中的中樞"));
             return 0;
         }
-        Path first = file != null ? Path.of(file) : source.getServer().getServerDirectory().resolve("twinstar").resolve("network.json");
+        Path first = file != null ? Path.of(file) : source.getServer().getServerDirectory().toPath().resolve("twinstar").resolve("network.json");
         int written = 0;
         for (int n = 0; n < nets.size(); n++) {
             TwinStarService service = nets.get(n);

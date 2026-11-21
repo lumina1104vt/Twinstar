@@ -1,7 +1,7 @@
 package com.lumina.twinstar.order;
 
 import appeng.api.stacks.AEKey;
-import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.FriendlyByteBuf;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -45,7 +45,7 @@ public record PlanGraph(List<Item> items, List<Recipe> recipes, List<Loop> loops
     public record Loop(List<Flow> seeds) {
     }
 
-    public void write(RegistryFriendlyByteBuf buf) {
+    public void write(FriendlyByteBuf buf) {
         buf.writeVarInt(items.size());
         for (Item i : items) {
             AEKey.writeKey(buf, i.key());
@@ -74,7 +74,7 @@ public record PlanGraph(List<Item> items, List<Recipe> recipes, List<Loop> loops
         buf.writeBoolean(truncated);
     }
 
-    public static PlanGraph read(RegistryFriendlyByteBuf buf) {
+    public static PlanGraph read(FriendlyByteBuf buf) {
         int n = buf.readVarInt();
         List<Item> items = new ArrayList<>(Math.min(n, PlanGraphBuilder.MAX_NODES));
         for (int i = 0; i < n; i++)
@@ -92,7 +92,7 @@ public record PlanGraph(List<Item> items, List<Recipe> recipes, List<Loop> loops
         return new PlanGraph(items, recipes, loops, buf.readBoolean());
     }
 
-    private static void writeFlows(RegistryFriendlyByteBuf buf, List<Flow> flows) {
+    private static void writeFlows(FriendlyByteBuf buf, List<Flow> flows) {
         buf.writeVarInt(flows.size());
         for (Flow f : flows) {
             buf.writeVarInt(f.item());
@@ -101,7 +101,7 @@ public record PlanGraph(List<Item> items, List<Recipe> recipes, List<Loop> loops
         }
     }
 
-    private static List<Flow> readFlows(RegistryFriendlyByteBuf buf) {
+    private static List<Flow> readFlows(FriendlyByteBuf buf) {
         int n = buf.readVarInt();
         List<Flow> flows = new ArrayList<>(Math.min(n, 64));
         for (int i = 0; i < n; i++)

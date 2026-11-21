@@ -128,7 +128,7 @@ public final class JobStore {
             AEKey k = index.keyOf(item);
             if (k == null)
                 throw new IllegalStateException("no key for item id " + item);
-            keys.add(k.toTagGeneric(regs));
+            keys.add(k.toTagGeneric());
             keyAt.put(item, keys.size() - 1);
             return keys.size() - 1;
         }
@@ -196,7 +196,7 @@ public final class JobStore {
             t.putString("energyDen", p.energyPerRun.den.toString());
             AEItemKey definition = definitionOf(p);
             if (definition != null)
-                t.put("definition", definition.toTagGeneric(regs));
+                t.put("definition", definition.toTagGeneric());
             patterns.add(t);
             patternAt.put(p, patterns.size() - 1);
             return patterns.size() - 1;
@@ -523,7 +523,7 @@ public final class JobStore {
             for (int i = 0; i < keys.length; i++) {
                 AEKey k = null;
                 try {
-                    k = AEKey.fromTagGeneric(regs, keyList.getCompound(i));
+                    k = AEKey.fromTagGeneric(keyList.getCompound(i));
                 } catch (RuntimeException e) {
                     // its mod is gone
                 }
@@ -608,7 +608,7 @@ public final class JobStore {
                 Object source = null;
                 AEKey def = null;
                 try {
-                    def = AEKey.fromTagGeneric(regs, t.getCompound("definition"));
+                    def = AEKey.fromTagGeneric(t.getCompound("definition"));
                 } catch (RuntimeException e) {
                     // the pattern item's mod is gone: nobody can offer it again
                 }

@@ -26,7 +26,22 @@ repositories {
     mavenCentral()  // JUnit
 }
 
+// The plan / order screens and the theory viewer are built with LDLib2's UI (1.21); 1.20.1 has another UI API: not ported yet
+sourceSets.main.java {
+    // (GraphLayout is plain Java: kept, with its test)
+    ['BackArrow', 'GraphView', 'KeyIcon', 'MarkIcon', 'OrderUI', 'PixelIcon', 'PixelLabel', 'PixelTextField', 'PixelToggle', 'PlanGraphView', 'PlanUI', 'TheoryGraphView', 'TwinStarElement'].each {
+        exclude "com/lumina/twinstar/client/ui/${it}.java"
+    }
+    exclude 'com/lumina/twinstar/client/PlanScreen.java'
+    exclude 'com/lumina/twinstar/client/OrderScreen.java'
+    exclude 'com/lumina/twinstar/client/PlanGraphScreen.java'
+    exclude 'com/lumina/twinstar/client/TheoryScreen.java'
+}
+
 dependencies {
+    // the mixins use MixinExtras (the root project bundles it into the jar)
+    compileOnly 'io.github.llamalad7:mixinextras-common:0.5.5'
+    annotationProcessor 'io.github.llamalad7:mixinextras-common:0.5.5'
     // the engine hooks AE2's crafting service; AE2 itself is provided by the player
     modCompileOnly "maven.modrinth:ae2:${ae2_version}"
     // gen_patterns / dump_recipes read recipes (amounts, fluids, all outputs) from the player's JEI

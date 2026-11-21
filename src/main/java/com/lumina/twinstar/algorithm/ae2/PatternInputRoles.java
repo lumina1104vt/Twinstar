@@ -1,11 +1,10 @@
 package com.lumina.twinstar.algorithm.ae2;
 
+import com.lumina.twinstar.util.AEKeyCodec;
+
 import appeng.api.stacks.AEKey;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.ByteBufCodecs;
-import net.minecraft.network.codec.StreamCodec;
 
 import java.util.List;
 
@@ -27,16 +26,12 @@ public record PatternInputRoles(List<Entry> entries) {
 
     public record Entry(AEKey key, int role) {
         static final Codec<Entry> CODEC = RecordCodecBuilder.create(i -> i.group(
-                AEKey.CODEC.fieldOf("key").forGetter(Entry::key),
+                AEKeyCodec.KEY.fieldOf("key").forGetter(Entry::key),
                 Codec.INT.fieldOf("role").forGetter(Entry::role)).apply(i, Entry::new));
-        static final StreamCodec<RegistryFriendlyByteBuf, Entry> STREAM_CODEC = StreamCodec.composite(
-                AEKey.STREAM_CODEC, Entry::key, ByteBufCodecs.VAR_INT, Entry::role, Entry::new);
     }
 
     public static final Codec<PatternInputRoles> CODEC = Entry.CODEC.listOf()
             .xmap(PatternInputRoles::new, PatternInputRoles::entries);
-    public static final StreamCodec<RegistryFriendlyByteBuf, PatternInputRoles> STREAM_CODEC = Entry.STREAM_CODEC
-            .apply(ByteBufCodecs.list()).map(PatternInputRoles::new, PatternInputRoles::entries);
 
     public PatternInputRoles {
         entries = List.copyOf(entries);

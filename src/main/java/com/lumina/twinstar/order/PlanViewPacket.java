@@ -1,33 +1,28 @@
 package com.lumina.twinstar.order;
 
-import com.lumina.twinstar.Twinstar;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraftforge.network.NetworkEvent;
+
+import java.util.function.Supplier;
 
 /** Server → client: a finished plan for the open plan screen. */
-public record PlanViewPacket(int containerId, PlanView view) implements CustomPacketPayload {
-    public static final Type<PlanViewPacket> TYPE =
-            new Type<>(ResourceLocation.fromNamespaceAndPath(Twinstar.MODID, "plan_view"));
-
-    public static final StreamCodec<RegistryFriendlyByteBuf, PlanViewPacket> STREAM_CODEC = StreamCodec.of(
-            (buf, p) -> {
-                buf.writeVarInt(p.containerId);
-                p.view.write(buf);
-            },
-            buf -> new PlanViewPacket(buf.readVarInt(), PlanView.read(buf)));
-
-    @Override
-    public Type<? extends CustomPacketPayload> type() {
-        return TYPE;
+public record PlanViewPacket(int containerId, PlanView view) {
+    public void write(FriendlyByteBuf buf) {
+        buf.writeVarInt(containerId);
+        view.write(buf);
     }
 
-    public static void handle(PlanViewPacket packet, IPayloadContext context) {
-        context.enqueueWork(() -> {
-            if (context.player().containerMenu instanceof PlanMenu menu && menu.containerId == packet.containerId)
+    public static PlanViewPacket read(FriendlyByteBuf buf) {
+        return new PlanViewPacket(buf.readVarInt(), PlanView.read(buf));
+    }
+
+    public static void handle(PlanViewPacket packet, Supplier<NetworkEvent.Context> context) {
+        NetworkEvent.Context ctx = context.get();
+        ctx.enqueueWork(() -> {
+            var player = com.lumina.twinstar.client.ClientHooks.player();
+            if (player != null && player.containerMenu instanceof PlanMenu menu && menu.containerId == packet.containerId)
                 menu.setView(packet.view);
         });
+        ctx.setPacketHandled(true);
     }
 }

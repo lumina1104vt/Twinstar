@@ -194,6 +194,6 @@ public final class TwinStarCpu implements ICraftingCPU {
             entries.add(entry);
         }
         return new CraftingStatus(true, System.nanoTime() - job.startNanos(), remaining.saturatedLong(),
-                start.saturatedLong(), entries, job.isSuspended());
+                start.saturatedLong(), entries);
     }
 }

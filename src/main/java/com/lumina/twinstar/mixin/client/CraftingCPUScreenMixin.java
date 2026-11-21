@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit;
  * at today's speed never finishes) it shows ∞ instead of 2562047:47:16. And the "pull from network"
  * button beside the panel, shown while returns of a hub job may have gone into network storage.
  */
-@Mixin(CraftingCPUScreen.class)
+@Mixin(value = CraftingCPUScreen.class, remap = false)
 public abstract class CraftingCPUScreenMixin extends AEBaseScreen<CraftingCPUMenu> {
     @Unique
     private static final long twinstar$SATURATED_MILLIS = TimeUnit.NANOSECONDS.toMillis(Long.MAX_VALUE);

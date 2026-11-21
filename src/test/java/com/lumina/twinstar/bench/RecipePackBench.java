@@ -408,11 +408,13 @@ class RecipePackBench {
             try {
                 OrderResult r = Planner.order(snap, stock, item, AMOUNTS[a], OrderMode.EXACT, UNLIMITED,
                         new Overlay(), Deadline.startingNow());
-                outcome = switch (r) {
-                    case OrderResult.Accepted acc -> acc.plan().isComplete() ? "完成" : "缺料";
-                    case OrderResult.Rejected rej -> "超過容量";
-                    case OrderResult.TimedOut to -> "逾時";
-                };
+                // (Java 17 has no pattern switch)
+                if (r instanceof OrderResult.Accepted acc)
+                    outcome = acc.plan().isComplete() ? "完成" : "缺料";
+                else if (r instanceof OrderResult.Rejected)
+                    outcome = "超過容量";
+                else
+                    outcome = "逾時";
             } catch (Throwable e) {
                 outcome = "例外";
                 errors.add("下單 " + items.get(item) + " ×" + AMOUNT_LABELS[a] + "：" + trace(e));

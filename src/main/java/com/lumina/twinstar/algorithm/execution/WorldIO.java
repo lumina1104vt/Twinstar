@@ -7,7 +7,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.ItemInteractionResult;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
@@ -19,8 +19,8 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
-import net.neoforged.neoforge.common.util.FakePlayer;
-import net.neoforged.neoforge.common.util.FakePlayerFactory;
+import net.minecraftforge.common.util.FakePlayer;
+import net.minecraftforge.common.util.FakePlayerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -64,10 +64,9 @@ final class WorldIO {
         BlockState state = level.getBlockState(pos);
         BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(pos).relative(face, 0.5), face, pos, false);
         try {
-            ItemInteractionResult r = state.useItemOn(hand, level, p, InteractionHand.MAIN_HAND, hit);
-            lastClick = "useItemOn=" + r;
-            if (r == ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION)
-                lastClick += "，useWithoutItem=" + state.useWithoutItem(level, p, hit);
+            // 1.20.1 has one click: the block's use, with whatever is in the hand
+            InteractionResult r = state.use(level, p, InteractionHand.MAIN_HAND, hit);
+            lastClick = "use=" + r;
         } catch (RuntimeException e) {
             // a block that does not expect a fake player: nothing taken
             lastClick = "點擊時出錯：" + e;
@@ -231,13 +230,7 @@ final class WorldIO {
         BlockState state = level.getBlockState(pos);
         BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(pos).relative(face, 0.5), face, pos, false);
         try {
-            // the block's useItemOn first, with an empty hand too, as the game does: a block that handles the click there
-            // (Immersive Engineering's multiblocks open their GUI in it) never reaches useWithoutItem
-            ItemInteractionResult r = state.useItemOn(hand, level, p, InteractionHand.MAIN_HAND, hit);
-            if (r == ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION)
-                clickResult = "useWithoutItem=" + state.useWithoutItem(level, p, hit);
-            else
-                clickResult = "useItemOn=" + r;
+            clickResult = "use=" + state.use(level, p, InteractionHand.MAIN_HAND, hit);
         } catch (RuntimeException e) {
             // a block that does not expect a fake player: nothing happens
             clickResult = "點擊時出錯：" + e;

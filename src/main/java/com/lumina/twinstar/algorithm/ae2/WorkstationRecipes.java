@@ -13,7 +13,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
-import net.minecraft.world.item.crafting.RecipeHolder;
+import com.lumina.twinstar.util.RecipeHolder;
 import net.minecraft.world.item.crafting.RecipeManager;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.item.crafting.SmithingRecipe;
@@ -64,7 +64,7 @@ public final class WorkstationRecipes {
                 options.add(g.what());
             ins.add(new In(options, Math.multiplyExact(possible[0].amount(), in.getMultiplier())));
         }
-        return matches(machine, ins, details.getOutputs(), recipes, registries);
+        return matches(machine, ins, java.util.Arrays.asList(details.getOutputs()), recipes, registries);
     }
 
     public static boolean matches(Item machine, List<In> inputs, List<GenericStack> outputs, RecipeManager recipes,
@@ -73,15 +73,15 @@ public final class WorkstationRecipes {
             return false;
         try {
             if (machine == Items.STONECUTTER) {
-                for (RecipeHolder<?> h : recipes.getAllRecipesFor(RecipeType.STONECUTTING))
+                for (RecipeHolder<?> h : RecipeHolder.all(recipes.getAllRecipesFor(RecipeType.STONECUTTING)))
                     if (check(h.value(), inputs, outputs, registries))
                         return true;
             } else if (machine == Items.SMITHING_TABLE) {
-                for (RecipeHolder<?> h : recipes.getAllRecipesFor(RecipeType.SMITHING))
+                for (RecipeHolder<?> h : RecipeHolder.all(recipes.getAllRecipesFor(RecipeType.SMITHING)))
                     if (check(h.value(), inputs, outputs, registries))
                         return true;
             } else if (machine == Items.CRAFTING_TABLE || machine.builtInRegistryHolder().is(CRAFTING_TABLES)) {
-                for (RecipeHolder<?> h : recipes.getAllRecipesFor(RecipeType.CRAFTING))
+                for (RecipeHolder<?> h : RecipeHolder.all(recipes.getAllRecipesFor(RecipeType.CRAFTING)))
                     if (check(h.value(), inputs, outputs, registries))
                         return true;
             }
