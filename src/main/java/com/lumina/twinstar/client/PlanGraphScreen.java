@@ -47,7 +47,7 @@ public class PlanGraphScreen extends Screen {
     }
 
     @Override
-    public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+    public void renderBackground(GuiGraphics graphics) {
         // the graph fills the screen
     }
 
@@ -67,8 +67,8 @@ public class PlanGraphScreen extends Screen {
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        return view.mouseScrolled(mouseX, mouseY, scrollY);
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        return view.mouseScrolled(mouseX, mouseY, delta);
     }
 
     @Override

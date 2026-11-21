@@ -1,11 +1,9 @@
 package com.lumina.twinstar.client.ui;
 
-import com.lowdragmc.lowdraglib2.gui.ui.UIElement;
-import com.lowdragmc.lowdraglib2.gui.ui.rendering.GUIContext;
 import net.minecraft.client.gui.GuiGraphics;
 
 /** A small one-colour icon drawn from a pixel pattern ('#' = set), as {@link MarkIcon}. */
-public class PixelIcon extends UIElement {
+public final class PixelIcon {
     /** the crafting graph button: a node with two branches */
     public static final String[] TREE = {
             "...###...",
@@ -84,21 +82,10 @@ public class PixelIcon extends UIElement {
             ".##.##.",
             "#.....#"};
 
-    private final String[] pixels;
-    private final int color;
-
-    public PixelIcon(String[] pixels, int color) {
-        this.pixels = pixels;
-        this.color = color;
-        layout(layout -> layout.width(pixels[0].length()).height(pixels.length).flexShrink(0));
+    private PixelIcon() {
     }
 
-    @Override
-    public void drawBackgroundAdditional(GUIContext context) {
-        draw(context.graphics, pixels, (int) getPositionX(), (int) getPositionY(), color);
-    }
-
-    /** The pattern at (x, y), outside LDLib2. */
+    /** The pattern at (x, y). */
     public static void draw(GuiGraphics g, String[] pixels, int x, int y, int color) {
         for (int row = 0; row < pixels.length; row++)
             for (int col = 0; col < pixels[row].length(); col++)

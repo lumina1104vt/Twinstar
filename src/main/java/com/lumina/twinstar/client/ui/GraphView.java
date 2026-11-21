@@ -406,7 +406,7 @@ public abstract class GraphView {
             List<Component> lines = switch (hover.kind) {
                 case ITEM -> itemTooltip(hover.ref);
                 case RECIPE -> recipeTooltip(hover.ref);
-                case LOOP -> frameTitle ? List.of(Component.translatable("gui.twinstar.graph.loop.fold").withColor(DIM))
+                case LOOP -> frameTitle ? List.of(Component.translatable("gui.twinstar.graph.loop.fold").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)))
                         : loopTooltip(hover.ref, hover.inner.stream().filter(n -> n.kind == GraphLayout.Kind.ITEM).map(n -> n.ref).toList(),
                         (int) hover.inner.stream().filter(n -> n.kind == GraphLayout.Kind.RECIPE).count());
             };
@@ -759,14 +759,14 @@ public abstract class GraphView {
         float nx = -dy / len * width / 2, ny = dx / len * width / 2;
         Matrix4f m = g.pose().last().pose();
         VertexConsumer vc = g.bufferSource().getBuffer(RenderType.gui());
-        vc.addVertex(m, x1 + nx, y1 + ny, 0).setColor(color);
-        vc.addVertex(m, x1 - nx, y1 - ny, 0).setColor(color);
-        vc.addVertex(m, x2 - nx, y2 - ny, 0).setColor(color);
-        vc.addVertex(m, x2 + nx, y2 + ny, 0).setColor(color);
-        vc.addVertex(m, x1 + nx, y1 + ny, 0).setColor(color);
-        vc.addVertex(m, x2 + nx, y2 + ny, 0).setColor(color);
-        vc.addVertex(m, x2 - nx, y2 - ny, 0).setColor(color);
-        vc.addVertex(m, x1 - nx, y1 - ny, 0).setColor(color);
+        vc.vertex(m, x1 + nx, y1 + ny, 0).color(color).endVertex();
+        vc.vertex(m, x1 - nx, y1 - ny, 0).color(color).endVertex();
+        vc.vertex(m, x2 - nx, y2 - ny, 0).color(color).endVertex();
+        vc.vertex(m, x2 + nx, y2 + ny, 0).color(color).endVertex();
+        vc.vertex(m, x1 + nx, y1 + ny, 0).color(color).endVertex();
+        vc.vertex(m, x2 + nx, y2 + ny, 0).color(color).endVertex();
+        vc.vertex(m, x2 - nx, y2 - ny, 0).color(color).endVertex();
+        vc.vertex(m, x1 - nx, y1 - ny, 0).color(color).endVertex();
     }
 
     // ── shared tooltip pieces ──

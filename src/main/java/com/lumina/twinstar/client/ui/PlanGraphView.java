@@ -118,17 +118,17 @@ public class PlanGraphView extends GraphView {
         if (!it.used().isEmpty())
             lines.add(Component.translatable("gui.twinstar.plan.uses", PlanUI.fullText(it.used(), it.key())));
         if (!it.made().isEmpty())
-            lines.add(Component.translatable("gui.twinstar.graph.made", PlanUI.fullText(it.made(), it.key())).withColor(MADE));
+            lines.add(Component.translatable("gui.twinstar.graph.made", PlanUI.fullText(it.made(), it.key())).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(MADE)));
         if (!it.stock().isEmpty())
-            lines.add(Component.translatable("gui.twinstar.plan.stock", PlanUI.fullText(it.stock(), it.key())).withColor(FROM_STOCK));
+            lines.add(Component.translatable("gui.twinstar.plan.stock", PlanUI.fullText(it.stock(), it.key())).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(FROM_STOCK)));
         if (it.infinite())
-            lines.add(Component.translatable("gui.twinstar.plan.infinite").withColor(FROM_STOCK));
+            lines.add(Component.translatable("gui.twinstar.plan.infinite").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(FROM_STOCK)));
         if (!it.missing().isEmpty())
-            lines.add(Component.translatable("gui.twinstar.plan.missing", PlanUI.fullText(it.missing(), it.key())).withColor(MISSING));
+            lines.add(Component.translatable("gui.twinstar.plan.missing", PlanUI.fullText(it.missing(), it.key())).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(MISSING)));
         if (!it.leftover().isEmpty())
-            lines.add(Component.translatable("gui.twinstar.graph.leftover", PlanUI.fullText(it.leftover(), it.key())).withColor(DIM));
+            lines.add(Component.translatable("gui.twinstar.graph.leftover", PlanUI.fullText(it.leftover(), it.key())).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
         if (it.loop() >= 0)
-            lines.add(Component.translatable("gui.twinstar.graph.in_loop").withColor(LOOP_COLOR));
+            lines.add(Component.translatable("gui.twinstar.graph.in_loop").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(LOOP_COLOR)));
         return lines;
     }
 
@@ -136,15 +136,15 @@ public class PlanGraphView extends GraphView {
     protected List<Component> recipeTooltip(int recipe) {
         PlanGraph.Recipe rc = graph().recipes().get(recipe);
         List<Component> lines = new ArrayList<>();
-        lines.add(Component.translatable("gui.twinstar.graph.recipe", PlanUI.fullText(rc.runs(), null)).withColor(CRAFT));
+        lines.add(Component.translatable("gui.twinstar.graph.recipe", PlanUI.fullText(rc.runs(), null)).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(CRAFT)));
         if (rc.machine() != null)
             lines.add(rc.machineMissing()
-                    ? Component.translatable("gui.twinstar.plan.missing_machine", AEKeyRendering.getDisplayName(rc.machine())).withColor(MISSING)
-                    : Component.translatable("gui.twinstar.graph.machine", AEKeyRendering.getDisplayName(rc.machine())).withColor(DIM));
-        lines.add(Component.translatable("gui.twinstar.graph.inputs").withColor(DIM));
+                    ? Component.translatable("gui.twinstar.plan.missing_machine", AEKeyRendering.getDisplayName(rc.machine())).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(MISSING))
+                    : Component.translatable("gui.twinstar.graph.machine", AEKeyRendering.getDisplayName(rc.machine())).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
+        lines.add(Component.translatable("gui.twinstar.graph.inputs").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
         for (PlanGraph.Flow f : rc.inputs())
             lines.add(flowLine(f, inputKind(f.kind())));
-        lines.add(Component.translatable("gui.twinstar.graph.outputs").withColor(DIM));
+        lines.add(Component.translatable("gui.twinstar.graph.outputs").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
         for (PlanGraph.Flow f : rc.outputs())
             lines.add(flowLine(f, f.kind() == 1 ? "byproduct" : null));
         return lines;
@@ -153,7 +153,7 @@ public class PlanGraphView extends GraphView {
     @Override
     protected List<Component> loopTooltip(int loop, List<Integer> items, int recipes) {
         List<Component> lines = new ArrayList<>();
-        lines.add(Component.translatable("gui.twinstar.graph.loop", items.size(), recipes).withColor(LOOP_COLOR));
+        lines.add(Component.translatable("gui.twinstar.graph.loop", items.size(), recipes).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(LOOP_COLOR)));
         for (int i : items) {
             PlanGraph.Item it = graph().items().get(i);
             lines.add(Component.literal("  ").append(AEKeyRendering.getDisplayName(it.key()))
@@ -161,11 +161,11 @@ public class PlanGraphView extends GraphView {
         }
         List<PlanGraph.Flow> seeds = graph().loops().get(loop).seeds();
         if (!seeds.isEmpty()) {
-            lines.add(Component.translatable("gui.twinstar.graph.seeds").withColor(DIM));
+            lines.add(Component.translatable("gui.twinstar.graph.seeds").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
             for (PlanGraph.Flow f : seeds)
                 lines.add(flowLine(f, null));
         }
-        lines.add(Component.translatable("gui.twinstar.graph.loop.unfold").withColor(DIM));
+        lines.add(Component.translatable("gui.twinstar.graph.loop.unfold").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
         return lines;
     }
 
@@ -174,7 +174,7 @@ public class PlanGraphView extends GraphView {
         MutableComponent line = Component.literal("  ").append(AEKeyRendering.getDisplayName(key))
                 .append(" ×" + PlanUI.fullText(f.amount(), key));
         if (note != null)
-            line.append(Component.literal(" ").append(Component.translatable("gui.twinstar.graph." + note)).withColor(DIM));
+            line.append(Component.literal(" ").append(Component.translatable("gui.twinstar.graph." + note)).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
         return line;
     }
 }

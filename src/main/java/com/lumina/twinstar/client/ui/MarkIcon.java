@@ -1,11 +1,10 @@
 package com.lumina.twinstar.client.ui;
 
-import com.lowdragmc.lowdraglib2.gui.ui.UIElement;
-import com.lowdragmc.lowdraglib2.gui.ui.rendering.GUIContext;
+import net.minecraft.client.gui.GuiGraphics;
 import com.lumina.twinstar.order.ItemMark;
 
 /** A plan-tree mark as a 7x7 pixel icon: auto = hollow ring, avoid = arrow down, free = check mark, keep = padlock. */
-public class MarkIcon extends UIElement {
+public final class MarkIcon {
     private static final String[] AUTO = {
             "..###..",
             ".#...#.",
@@ -39,26 +38,20 @@ public class MarkIcon extends UIElement {
             "..#....",
             "......."};
 
-    private final String[] pixels;
-    private final int color;
+    private MarkIcon() {
+    }
 
-    public MarkIcon(ItemMark mark, int color) {
-        this.pixels = switch (mark) {
+    /** The mark's 7 x 7 icon at (x, y). */
+    public static void draw(GuiGraphics g, ItemMark mark, int x, int y, int color) {
+        String[] pixels = switch (mark) {
             case AUTO -> AUTO;
             case AVOID -> AVOID;
             case FREE -> FREE;
             case KEEP -> KEEP;
         };
-        this.color = color;
-        layout(layout -> layout.width(7).height(7).flexShrink(0));
-    }
-
-    @Override
-    public void drawBackgroundAdditional(GUIContext context) {
-        int x = (int) getPositionX(), y = (int) getPositionY();
         for (int row = 0; row < pixels.length; row++)
             for (int col = 0; col < pixels[row].length(); col++)
                 if (pixels[row].charAt(col) == '#')
-                    context.graphics.fill(x + col, y + row, x + col + 1, y + row + 1, color);
+                    g.fill(x + col, y + row, x + col + 1, y + row + 1, color);
     }
 }

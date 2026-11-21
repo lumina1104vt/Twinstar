@@ -1,23 +1,15 @@
 package com.lumina.twinstar.client.ui;
 
-import com.lowdragmc.lowdraglib2.gui.ui.UIElement;
-import com.lowdragmc.lowdraglib2.gui.ui.rendering.GUIContext;
 import net.minecraft.client.gui.GuiGraphics;
 
 /** The ↩ of the back button, drawn in pixels (the font's glyph is too small at this size). */
-public class BackArrow extends UIElement {
+public final class BackArrow {
     private static final int COLOR = 0xFFDEDEEA;
 
-    public BackArrow() {
-        layout(layout -> layout.width(9).height(8).flexShrink(0));
+    private BackArrow() {
     }
 
-    @Override
-    public void drawBackgroundAdditional(GUIContext context) {
-        draw(context.graphics, (int) getPositionX(), (int) getPositionY());
-    }
-
-    /** The arrow at (x, y), outside LDLib2 (the crafting graph's bar). */
+    /** The arrow at (x, y). */
     public static void draw(GuiGraphics g, int x, int y) {
         // a hook from the top right, down, then left to the arrow head
         g.fill(x + 7, y, x + 9, y + 6, COLOR);

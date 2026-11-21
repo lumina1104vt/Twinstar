@@ -67,7 +67,7 @@ public class TheoryGraphView extends GraphView {
         search.setX(6);
         search.setY(BAR_H + 6);
         search.setWidth(SEARCH_W);
-        search.setHint(Component.translatable("gui.twinstar.theory.search").withColor(DIM));
+        search.setHint(Component.translatable("gui.twinstar.theory.search").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
         this.focus = start;
         this.selected = start;
     }
@@ -359,22 +359,22 @@ public class TheoryGraphView extends GraphView {
         TheoryMap.Item it = mapItem(item);
         List<Component> lines = new ArrayList<>();
         lines.add(AEKeyRendering.getDisplayName(it.key()));
-        lines.add(Component.translatable("gui.twinstar.theory.level", it.level()).withColor(DIM));
+        lines.add(Component.translatable("gui.twinstar.theory.level", it.level()).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
         if (it.is(TheoryMap.CANNOT))
-            lines.add(Component.translatable("gui.twinstar.theory.cannot").withColor(MISSING));
+            lines.add(Component.translatable("gui.twinstar.theory.cannot").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(MISSING)));
         else
-            lines.add(Component.translatable("gui.twinstar.theory.cost", logText(it.logCost())).withColor(DIM));
+            lines.add(Component.translatable("gui.twinstar.theory.cost", logText(it.logCost())).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
         if (it.is(TheoryMap.RAW))
-            lines.add(Component.translatable("gui.twinstar.theory.raw").withColor(FROM_STOCK));
+            lines.add(Component.translatable("gui.twinstar.theory.raw").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(FROM_STOCK)));
         if (it.is(TheoryMap.MINED))
-            lines.add(Component.translatable("gui.twinstar.theory.mined").withColor(FROM_STOCK));
+            lines.add(Component.translatable("gui.twinstar.theory.mined").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(FROM_STOCK)));
         if (it.is(TheoryMap.INFINITE))
-            lines.add(Component.translatable("gui.twinstar.plan.infinite").withColor(FROM_STOCK));
+            lines.add(Component.translatable("gui.twinstar.plan.infinite").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(FROM_STOCK)));
         if (producers[itemOf[item]].length > 0)
-            lines.add(Component.translatable("gui.twinstar.theory.routes", producers[itemOf[item]].length).withColor(CRAFT));
+            lines.add(Component.translatable("gui.twinstar.theory.routes", producers[itemOf[item]].length).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(CRAFT)));
         if (it.loop() >= 0)
-            lines.add(Component.translatable("gui.twinstar.theory.in_engine_loop").withColor(LOOP_COLOR));
-        lines.add(Component.translatable("gui.twinstar.theory.click_select").withColor(DIM));
+            lines.add(Component.translatable("gui.twinstar.theory.in_engine_loop").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(LOOP_COLOR)));
+        lines.add(Component.translatable("gui.twinstar.theory.click_select").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
         return lines;
     }
 
@@ -385,26 +385,26 @@ public class TheoryGraphView extends GraphView {
         TheoryMap.Out main = mainOut(recipe);
         if (main != null)
             lines.add(Component.translatable("gui.twinstar.theory.makes", AEKeyRendering.getDisplayName(shownMap.items().get(main.item()).key()))
-                    .withColor(CRAFT));
+                    .withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(CRAFT)));
         if (isBest(recipe))
-            lines.add(Component.translatable("gui.twinstar.theory.best").withColor(BEST));
+            lines.add(Component.translatable("gui.twinstar.theory.best").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(BEST)));
         else if (main == null || Double.isInfinite(main.logCost()))
-            lines.add(Component.translatable("gui.twinstar.theory.route_cannot").withColor(MISSING));
+            lines.add(Component.translatable("gui.twinstar.theory.route_cannot").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(MISSING)));
         else
-            lines.add(Component.translatable("gui.twinstar.theory.ratio", ratio(recipe)).withColor(DIM));
+            lines.add(Component.translatable("gui.twinstar.theory.ratio", ratio(recipe)).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
         if (pat.machine() != null)
-            lines.add(Component.translatable("gui.twinstar.graph.machine", AEKeyRendering.getDisplayName(pat.machine())).withColor(DIM));
-        lines.add(Component.translatable("gui.twinstar.theory.per_run").withColor(DIM));
-        lines.add(Component.translatable("gui.twinstar.graph.inputs").withColor(DIM));
+            lines.add(Component.translatable("gui.twinstar.graph.machine", AEKeyRendering.getDisplayName(pat.machine())).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
+        lines.add(Component.translatable("gui.twinstar.theory.per_run").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
+        lines.add(Component.translatable("gui.twinstar.graph.inputs").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
         for (TheoryMap.In in : pat.inputs()) {
             TheoryMap.Item m = shownMap.items().get(in.item());
             MutableComponent line = stackLine(m.key(), in.amount(), inputKind(in.kind()));
             // why a route cannot run: the material the theory finds no cost for
             if (m.is(TheoryMap.CANNOT) && in.kind() != 1 && in.kind() != 3)
-                line.append(Component.literal(" ").append(Component.translatable("gui.twinstar.theory.no_cost")).withColor(MISSING));
+                line.append(Component.literal(" ").append(Component.translatable("gui.twinstar.theory.no_cost")).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(MISSING)));
             lines.add(line);
         }
-        lines.add(Component.translatable("gui.twinstar.graph.outputs").withColor(DIM));
+        lines.add(Component.translatable("gui.twinstar.graph.outputs").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
         for (TheoryMap.Out o : pat.outputs())
             lines.add(stackLine(shownMap.items().get(o.item()).key(), o.amount(), o.byproduct() ? "byproduct" : null));
         return lines;
@@ -413,10 +413,10 @@ public class TheoryGraphView extends GraphView {
     @Override
     protected List<Component> loopTooltip(int loop, List<Integer> items, int recipes) {
         List<Component> lines = new ArrayList<>();
-        lines.add(Component.translatable("gui.twinstar.graph.loop", items.size(), recipes).withColor(LOOP_COLOR));
+        lines.add(Component.translatable("gui.twinstar.graph.loop", items.size(), recipes).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(LOOP_COLOR)));
         for (int i : items)
             lines.add(Component.literal("  ").append(AEKeyRendering.getDisplayName(mapItem(i).key())));
-        lines.add(Component.translatable("gui.twinstar.graph.loop.unfold").withColor(DIM));
+        lines.add(Component.translatable("gui.twinstar.graph.loop.unfold").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
         return lines;
     }
 
@@ -424,7 +424,7 @@ public class TheoryGraphView extends GraphView {
         MutableComponent line = Component.literal("  ").append(AEKeyRendering.getDisplayName(key))
                 .append(" ×" + PlanUI.fullText(amount, key));
         if (note != null)
-            line.append(Component.literal(" ").append(Component.translatable("gui.twinstar.graph." + note)).withColor(DIM));
+            line.append(Component.literal(" ").append(Component.translatable("gui.twinstar.graph." + note)).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
         return line;
     }
 
@@ -592,7 +592,7 @@ public class TheoryGraphView extends GraphView {
                 String ratio = Double.isInfinite(r.logCost()) ? "—" : "×" + logText(Math.max(0, r.logCost() - info.logCost()));
                 MutableComponent line = Component.literal((i + 1) + ". " + ratio);
                 if (r.machine() != null)
-                    line.append(Component.literal(" ").append(AEKeyRendering.getDisplayName(r.machine())).withColor(DIM));
+                    line.append(Component.literal(" ").append(AEKeyRendering.getDisplayName(r.machine())).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
                 y = wrapped(g, line, x + 9, y, w - 9, color);
             }
             if (info.moreRoutes() > 0)
@@ -625,25 +625,25 @@ public class TheoryGraphView extends GraphView {
     /** Level, cost, what kind of item. */
     private static void facts(TheoryItem info, List<Component> lines) {
         if (!info.known()) {
-            lines.add(Component.translatable("gui.twinstar.theory.unknown").withColor(DIM));
+            lines.add(Component.translatable("gui.twinstar.theory.unknown").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
             return;
         }
-        lines.add(Component.translatable("gui.twinstar.theory.level", info.level()).withColor(DIM));
+        lines.add(Component.translatable("gui.twinstar.theory.level", info.level()).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
         boolean cannot = !info.raw() && !info.mined() && info.logCost() == Double.POSITIVE_INFINITY;
         if (cannot)
-            lines.add(Component.translatable("gui.twinstar.theory.cannot").withColor(MISSING));
+            lines.add(Component.translatable("gui.twinstar.theory.cannot").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(MISSING)));
         else
-            lines.add(Component.translatable("gui.twinstar.theory.cost", logText(info.logCost())).withColor(DIM));
+            lines.add(Component.translatable("gui.twinstar.theory.cost", logText(info.logCost())).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
         if (info.raw())
-            lines.add(Component.translatable("gui.twinstar.theory.raw").withColor(FROM_STOCK));
+            lines.add(Component.translatable("gui.twinstar.theory.raw").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(FROM_STOCK)));
         if (info.mined())
-            lines.add(Component.translatable("gui.twinstar.theory.mined").withColor(FROM_STOCK));
+            lines.add(Component.translatable("gui.twinstar.theory.mined").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(FROM_STOCK)));
         if (info.infinite())
-            lines.add(Component.translatable("gui.twinstar.plan.infinite").withColor(FROM_STOCK));
+            lines.add(Component.translatable("gui.twinstar.plan.infinite").withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(FROM_STOCK)));
         if (!info.raw())
-            lines.add(Component.translatable("gui.twinstar.theory.routes", info.routes().size() + info.moreRoutes()).withColor(CRAFT));
+            lines.add(Component.translatable("gui.twinstar.theory.routes", info.routes().size() + info.moreRoutes()).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(CRAFT)));
         if (info.loop() != null)
-            lines.add(Component.translatable("gui.twinstar.theory.in_loop", info.loop().members().size()).withColor(LOOP_COLOR));
+            lines.add(Component.translatable("gui.twinstar.theory.in_loop", info.loop().members().size()).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(LOOP_COLOR)));
     }
 
     /** Text wrapped to the width; returns the y below it. */
