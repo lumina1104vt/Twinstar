@@ -9,6 +9,14 @@ public record RecipeHolder<T extends Recipe<?>>(ResourceLocation id, T value) {
         return new RecipeHolder<>(recipe.getId(), recipe);
     }
 
+    /** Every recipe of a typed list (what the recipe manager gives for a recipe type), with its id. */
+    public static <T extends Recipe<?>> java.util.List<RecipeHolder<T>> allOf(java.util.Collection<T> recipes) {
+        java.util.List<RecipeHolder<T>> out = new java.util.ArrayList<>(recipes.size());
+        for (T r : recipes)
+            out.add(of(r));
+        return out;
+    }
+
     /** Every recipe of a collection, with its id. */
     public static java.util.List<RecipeHolder<?>> all(java.util.Collection<? extends Recipe<?>> recipes) {
         java.util.List<RecipeHolder<?>> out = new java.util.ArrayList<>(recipes.size());

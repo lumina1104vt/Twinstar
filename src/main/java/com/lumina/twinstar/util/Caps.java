@@ -31,6 +31,13 @@ public final class Caps {
         return of(level, pos, side, ForgeCapabilities.ENERGY);
     }
 
+    /** A copy of the fluid stack with another amount (1.21's {@code copyWithAmount}). */
+    public static net.minecraftforge.fluids.FluidStack withAmount(net.minecraftforge.fluids.FluidStack stack, int amount) {
+        net.minecraftforge.fluids.FluidStack copy = stack.copy();
+        copy.setAmount(amount);
+        return copy;
+    }
+
     public static <T> @Nullable T of(Level level, BlockPos pos, @Nullable Direction side, Capability<T> cap) {
         BlockEntity be = level.getBlockEntity(pos);
         return be == null ? null : be.getCapability(cap, side).resolve().orElse(null);
