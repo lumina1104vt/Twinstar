@@ -6,6 +6,7 @@
   "mixins": [
     "CraftingServiceMixin",
     "CraftingServiceAccessor",
+    "ProviderStateMixin",
     "CraftingCPUMenuMixin",
     "CraftAmountMenuMixin",
     "CraftingStatusEntryMixin"
