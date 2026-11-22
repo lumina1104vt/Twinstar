@@ -3,6 +3,7 @@ package com.lumina.twinstar.algorithm.cache;
 import com.lumina.twinstar.algorithm.model.Amount;
 import com.lumina.twinstar.algorithm.model.ByteUnits;
 import com.lumina.twinstar.algorithm.model.LogMath;
+import com.lumina.twinstar.algorithm.model.Mem;
 import com.lumina.twinstar.algorithm.model.Pattern;
 import org.jetbrains.annotations.Nullable;
 
@@ -69,6 +70,67 @@ public final class Snapshot {
         return new Snapshot(-1, 0, new int[0], new int[0], new double[0], new double[0], new int[0],
                 new int[0][], new double[0][], new int[0][], new int[0][], patterns, new double[n],
                 new int[n][], new double[n][], new Scc[0], units);
+    }
+
+    /**
+     * Java memory of this version, by part (see {@link Mem}): the patterns, the per-item arrays and route
+     * lists, the flattened raw-material lists, and the rest (loops, plus the layer's own working copy
+     * when this version was published by one). Arrays shared with other versions count in full: this is
+     * what the version costs if it were the only one alive.
+     */
+    public record Memory(long patterns, long items, long bom, long other) {
+        public long total() {
+            return patterns + items + bom + other;
+        }
+    }
+
+    /** Extra bytes of the layer that published this version (its working arrays); set once at publish. */
+    volatile long workingBytes;
+    private volatile Memory memory;
+
+    /** {@link #memory()} when it was computed already, else null (never computes). */
+    public @Nullable Memory memoryIfReady() {
+        return memory;
+    }
+
+    /**
+     * Estimates the memory of this version; walks the patterns once, then remembers the answer. Meant
+     * for a background thread (a large pack has tens of thousands of patterns).
+     */
+    public Memory memory() {
+        Memory m = memory;
+        if (m != null)
+            return m;
+        long pat = Mem.refs(patterns.length);
+        for (Pattern p : patterns)
+            if (p != null)
+                pat += p.memoryBytes();
+        long it = Mem.ints(level) + Mem.ints(scc) + Mem.doubles(logCost) + Mem.doubles(logRawPrice) + Mem.ints(best)
+                + rowBytes(producers) + rowBytes(consumers);
+        long bomBytes = rowBytes(bomItems) + rowBytes(bomLog, 0) + Mem.doubles(patRunLogCost)
+                + rowBytes(patBomItems) + rowBytes(patBomLog, 0);
+        long other = Mem.refs(sccs.length) + workingBytes;
+        for (Scc s : sccs)
+            other += s.memoryBytes();
+        memory = m = new Memory(pat, it, bomBytes, other);
+        return m;
+    }
+
+    /** Rows of int arrays; the shared empty row costs nothing per holder. */
+    private static long rowBytes(int[][] rows) {
+        long b = Mem.refs(rows.length);
+        for (int[] r : rows)
+            if (r != null && r != EMPTY)
+                b += Mem.ints(r);
+        return b;
+    }
+
+    private static long rowBytes(double[][] rows, int unused) {
+        long b = Mem.refs(rows.length);
+        for (double[] r : rows)
+            if (r != null && r != TheoryLayer.RAW_LOG && r != TheoryLayer.EMPTY_LOG)
+                b += Mem.doubles(r);
+        return b;
     }
 
     /** How amounts count against the black-hole capacity (AE2's bytes). */
@@ -149,7 +211,7 @@ public final class Snapshot {
     }
 
     public double[] bomLog(int x) {
-        return x < items ? bomLog[x] : new double[]{0};
+        return x < items ? bomLog[x] : TheoryLayer.RAW_LOG;
     }
 
     public int[] patBomItems(int p) {
@@ -184,5 +246,5 @@ public final class Snapshot {
         return c - out;
     }
 
-    private static final int[] EMPTY = new int[0];
+    private static final int[] EMPTY = TheoryLayer.EMPTY;
 }

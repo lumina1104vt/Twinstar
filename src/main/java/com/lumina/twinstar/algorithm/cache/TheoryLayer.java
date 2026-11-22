@@ -4,10 +4,12 @@ import com.lumina.twinstar.algorithm.model.Amount;
 import com.lumina.twinstar.algorithm.model.ByteUnits;
 import com.lumina.twinstar.algorithm.model.InputKind;
 import com.lumina.twinstar.algorithm.model.LogMath;
+import com.lumina.twinstar.algorithm.model.Mem;
 import com.lumina.twinstar.algorithm.model.Pattern;
 import com.lumina.twinstar.algorithm.model.Rational;
 import com.lumina.twinstar.algorithm.model.StockSnapshot;
 import com.lumina.twinstar.algorithm.planning.ExactSimplex;
+import com.lumina.twinstar.metrics.Alloc;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -46,7 +48,11 @@ public final class TheoryLayer {
     public static final double HYSTERESIS = 0.8;
     /** Relative change treated as "unchanged" (stops propagation; policy switches need more). 【待定】 */
     public static final double EPS = 1e-9;
-    private static final int[] EMPTY = new int[0];
+    /** Shared by every item and pattern with nothing in the list (arrays are never written, only replaced). */
+    static final int[] EMPTY = new int[0];
+    static final double[] EMPTY_LOG = new double[0];
+    /** The BOM amounts of a raw: itself, log10(1) = 0. One array for all raws instead of one each. */
+    static final double[] RAW_LOG = {0};
 
     // ── patterns (index = id) ──
     final ArrayList<Pattern> patterns = new ArrayList<>();
@@ -143,7 +149,7 @@ public final class TheoryLayer {
             consumers[in] = without(consumers[in], id);
         patterns.set(id, null);
         patBomItems[id] = EMPTY;
-        patBomLog[id] = new double[0];
+        patBomLog[id] = EMPTY_LOG;
         patternsChanged = true;
         for (int i = 0; i < p.outputCount(); i++)
             if (!p.isByproduct(i))
@@ -206,6 +212,7 @@ public final class TheoryLayer {
      */
     public synchronized Snapshot flush() {
         long t0 = System.nanoTime();
+        long a0 = Alloc.threadBytes();
         if (published != null && !needRebuild && !patternsChanged && !stockMoved && pending.isEmpty()) {
             // nothing changed since the last version (the stock sync runs every second): keep it
             lastFlush = new FlushStats(published.version(), false, 0, System.nanoTime() - t0);
@@ -253,7 +260,10 @@ public final class TheoryLayer {
             }
         }
         Snapshot s = publish();
-        lastFlush = new FlushStats(s.version(), rebuilt, processed, System.nanoTime() - t0);
+        long took = System.nanoTime() - t0;
+        FlushStats st = new FlushStats(s.version(), rebuilt, processed, took, Alloc.since(a0));
+        lastFlush = st;
+        notePerf(st);
         return s;
     }
 
@@ -263,7 +273,47 @@ public final class TheoryLayer {
      * @param rebuilt   built everything again
      * @param processed components computed (all of them for a rebuild)
      */
-    public record FlushStats(long version, boolean rebuilt, int processed, long nanos) {
+    public record FlushStats(long version, boolean rebuilt, int processed, long nanos, long allocBytes) {
+        public FlushStats(long version, boolean rebuilt, int processed, long nanos) {
+            this(version, rebuilt, processed, nanos, -1);
+        }
+    }
+
+    /**
+     * Speed of the updates that changed something, for the viewer's memory and speed report.
+     *
+     * @param incrMaxNanos the slowest of the last {@link #RECENT_INCREMENTAL} incremental updates
+     */
+    public record FlushPerf(long flushes, long rebuilds, long lastNanos, boolean lastRebuilt, long lastRebuildNanos,
+                            long incrMaxNanos, long lastAlloc) {
+        public static final FlushPerf NONE = new FlushPerf(0, 0, 0, false, 0, 0, -1);
+    }
+
+    private static final int RECENT_INCREMENTAL = 8;
+    private final long[] recentIncremental = new long[RECENT_INCREMENTAL];
+    private long perfFlushes, perfRebuilds, perfLastRebuild;
+    private volatile FlushPerf perf = FlushPerf.NONE;
+
+    /** An update that did something is counted; one that found nothing to do is not (it would hide the real ones). */
+    private void notePerf(FlushStats st) {
+        if (!st.rebuilt() && st.processed() == 0 && perfFlushes > 0)
+            return;
+        if (st.rebuilt()) {
+            perfRebuilds++;
+            perfLastRebuild = st.nanos();
+        } else {
+            recentIncremental[(int) (perfFlushes % RECENT_INCREMENTAL)] = st.nanos();
+        }
+        perfFlushes++;
+        long max = 0;
+        for (long n : recentIncremental)
+            max = Math.max(max, n);
+        perf = new FlushPerf(perfFlushes, perfRebuilds, st.nanos(), st.rebuilt(), perfLastRebuild, max, st.allocBytes());
+    }
+
+    /** Speed numbers of the updates so far (never blocks). */
+    public FlushPerf perf() {
+        return perf;
     }
 
     /** What a component's members were before it is recomputed: unchanged ones stop the change here. */
@@ -327,7 +377,7 @@ public final class TheoryLayer {
             for (int i = old; i < n; i++) {
                 patRunLogCost[i] = LogMath.INF;
                 patBomItems[i] = EMPTY;
-                patBomLog[i] = new double[0];
+                patBomLog[i] = EMPTY_LOG;
             }
         }
     }
@@ -357,7 +407,7 @@ public final class TheoryLayer {
             noStock.set(i);
             logCost[i] = logRawPrice(i);
             bomItems[i] = new int[]{i};
-            bomLog[i] = new double[]{0};
+            bomLog[i] = RAW_LOG;
         }
     }
 
@@ -381,8 +431,28 @@ public final class TheoryLayer {
                 patterns.toArray(new Pattern[0]), Arrays.copyOf(patRunLogCost, patterns.size()),
                 Arrays.copyOf(patBomItems, patterns.size()), Arrays.copyOf(patBomLog, patterns.size()),
                 sccs.toArray(new Scc[0]), units);
+        s.workingBytes = workingBytes();
         published = s;
         return s;
+    }
+
+    /**
+     * Java memory of what the layer keeps for itself beside the published version (see {@link Mem}): its own
+     * copies of the per-item and per-pattern outer arrays (the rows inside are shared with the version),
+     * the price tiers, the components and the bit sets.
+     */
+    private long workingBytes() {
+        long b = Mem.obj(120);
+        int n = items;
+        b += Mem.ints(level) + Mem.ints(scc) + Mem.doubles(logCost) + Mem.ints(best) + Mem.ints(priceTier) + Mem.ints(compOf);
+        b += 4L * Mem.refs(n) + Mem.doubles(patRunLogCost) + 2L * Mem.refs(patBomItems.length);
+        b += Mem.arrayList(patterns.size()) + Mem.arrayList(sccs.size()) + Mem.arrayList(comps.size()) + Mem.arrayList(compSccs.size());
+        for (int[] c : comps)
+            b += Mem.ints(c);
+        for (List<Scc> l : compSccs)
+            b += Mem.arrayList(l.size());
+        b += Mem.bitSet(noStock) + Mem.bitSet(infinite) + Mem.bitSet(mined) + Mem.bitSet(pending);
+        return b;
     }
 
     private double[] rawPrices() {
@@ -472,7 +542,7 @@ public final class TheoryLayer {
         logCost[x] = logRawPrice(x);
         best[x] = -1;
         bomItems[x] = new int[]{x};
-        bomLog[x] = new double[]{0};
+        bomLog[x] = RAW_LOG;
     }
 
     /** Route order: possible routes first, then provider priority, cost, processing steps, the current best, location, id. */

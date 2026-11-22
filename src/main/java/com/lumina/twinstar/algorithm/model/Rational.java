@@ -15,6 +15,18 @@ public final class Rational implements Comparable<Rational> {
         this.den = den;
     }
 
+    /** Java memory of this fraction (see {@link Mem}); 0 for the shared ZERO and ONE. */
+    public long memoryBytes() {
+        if (this == ZERO || this == ONE)
+            return 0;
+        return Mem.obj(2 * 4) + smallBig(num) + smallBig(den);
+    }
+
+    /** {@code BigInteger.valueOf} hands out shared objects for −16..16. */
+    private static long smallBig(BigInteger v) {
+        return v.bitLength() <= 4 ? 0 : Mem.bigInteger(v);
+    }
+
     public static Rational of(BigInteger num, BigInteger den) {
         if (den.signum() == 0)
             throw new ArithmeticException("zero denominator");

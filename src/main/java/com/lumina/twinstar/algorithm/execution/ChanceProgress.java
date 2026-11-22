@@ -15,6 +15,12 @@ import java.math.RoundingMode;
  * runs the rest needs on average, so it does not overshoot by much.
  */
 final class ChanceProgress {
+    /** Java memory of this progress record (see {@link com.lumina.twinstar.algorithm.model.Mem}). */
+    long memoryBytes() {
+        return com.lumina.twinstar.algorithm.model.Mem.obj(4 + 4 + 4 + 4 + 2) + need.memoryBytes() + sureRuns.memoryBytes()
+                + runsDone.memoryBytes() + got.memoryBytes();
+    }
+
     final AmountMap need;
     final Amount sureRuns;
     Amount runsDone = Amount.ZERO;

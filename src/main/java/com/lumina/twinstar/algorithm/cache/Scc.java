@@ -2,6 +2,7 @@ package com.lumina.twinstar.algorithm.cache;
 
 import com.lumina.twinstar.algorithm.model.Amount;
 import com.lumina.twinstar.algorithm.model.AmountMap;
+import com.lumina.twinstar.algorithm.model.Mem;
 import com.lumina.twinstar.algorithm.model.Rational;
 import com.lumina.twinstar.algorithm.model.SccKind;
 
@@ -33,6 +34,22 @@ public final class Scc {
         this.seedAmounts = seedAmounts;
         this.seedOptions = seedOptions;
         this.net = net;
+    }
+
+    /** Java memory of this cycle (see {@link com.lumina.twinstar.algorithm.model.Mem}). */
+    long memoryBytes() {
+        long b = Mem.obj(4 + 7 * 4) + Mem.ints(members) + Mem.ints(policy) + Mem.ints(patterns) + Mem.ints(seedItems)
+                + Mem.refs(seedAmounts.length) + Mem.refs(seedOptions.length) + Mem.refs(net.length);
+        for (Amount a : seedAmounts)
+            b += a.memoryBytes();
+        for (AmountMap m : seedOptions)
+            b += m.memoryBytes();
+        for (Rational[] row : net) {
+            b += Mem.refs(row.length);
+            for (Rational r : row)
+                b += r.memoryBytes();
+        }
+        return b;
     }
 
     /** The same cycle under another number (cycles are numbered in component order at publish). */
