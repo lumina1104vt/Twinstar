@@ -175,9 +175,9 @@ public final class PatternCompiler {
         Rational energy = Rational.ZERO;
         List<GenericStack> remainders = new ArrayList<>();
         int ordinal = -1;
-        // AE2 merges identical materials of a processing pattern into one input; a pattern that says which GUI slot each
-        // material slot goes into keeps its slots apart (the same material goes into many places)
-        List<IPatternDetails.IInput> inputList = guiSlots != null && details instanceof AEProcessingPattern processing
+        // AE2 merges identical materials of a processing pattern into one input; a pattern for a machine keeps its slots
+        // apart (the same material goes into many places: slots of the GUI, or one input bus each, in order)
+        List<IPatternDetails.IInput> inputList = machine != null && details instanceof AEProcessingPattern processing
                 ? java.util.Arrays.stream(processing.getSparseInputs()).filter(java.util.Objects::nonNull).map(SparseInput::new)
                         .<IPatternDetails.IInput>map(i -> i).toList()
                 : List.of(details.getInputs());
