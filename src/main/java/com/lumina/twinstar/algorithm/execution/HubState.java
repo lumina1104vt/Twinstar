@@ -1839,6 +1839,24 @@ public final class HubState {
      * is full (the order of an assembly line matters). Returns how much went in.
      */
     private long intoHatches(MachineState m, ServerLevel level, Part p, boolean[] only) {
+        long went = intoHatches0(m, level, p, only);
+        if (went > 0 && debug != null) {
+            // which hatch took what, by ids: a material in the wrong hatch shows here (what the hatch holds is read after the insert)
+            String id = p.key instanceof AEItemKey i ? String.valueOf(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(i.getItem()))
+                    : p.key instanceof appeng.api.stacks.AEFluidKey f ? String.valueOf(net.minecraft.core.registries.BuiltInRegistries.FLUID.getKey(f.getFluid()))
+                    : p.key.getType().getDescription().getString();
+            StringBuilder sb = new StringBuilder("[雙星] 艙口放入 ").append(id).append(" ×").append(went).append("（樣板欄位 ").append(p.guiSlot).append("）→");
+            for (IMachineAccess.Port port : m.access.ports())
+                if (port.pos().equals(p.hatchPort) || p.guiSlot > 0 && port.slot() == p.guiSlot
+                        && port.role() == (p.key instanceof appeng.api.stacks.AEFluidKey ? IMachineAccess.PortRole.FLUID_IN : IMachineAccess.PortRole.ITEM_IN))
+                    sb.append(" 艙口 #").append(port.slot()).append(" ").append(port.pos().toShortString()).append("，現有：")
+                            .append(p.key instanceof AEItemKey ? MachineIO.contentsAt(level, port.pos()) : "（流體）");
+            debug.accept(sb.toString());
+        }
+        return went;
+    }
+
+    private long intoHatches0(MachineState m, ServerLevel level, Part p, boolean[] only) {
         List<IMachineAccess.Port> ports = m.access.ports();
         if (ports.isEmpty())
             return 0;
