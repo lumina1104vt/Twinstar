@@ -14,6 +14,8 @@ import com.lowdragmc.lowdraglib2.gui.ui.elements.ScrollerView;
 import com.lowdragmc.lowdraglib2.gui.ui.event.UIEvents;
 import com.lowdragmc.lowdraglib2.gui.ui.rendering.GUIContext;
 import com.lumina.twinstar.Twinstar;
+import com.lumina.twinstar.client.Bookmarks;
+import com.lumina.twinstar.client.hover.KeyHit;
 import com.lumina.twinstar.order.ItemMark;
 import com.lumina.twinstar.order.PlanMenu;
 import com.lumina.twinstar.order.PlanView;
@@ -75,6 +77,9 @@ public class PlanUI {
     private final ScrollerView missingList = new ScrollerView();
     private final Button replan = PixelLabel.button(Component.translatable("gui.twinstar.plan.replan"));
     private final Button start = PixelLabel.button(Component.translatable("gui.twinstar.plan.start"));
+    private final Button bookmark = PixelLabel.button(Component.translatable("gui.twinstar.plan.bookmark"));
+    private final Player player;
+    private boolean bookmarkShown;
 
     // what is shown now
     private @Nullable PlanView shownView;
@@ -84,6 +89,7 @@ public class PlanUI {
     /** @param openGraph opens the plan's crafting graph (a screen of its own) */
     public PlanUI(PlanMenu menu, Player player, Runnable openGraph) {
         this.menu = menu;
+        this.player = player;
         UIElement root = new UIElement().addClass("plan_root");
         root.layout(l -> l.width(WIDTH).height(HEIGHT).paddingLeft(7).paddingRight(7).paddingTop(1).paddingBottom(6));
         root.addChildren(header(openGraph, player), body(), footer());
@@ -135,7 +141,14 @@ public class PlanUI {
         summary.layout(l -> l.height(SUMMARY_H).paddingAll(3).gapAll(1).flexShrink(0));
 
         int missingH = BODY_H - SUMMARY_H - SIDE_GAP;
-        missingCard.addClass("card").addChildren(missingTitle, missingList);
+        missingCard.addClass("card").addChildren(missingTitle, bookmark, missingList);
+        bookmark.setDisplay(false);
+        bookmark.layout(l -> l.widthPercent(100).height(12).paddingAll(0).flexShrink(0));
+        bookmark.setOnClick(e -> bookmarkMissing());
+        bookmark.style(s -> s.tooltips(Component.translatable("gui.twinstar.plan.bookmark"),
+                Component.translatable("gui.twinstar.plan.bookmark.tooltip").withColor(DIM)));
+        if (bookmark.getChildren().get(0) instanceof Label caption)
+            caption.textStyle(t -> t.fontSize(SMALL));
         missingCard.layout(l -> l.height(missingH).paddingAll(3).gapAll(2).flexShrink(0));
         missingTitle.layout(l -> l.flexShrink(0));
         missingList.layout(l -> l.flexGrow(1).flexShrink(1).flexBasis(0).minHeight(0));
@@ -161,6 +174,25 @@ public class PlanUI {
         return footer;
     }
 
+    /** The material under the mouse (JEI and EMI bookmark it with their A key), or null. */
+    public @Nullable KeyHit keyAt() {
+        return KeyRow.under(modularUI);
+    }
+
+    /**
+     * The button of a failed plan: puts every missing material (and machine) into JEI / EMI
+     * in one go, so the player can look them up and fetch them. Tells how many were new.
+     */
+    private void bookmarkMissing() {
+        PlanView view = menu.planning ? null : menu.getView();
+        if (view == null)
+            return;
+        List<AEKey> keys = view.missing().stream().map(PlanView.Missing::key).distinct().toList();
+        int added = Bookmarks.add(keys);
+        player.displayClientMessage(Component.translatable(added > 0 ? "gui.twinstar.plan.bookmark.done" : "gui.twinstar.plan.bookmark.none",
+                added, keys.size()), true);
+    }
+
     // ── content ──
 
     /** Follows the menu: planning, the plan's view, a failed start. Called every client tick. */
@@ -169,6 +201,11 @@ public class PlanUI {
         boolean planning = menu.planning;
         String error = menu.error;
         replan.setActive(!planning);
+        boolean canBookmark = view != null && !view.missing().isEmpty() && Bookmarks.available();
+        if (canBookmark != bookmarkShown) {
+            bookmarkShown = canBookmark;
+            bookmark.setDisplay(canBookmark);
+        }
         // too big for the black hole: starting would only fail
         start.setActive(view != null && view.complete() && view.fits());
         if (view == shownView && planning == shownPlanning && error.equals(shownError))
@@ -208,7 +245,7 @@ public class PlanUI {
         Label amount = new PixelLabel();
         amount.setText(Component.literal("×" + shortText(view.amount(), view.target())));
         amount.layout(l -> l.marginLeft(2));
-        UIElement target = new UIElement().addChildren(new KeyIcon(view.target()), amount);
+        UIElement target = new KeyRow(view.target()).addChildren(new KeyIcon(view.target()), amount);
         target.layout(l -> l.flexDirection(FlexDirection.ROW).alignItems(AlignItems.CENTER).marginBottom(1));
         summary.addChildren(target,
                 small(Component.translatable("gui.twinstar.plan.patterns", view.patterns()), DIM),
@@ -247,7 +284,7 @@ public class PlanUI {
                     small(m.machine() ? Component.translatable("gui.twinstar.plan.machine")
                             : Component.literal("×" + shortText(m.amount(), m.key())), BAD));
             text.layout(l -> l.flexGrow(1).flexShrink(1).minWidth(0).marginLeft(2));
-            UIElement entry = new UIElement().addChildren(new KeyIcon(m.key()), text);
+            UIElement entry = new KeyRow(m.key()).addChildren(new KeyIcon(m.key()), text);
             entry.layout(l -> l.flexDirection(FlexDirection.ROW).alignItems(AlignItems.CENTER).height(18));
             entry.style(s -> s.tooltips(AEKeyRendering.getDisplayName(m.key()), m.machine()
                     ? Component.translatable("gui.twinstar.plan.machine.tooltip").withColor(BAD)
@@ -260,10 +297,11 @@ public class PlanUI {
      * One item of the crafting tree: indented by depth, a connector to its parent, tinted when
      * something is missing, and (below the target) the player's mark for it.
      */
-    private final class TreeRow extends UIElement {
+    private final class TreeRow extends KeyRow {
         private final int depth;
 
         TreeRow(PlanView.Row row, int index) {
+            super(row.key());
             this.depth = Math.min(row.depth(), MAX_INDENT_DEPTH);
             boolean missing = !row.missing().isEmpty() || row.missingMachine() != null;
             if (missing)

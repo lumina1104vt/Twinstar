@@ -2,6 +2,7 @@ package com.lumina.twinstar.client.ui;
 
 import appeng.api.client.AEKeyRendering;
 import appeng.api.stacks.AEKey;
+import com.lumina.twinstar.client.hover.KeyHit;
 import com.lumina.twinstar.order.PlanGraph;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
@@ -341,23 +342,9 @@ public abstract class GraphView {
     public void render(GuiGraphics g, int mx, int my) {
         g.fill(0, 0, width, height, BACKGROUND);
         grid(g);
-        GraphLayout.Node hover = null;
-        boolean frameTitle = false;
-        if (layout != null && my >= BAR_H && !overlayContains(mx, my)) {
-            double wx = worldX(mx), wy = worldY(my);
-            for (GraphLayout.Node n : layout.all())
-                if (n.contains(wx, wy) && (hover == null || hover.kind == GraphLayout.Kind.LOOP))
-                    hover = n;
-            frameTitle = hover != null && hover.kind == GraphLayout.Kind.LOOP && hover.unfolded
-                    && wy < hover.y + GraphLayout.FRAME_TITLE_H;
-            if (hover != null && hover.kind == GraphLayout.Kind.LOOP && hover.unfolded && !frameTitle)
-                hover = null;   // the empty inside of a frame
-            GraphLayout.Node mark = landmarkAt(mx, my);
-            if (mark != null) {
-                hover = mark;
-                frameTitle = false;
-            }
-        }
+        Hovered under = hoverAt(mx, my);
+        GraphLayout.Node hover = under == null ? null : under.node();
+        boolean frameTitle = under != null && under.frameTitle();
 
         if (layout != null) {
             // what is on the screen, in world units (with a margin for tabs and labels)
@@ -422,6 +409,92 @@ public abstract class GraphView {
         GraphLayout.Node a = e.from(), b = e.to();
         return Math.max(a.x + a.w, b.x + b.w) >= x0 && Math.min(a.x, b.x) <= x1
                 && Math.max(a.y + a.h, b.y + b.h) >= y0 && Math.min(a.y, b.y) <= y1;
+    }
+
+    /** What the mouse is on in the graph: the node and, for an unfolded loop, whether it is the frame's title. */
+    private record Hovered(GraphLayout.Node node, boolean frameTitle) {
+    }
+
+    /** The graph node under the mouse (screen pixels); null over the bar, an overlay or empty space. */
+    private @Nullable Hovered hoverAt(double mx, double my) {
+        if (layout == null || my < BAR_H || overlayContains(mx, my))
+            return null;
+        GraphLayout.Node hover = null;
+        double wx = worldX(mx), wy = worldY(my);
+        for (GraphLayout.Node n : layout.all())
+            if (n.contains(wx, wy) && (hover == null || hover.kind == GraphLayout.Kind.LOOP))
+                hover = n;
+        boolean frameTitle = hover != null && hover.kind == GraphLayout.Kind.LOOP && hover.unfolded
+                && wy < hover.y + GraphLayout.FRAME_TITLE_H;
+        if (hover != null && hover.kind == GraphLayout.Kind.LOOP && hover.unfolded && !frameTitle)
+            hover = null;   // the empty inside of a frame
+        GraphLayout.Node mark = landmarkAt(mx, my);
+        if (mark != null) {
+            hover = mark;
+            frameTitle = false;
+        }
+        return hover == null ? null : new Hovered(hover, frameTitle);
+    }
+
+    /**
+     * The material drawn under the mouse (screen pixels), for JEI's and EMI's bookmark key: an item
+     * box gives its item, a recipe box its machine, a folded loop the icon the mouse is on.
+     */
+    public @Nullable KeyHit keyAt(double mx, double my) {
+        if (layout == null || my < BAR_H)
+            return null;
+        if (overlayContains(mx, my))
+            return overlayKeyAt(mx, my);
+        Hovered h = hoverAt(mx, my);
+        if (h == null)
+            return null;
+        GraphLayout.Node n = h.node();
+        PlanGraph graph = layout.graph;
+        return switch (n.kind) {
+            case ITEM -> keyHit(graph.items().get(n.ref).key(), n.x, n.y, n.w, n.h, mx, my);
+            case RECIPE -> {
+                AEKey machine = graph.recipes().get(n.ref).machine();
+                yield machine == null ? null : keyHit(machine, n.x, n.y, n.w, n.h, mx, my);
+            }
+            case LOOP -> {
+                if (h.frameTitle())
+                    yield null;
+                if (zoom < DETAIL_ZOOM) {
+                    AEKey icon = loopIcon(n);
+                    yield icon == null ? null : keyHit(icon, n.x, n.y, n.w, n.h, mx, my);
+                }
+                // the member icons of a folded loop's box, as drawn in box()
+                double wx = worldX(mx), wy = worldY(my);
+                int x = n.x + 14, shown = 0;
+                for (GraphLayout.Node in : n.inner) {
+                    if (in.kind != GraphLayout.Kind.ITEM)
+                        continue;
+                    if (shown++ >= 4)
+                        break;
+                    if (wx >= x && wx < x + 16 && wy >= n.y + 4 && wy < n.y + 20)
+                        yield keyHit(graph.items().get(in.ref).key(), x, n.y + 4, 16, 16, mx, my);
+                    x += 17;
+                }
+                yield null;
+            }
+        };
+    }
+
+    /** A material drawn in a square of the graph (world units), as a hit in screen pixels around the mouse. */
+    private KeyHit keyHit(AEKey key, int wx, int wy, int ww, int wh, double mx, double my) {
+        int x = Math.round(wx * zoom + panX), y = Math.round(wy * zoom + panY);
+        int w = Math.max(1, Math.round(ww * zoom)), h = Math.max(1, Math.round(wh * zoom));
+        if (mx < x || mx >= x + w || my < y || my >= y + h) {   // a landmark icon is drawn larger than its box
+            x = (int) mx - 8;
+            y = (int) my - 8;
+            w = h = 16;
+        }
+        return new KeyHit(key, x, y, w, h);
+    }
+
+    /** The material in the part of the screen the subclass draws over the graph (a panel), or null. */
+    protected @Nullable KeyHit overlayKeyAt(double mx, double my) {
+        return null;
     }
 
     private @Nullable GraphLayout landmarksFor;
