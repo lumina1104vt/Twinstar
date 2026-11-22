@@ -1,18 +1,21 @@
 package com.lumina.twinstar.client;
 
+import com.lumina.twinstar.client.hover.KeyHit;
+import com.lumina.twinstar.client.hover.KeyHover;
 import com.lumina.twinstar.client.ui.PlanGraphView;
 import com.lumina.twinstar.order.PlanMenu;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * The plan's crafting graph, full screen, over the open plan screen's menu (the menu stays open on
  * the server). Back or Esc builds the plan screen again for the same menu: LDLib2 disposes a screen's
  * UI when the screen is left, so the old one cannot be shown again.
  */
-public class PlanGraphScreen extends Screen {
+public class PlanGraphScreen extends Screen implements KeyHover {
     private final PlanMenu menu;
     private final Inventory inventory;
     private final Component planTitle;
@@ -24,6 +27,11 @@ public class PlanGraphScreen extends Screen {
         this.inventory = inventory;
         this.planTitle = planTitle;
         this.view = new PlanGraphView(menu, this::onClose);
+    }
+
+    @Override
+    public @Nullable KeyHit keyAt(double mouseX, double mouseY) {
+        return view.keyAt(mouseX, mouseY);
     }
 
     @Override

@@ -2,12 +2,15 @@ package com.lumina.twinstar.client;
 
 import com.lowdragmc.lowdraglib2.gui.holder.IModularUIHolderMenu;
 import com.lumina.twinstar.Twinstar;
+import com.lumina.twinstar.client.hover.KeyHit;
+import com.lumina.twinstar.client.hover.KeyHover;
 import com.lumina.twinstar.client.ui.PlanUI;
 import com.lumina.twinstar.order.PlanMenu;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * The twin-star plan screen: a plain container screen holding the LDLib2 UI of {@link PlanUI}.
@@ -15,7 +18,7 @@ import net.minecraft.world.inventory.AbstractContainerMenu;
  * to this screen when the screen is initialised; this screen only sizes itself to it and keeps it
  * following the menu.
  */
-public class PlanScreen extends net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<PlanMenu> {
+public class PlanScreen extends net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<PlanMenu> implements KeyHover {
     private final PlanUI ui;
 
     public PlanScreen(PlanMenu menu, Inventory playerInventory, Component title) {
@@ -33,6 +36,11 @@ public class PlanScreen extends net.minecraft.client.gui.screens.inventory.Abstr
             Twinstar.LOGGER.error("[雙星] 合成圖打不開", e);
             playerInventory.player.displayClientMessage(Component.translatable("gui.twinstar.graph.failed", e.toString()), false);
         }
+    }
+
+    @Override
+    public @Nullable KeyHit keyAt(double mouseX, double mouseY) {
+        return ui.keyAt();
     }
 
     @Override

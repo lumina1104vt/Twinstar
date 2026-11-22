@@ -46,6 +46,8 @@ dependencies {
     compileOnly "maven.modrinth:ae2:${ae2_version}"
     // gen_patterns / dump_recipes read recipes (amounts, fluids, all outputs) from the player's JEI
     compileOnly "maven.modrinth:jei:${jei_version}"
+    // the plan screens tell JEI and EMI which material is under the mouse (their A key bookmarks it)
+    compileOnly "maven.modrinth:emi:${emi_version}"
     // LDLib2's UI (layout, stylesheets) for the plan screen; client only, provided by the player
     compileOnly "maven.modrinth:ldlib:${ldlib_version}"
     ldlibJar "maven.modrinth:ldlib:${ldlib_version}"

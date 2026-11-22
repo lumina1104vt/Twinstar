@@ -12,6 +12,8 @@ import com.lowdragmc.lowdraglib2.gui.ui.elements.Button;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.Label;
 import com.lowdragmc.lowdraglib2.gui.ui.event.UIEvents;
 import com.lowdragmc.lowdraglib2.gui.ui.rendering.GUIContext;
+import com.lumina.twinstar.client.hover.KeyHit;
+import com.lumina.twinstar.client.hover.KeyHolder;
 import com.lumina.twinstar.order.OrderMenu;
 import com.lumina.twinstar.util.AmountParser;
 import com.lumina.twinstar.util.BigAmountFormat;
@@ -121,9 +123,22 @@ public class OrderUI {
         info.layout(l -> l.flexGrow(1).flexShrink(1).minWidth(0).marginLeft(4));
         for (Label line : List.of(name, stock, routes, engine))
             line.textStyle(t -> t.textColor(TEXT).fontSize(9));
-        UIElement card = new UIElement().addClass("card").addChildren(icon, info);
+        UIElement card = new KeyCard().addClass("card").addChildren(icon, info);
         card.layout(l -> l.flexDirection(FlexDirection.ROW).height(45).paddingAll(3).flexShrink(0));
         return card;
+    }
+
+    /** The card of the item: the mouse on it (icon, name, amounts) means the item. */
+    private final class KeyCard extends UIElement implements KeyHolder {
+        @Override
+        public @Nullable AEKey heldKey() {
+            return shownKey;
+        }
+    }
+
+    /** The material under the mouse (JEI and EMI bookmark it with their A key), or null. */
+    public @Nullable KeyHit keyAt() {
+        return KeyRow.under(modularUI);
     }
 
     private static Label section(String key) {
