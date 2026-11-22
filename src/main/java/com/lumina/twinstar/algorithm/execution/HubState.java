@@ -1201,6 +1201,8 @@ public final class HubState {
         final int role;
         /** the slot of the machine's GUI it goes into, for machines that take items only there (0 = the first that takes it) */
         final int guiSlot;
+        /** the hatch (input bus, fluid input) it began going into when it has no slot number: it stays there, and no other material goes there */
+        @Nullable BlockPos hatchPort;
 
         Part(AEKey key, long left, List<@Nullable Direction> faces, int target, int role, int guiSlot) {
             this.guiSlot = guiSlot;
@@ -1842,22 +1844,55 @@ public final class HubState {
             return 0;
         boolean fluid = p.key instanceof appeng.api.stacks.AEFluidKey;
         IMachineAccess.PortRole role = fluid ? IMachineAccess.PortRole.FLUID_IN : IMachineAccess.PortRole.ITEM_IN;
-        long went = 0;
-        for (IMachineAccess.Port port : ports) {
-            if (port.role() != role || !level.isLoaded(port.pos()))
-                continue;
-            if (p.guiSlot > 0) {
-                if (port.slot() != p.guiSlot)
+        boolean noController = !fluid && controllerTakesNoItems(m, level);
+        if (p.guiSlot > 0) {
+            // the hatch with this slot number, and nowhere else
+            boolean named = false;
+            for (IMachineAccess.Port port : ports) {
+                if (port.role() != role || port.slot() != p.guiSlot)
                     continue;
+                named = true;
                 only[0] = true;
-            } else if (!fluid) {
-                if (!controllerTakesNoItems(m, level))
-                    continue;           // an item with no slot goes into the machine
-                only[0] = true;         // its controller takes none: the buses only (the click on it would do nothing)
+                if (level.isLoaded(port.pos()))
+                    return insertOrClick(m, level, port.pos(), ANY_FACE, p.key, p.left, 0);
             }
-            went += insertOrClick(m, level, port.pos(), ANY_FACE, p.key, p.left - went, 0);
-            if (went >= p.left || p.guiSlot > 0)
+            // no hatch has this number: a controller with no items has nowhere else to put it (its GUI is not the place)
+            if (!named && noController && ports.stream().anyMatch(port -> port.role() == role))
+                only[0] = true;
+            return 0;
+        }
+        if (!fluid && !noController)
+            return 0;               // an item with no slot goes into the machine
+        // no slot number: the hatches in the order of their numbers, one hatch for each material (a second material
+        // of the same kind goes to the next hatch, as an assembly line wants), and not one a numbered material is for
+        if (!fluid)
+            only[0] = true;         // the controller takes none: the buses only (the click on it would do nothing)
+        java.util.Set<Integer> claimed = new java.util.HashSet<>();
+        java.util.Set<BlockPos> used = new java.util.HashSet<>();
+        if (m.feed != null)
+            for (Part other : m.feed.parts) {
+                if (other == p || (other.key instanceof appeng.api.stacks.AEFluidKey) != fluid)
+                    continue;
+                if (other.guiSlot > 0)
+                    claimed.add(other.guiSlot);
+                if (other.hatchPort != null)
+                    used.add(other.hatchPort);
+            }
+        List<IMachineAccess.Port> order = new ArrayList<>();
+        for (IMachineAccess.Port port : ports)
+            if (port.role() == role && level.isLoaded(port.pos()))
+                order.add(port);
+        order.sort(java.util.Comparator.comparingInt(IMachineAccess.Port::slot));
+        long went = 0;
+        for (IMachineAccess.Port port : order) {
+            if (p.hatchPort != null ? !port.pos().equals(p.hatchPort) : claimed.contains(port.slot()) || used.contains(port.pos()))
+                continue;
+            long in = insertOrClick(m, level, port.pos(), ANY_FACE, p.key, p.left - went, 0);
+            if (in > 0) {
+                p.hatchPort = port.pos();
+                went += in;
                 break;
+            }
         }
         return went;
     }
