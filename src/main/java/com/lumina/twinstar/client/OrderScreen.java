@@ -6,6 +6,8 @@ import appeng.api.stacks.GenericStack;
 import appeng.client.gui.implementations.AESubScreen;
 import com.lumina.twinstar.client.ui.BackArrow;
 import com.lumina.twinstar.client.ui.PixelIcon;
+import com.lumina.twinstar.client.hover.KeyHit;
+import com.lumina.twinstar.client.hover.KeyHover;
 import com.lumina.twinstar.client.ui.PlanUI;
 import com.lumina.twinstar.client.ui.UiKit;
 import com.lumina.twinstar.client.ui.UiKit.PixelButton;
@@ -34,7 +36,7 @@ import java.util.Optional;
  * up to the order limit; ± buttons as AE2's, shift or ctrl for 1 16 32 64), the order options, and "original screen" / "plan →".
  * Drawn with {@link UiKit} (1.20.1 has no LDLib2); the layout is the 1.21 one, in pixels from the panel's corner.
  */
-public class OrderScreen extends AbstractContainerScreen<OrderMenu> {
+public class OrderScreen extends AbstractContainerScreen<OrderMenu> implements KeyHover {
     public static final int WIDTH = 178, HEIGHT = 240;
     private static final int BAD = 0xFFFF7474, BUSY = 0xFFF0B060, GOOD = 0xFF78E296, DIM = 0xFF8C8CA2, TEXT = 0xFFDEDEEA;
     private static final long[] STEPS_1000 = {1, 10, 100, 1000};
@@ -155,6 +157,15 @@ public class OrderScreen extends AbstractContainerScreen<OrderMenu> {
             long s = step(i);
             stepButtons[i].setMessage(Component.literal((s > 0 ? "+" : "") + s));
         }
+    }
+
+    /** The item being ordered, for JEI and EMI (their A key bookmarks it): the mouse on its card (icon, name, amounts). */
+    @Override
+    public @Nullable KeyHit keyAt(double mx, double my) {
+        GenericStack what = menu.getWhatToCraft();
+        if (what == null || !UiKit.inside(mx, my, leftPos + 7, topPos + 33, 164, 45))
+            return null;
+        return new KeyHit(what.what(), leftPos + 7, topPos + 33, 164, 45);
     }
 
     @Override

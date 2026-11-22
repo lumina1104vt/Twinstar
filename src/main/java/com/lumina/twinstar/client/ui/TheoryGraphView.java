@@ -5,6 +5,8 @@ import appeng.api.stacks.AEKey;
 import com.lumina.twinstar.order.PlanGraph;
 import com.lumina.twinstar.order.PlanGraphBuilder;
 import com.lumina.twinstar.service.TwinStarService;
+import com.lumina.twinstar.client.hover.KeyHit;
+import com.lumina.twinstar.client.hover.KeyHits;
 import com.lumina.twinstar.theory.TheoryCache;
 import com.lumina.twinstar.theory.TheoryItem;
 import com.lumina.twinstar.theory.TheoryMap;
@@ -517,8 +519,17 @@ public class TheoryGraphView extends GraphView {
             search.setFocused(false);
     }
 
+    /** the materials drawn in the panel and the search results this frame */
+    private final KeyHits overlayHits = new KeyHits();
+
+    @Override
+    protected @Nullable KeyHit overlayKeyAt(double mx, double my) {
+        return overlayHits.at(mx, my);
+    }
+
     @Override
     protected void drawOverlay(GuiGraphics g, int mx, int my) {
+        overlayHits.clear();
         panel(g, mx, my);
         int x = search.getX(), y = search.getY();
         g.fill(x - 3, y - 3, x + search.getWidth() + 1, y + search.getHeight() - 1, search.isFocused() ? BUTTON_HOT : PANEL_LINE);
@@ -534,6 +545,7 @@ public class TheoryGraphView extends GraphView {
                 if (mx >= x - 2 && mx < x - 4 + w && my >= ry && my < ry + RESULT_H)
                     g.fill(x - 2, ry, x - 4 + w, ry + RESULT_H, 0xFF2C2642);
                 AEKey key = shownMap.items().get(results.get(i)).key();
+                overlayHits.add(key, x - 2, ry, w - 2, RESULT_H);
                 AEKeyRendering.drawInGui(Minecraft.getInstance(), g, x, ry + 1, key);
                 g.drawString(font, font.plainSubstrByWidth(AEKeyRendering.getDisplayName(key).getString(), w - 26), x + 19, ry + 5, TEXT, false);
             }
@@ -559,6 +571,7 @@ public class TheoryGraphView extends GraphView {
         }
         g.enableScissor(px + 1, top, width, height);
         int x = px + 6, y = top + 6 - panelScroll, w = PANEL_W - 12;
+        overlayHits.add(key, x, y, w, 18);
         AEKeyRendering.drawInGui(Minecraft.getInstance(), g, x, y, key);
         int nameEnd = wrapped(g, AEKeyRendering.getDisplayName(key).copy().withStyle(s -> s.withBold(true)), x + 19, y + 4, w - 19, TEXT);
         y = Math.max(nameEnd, y + 18) + 3;
@@ -593,7 +606,10 @@ public class TheoryGraphView extends GraphView {
                 MutableComponent line = Component.literal((i + 1) + ". " + ratio);
                 if (r.machine() != null)
                     line.append(Component.literal(" ").append(AEKeyRendering.getDisplayName(r.machine())).withStyle(com.lumina.twinstar.client.ui.PlanUI.colorStyle(DIM)));
+                int top0 = y;
                 y = wrapped(g, line, x + 9, y, w - 9, color);
+                if (r.machine() != null)
+                    overlayHits.add(r.machine(), x + 9, top0, w - 9, y - top0);
             }
             if (info.moreRoutes() > 0)
                 y = wrapped(g, Component.translatable("gui.twinstar.theory.more_routes", info.moreRoutes()), x, y, w, DIM);
@@ -602,6 +618,7 @@ public class TheoryGraphView extends GraphView {
             y += 5;
             y = wrapped(g, Component.translatable("gui.twinstar.theory.bom"), x, y, w, TEXT);
             for (TheoryItem.Raw raw : info.bom()) {
+                overlayHits.add(raw.key(), x, y, w, 17);
                 AEKeyRendering.drawInGui(Minecraft.getInstance(), g, x, y, raw.key());
                 g.drawString(font, "×" + logText(raw.log()), x + 19, y + 4, TEXT, false);
                 y += 17;
@@ -610,12 +627,18 @@ public class TheoryGraphView extends GraphView {
         if (info.loop() != null) {
             y += 5;
             y = wrapped(g, Component.translatable("gui.twinstar.theory.loop_members"), x, y, w, LOOP_COLOR);
-            for (AEKey mKey : info.loop().members())
+            for (AEKey mKey : info.loop().members()) {
+                int top0 = y;
                 y = wrapped(g, Component.literal("  ").append(AEKeyRendering.getDisplayName(mKey)), x, y, w, TEXT);
+                overlayHits.add(mKey, x, top0, w, y - top0);
+            }
             if (!info.loop().seeds().isEmpty()) {
                 y = wrapped(g, Component.translatable("gui.twinstar.graph.seeds"), x, y, w, DIM);
-                for (TheoryItem.Stack s : info.loop().seeds())
+                for (TheoryItem.Stack s : info.loop().seeds()) {
+                    int top0 = y;
                     y = wrapped(g, stackLine(s.key(), s.amount(), null), x, y, w, TEXT);
+                    overlayHits.add(s.key(), x, top0, w, y - top0);
+                }
             }
         }
         panelHeight = y + panelScroll - top;

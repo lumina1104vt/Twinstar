@@ -4,6 +4,8 @@ import appeng.api.client.AEKeyRendering;
 import appeng.api.stacks.AEKey;
 import appeng.client.gui.implementations.AESubScreen;
 import com.lumina.twinstar.Twinstar;
+import com.lumina.twinstar.client.hover.KeyHit;
+import com.lumina.twinstar.client.hover.KeyHover;
 import com.lumina.twinstar.client.ui.BackArrow;
 import com.lumina.twinstar.client.ui.MarkIcon;
 import com.lumina.twinstar.client.ui.PixelIcon;
@@ -45,13 +47,14 @@ import static com.lumina.twinstar.client.ui.PlanUI.TEXT;
  * uses and where it comes from), the summary and the missing materials on the right, and back / plan again / start below.
  * Drawn with {@link UiKit} (1.20.1 has no LDLib2); follows the menu's plan every frame.
  */
-public class PlanScreen extends AbstractContainerScreen<PlanMenu> {
+public class PlanScreen extends AbstractContainerScreen<PlanMenu> implements KeyHover {
     private static final int WIDTH = PlanUI.WIDTH, HEIGHT = PlanUI.HEIGHT;
     /** Height between the header and the buttons: fixed, so a long tree or missing list scrolls inside its card. */
     private static final int BODY_H = HEIGHT - 1 - 32 - 6 - 20 - 6;
     private static final int SUMMARY_H = 59, SIDE_GAP = 4;
     private static final int ROW_H = 21, MAX_INDENT_DEPTH = 6, MISSING_ROW_H = 18;
     private static final int LINE = 0xFF484468;
+    private static final int BOOKMARK_H = 12;
 
     // card geometry, from the panel's corner
     private static final int TREE_X = 7, TREE_Y = 33, TREE_W = 154;
@@ -63,7 +66,9 @@ public class PlanScreen extends AbstractContainerScreen<PlanMenu> {
     private final Inventory playerInventory;
     private final UiKit.Scroller treeScroll = new UiKit.Scroller(), missingScroll = new UiKit.Scroller();
     private final Map<Integer, EditBox> keepBoxes = new HashMap<>();
-    private PixelButton replan, start;
+    private PixelButton replan, start, bookmark;
+    /** the "bookmark missing" button is there (it takes a line above the missing list) */
+    private boolean bookmarkShown;
 
     private @Nullable PlanView shownView;
     private boolean shownPlanning;
@@ -109,6 +114,14 @@ public class PlanScreen extends AbstractContainerScreen<PlanMenu> {
         addRenderableWidget(replan);
         start = new PixelButton(x + WIDTH - 7 - 90, footerY, 90, 20, Component.translatable("gui.twinstar.plan.start"), menu::start);
         addRenderableWidget(start);
+        Component bookmarkText = Component.translatable("gui.twinstar.plan.bookmark");
+        bookmark = new PixelButton(x + LIST_X, y + LIST_Y, LIST_W + 6, BOOKMARK_H, Component.empty(),
+                (g, bx, by, w, h, hot) -> UiKit.small(g, bookmarkText, bx + (w - UiKit.smallWidth(bookmarkText)) / 2, by + 2,
+                        UiKit.TEXT, w - 4), this::bookmarkMissing);
+        bookmark.setTooltip(Tooltip.create(Component.translatable("gui.twinstar.plan.bookmark.tooltip")));
+        bookmark.visible = false;
+        bookmarkShown = false;
+        addRenderableWidget(bookmark);
         shownView = null;
         keepBoxes.clear();
         refresh();
@@ -119,6 +132,12 @@ public class PlanScreen extends AbstractContainerScreen<PlanMenu> {
         PlanView view = menu.planning ? null : menu.getView();
         boolean planning = menu.planning;
         replan.active = !planning;
+        boolean canBookmark = view != null && !view.missing().isEmpty() && Bookmarks.available();
+        if (canBookmark != bookmarkShown) {
+            bookmarkShown = canBookmark;
+            bookmark.visible = canBookmark;
+            missingScroll.reset();
+        }
         // too big for the black hole: starting would only fail
         start.active = view != null && view.complete() && view.fits();
         if (view == shownView && planning == shownPlanning && menu.error.equals(shownError))
@@ -139,6 +158,57 @@ public class PlanScreen extends AbstractContainerScreen<PlanMenu> {
         super.containerTick();
         keepBoxes.values().forEach(EditBox::tick);
         refresh();
+    }
+
+    /** The list of missing materials starts below the bookmark button when it is there. */
+    private int listY() {
+        return LIST_Y + (bookmarkShown ? BOOKMARK_H + 2 : 0);
+    }
+
+    private int listH() {
+        return LIST_H - (bookmarkShown ? BOOKMARK_H + 2 : 0);
+    }
+
+    /**
+     * The button of a failed plan: puts every missing material (and machine) into JEI / EMI in one go, so the player can
+     * look them up and fetch them. Tells how many were new.
+     */
+    private void bookmarkMissing() {
+        PlanView view = menu.planning ? null : menu.getView();
+        if (view == null)
+            return;
+        List<AEKey> keys = view.missing().stream().map(PlanView.Missing::key).distinct().toList();
+        int added = Bookmarks.add(keys);
+        playerInventory.player.displayClientMessage(Component.translatable(
+                added > 0 ? "gui.twinstar.plan.bookmark.done" : "gui.twinstar.plan.bookmark.none", added, keys.size()), true);
+    }
+
+    /**
+     * The material drawn under the mouse, for JEI and EMI (their A key bookmarks it): a row of the crafting tree, the target
+     * in the summary, a row of the missing list.
+     */
+    @Override
+    public @Nullable KeyHit keyAt(double mx, double my) {
+        PlanView view = shownView;
+        if (view == null)
+            return null;
+        int vx = leftPos + VIEW_X, vy = topPos + VIEW_Y;
+        if (UiKit.inside(mx, my, vx, vy, VIEW_W, VIEW_H)) {
+            int i = ((int) my - vy + treeScroll.offset) / ROW_H;
+            if (i >= 0 && i < view.rows().size())
+                return new KeyHit(view.rows().get(i).key(), vx, vy + i * ROW_H - treeScroll.offset, VIEW_W, ROW_H);
+            return null;
+        }
+        int sx = leftPos + SIDE_X + 3, sy = topPos + TREE_Y + 3;
+        if (UiKit.inside(mx, my, sx, sy, SIDE_W - 6, 16))
+            return new KeyHit(view.target(), sx, sy, SIDE_W - 6, 16);
+        int lx = leftPos + LIST_X, ly = topPos + listY();
+        if (UiKit.inside(mx, my, lx, ly, LIST_W, listH())) {
+            int i = ((int) my - ly + missingScroll.offset) / MISSING_ROW_H;
+            if (i >= 0 && i < view.missing().size())
+                return new KeyHit(view.missing().get(i).key(), lx, ly + i * MISSING_ROW_H - missingScroll.offset, LIST_W, MISSING_ROW_H);
+        }
+        return null;
     }
 
     // ── drawing ──
@@ -308,13 +378,13 @@ public class PlanScreen extends AbstractContainerScreen<PlanMenu> {
                 : materials == 0 ? Component.translatable("gui.twinstar.plan.missing_machines_title", machines)
                 : Component.translatable("gui.twinstar.plan.missing_both_title", materials, machines);
         UiKit.small(g, title, x, y, BAD, SIDE_W - 6);
-        int lx = leftPos + LIST_X, ly = topPos + LIST_Y;
+        int lx = leftPos + LIST_X, ly = topPos + listY();
         int content = missing.size() * MISSING_ROW_H;
-        missingScroll.clamp(content, LIST_H);
-        g.enableScissor(lx, ly, lx + LIST_W, ly + LIST_H);
+        missingScroll.clamp(content, listH());
+        g.enableScissor(lx, ly, lx + LIST_W, ly + listH());
         for (int i = 0; i < missing.size(); i++) {
             int ry = ly + i * MISSING_ROW_H - missingScroll.offset;
-            if (ry + MISSING_ROW_H < ly || ry > ly + LIST_H)
+            if (ry + MISSING_ROW_H < ly || ry > ly + listH())
                 continue;
             PlanView.Missing m = missing.get(i);
             AEKeyRendering.drawInGui(minecraft, g, lx, ry + 1, m.key());
@@ -323,7 +393,7 @@ public class PlanScreen extends AbstractContainerScreen<PlanMenu> {
                     : Component.literal("×" + PlanUI.shortText(m.amount(), m.key())), lx + 18, ry + 10, BAD, LIST_W - 18);
         }
         g.disableScissor();
-        missingScroll.drawBar(g, lx + LIST_W + 1, ly, LIST_H, content, LIST_H);
+        missingScroll.drawBar(g, lx + LIST_W + 1, ly, listH(), content, listH());
     }
 
     @Override
@@ -361,8 +431,8 @@ public class PlanScreen extends AbstractContainerScreen<PlanMenu> {
                             view.freeCapacity().isEmpty() ? "∞" : PlanUI.fullText(view.freeCapacity(), null))), Optional.empty(), mouseX, mouseY);
             return;
         }
-        int lx = leftPos + LIST_X, ly = topPos + LIST_Y;
-        if (UiKit.inside(mouseX, mouseY, lx, ly, LIST_W, LIST_H)) {
+        int lx = leftPos + LIST_X, ly = topPos + listY();
+        if (UiKit.inside(mouseX, mouseY, lx, ly, LIST_W, listH())) {
             int i = (mouseY - ly + missingScroll.offset) / MISSING_ROW_H;
             if (i >= 0 && i < view.missing().size()) {
                 PlanView.Missing m = view.missing().get(i);
@@ -412,8 +482,8 @@ public class PlanScreen extends AbstractContainerScreen<PlanMenu> {
             if (UiKit.inside(mx, my, leftPos + VIEW_X, topPos + VIEW_Y, VIEW_W + 6, VIEW_H)
                     && treeScroll.wheel(delta, view.rows().size() * ROW_H + (view.truncated() ? 12 : 0), VIEW_H, ROW_H))
                 return true;
-            if (UiKit.inside(mx, my, leftPos + LIST_X, topPos + LIST_Y, LIST_W + 6, LIST_H)
-                    && missingScroll.wheel(delta, view.missing().size() * MISSING_ROW_H, LIST_H, MISSING_ROW_H))
+            if (UiKit.inside(mx, my, leftPos + LIST_X, topPos + listY(), LIST_W + 6, listH())
+                    && missingScroll.wheel(delta, view.missing().size() * MISSING_ROW_H, listH(), MISSING_ROW_H))
                 return true;
         }
         return super.mouseScrolled(mx, my, delta);

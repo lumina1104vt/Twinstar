@@ -1,6 +1,8 @@
 package com.lumina.twinstar.client;
 
 import appeng.api.stacks.AEKey;
+import com.lumina.twinstar.client.hover.KeyHit;
+import com.lumina.twinstar.client.hover.KeyHover;
 import com.lumina.twinstar.client.ui.PixelIcon;
 import com.lumina.twinstar.client.ui.TheoryGraphView;
 import com.lumina.twinstar.theory.TheoryCache;
@@ -20,7 +22,7 @@ import java.util.function.Supplier;
  * the server answers for that menu's grid, so the menu stays open underneath. Asks the engine's
  * state every second and follows it live.
  */
-public class TheoryScreen extends Screen {
+public class TheoryScreen extends Screen implements KeyHover {
     private static final int STATUS_EVERY_TICKS = 20;
 
     private final Supplier<Screen> back;
@@ -65,6 +67,11 @@ public class TheoryScreen extends Screen {
         };
         b.setTooltip(Tooltip.create(Component.translatable("gui.twinstar.theory.open.tooltip")));
         return b;
+    }
+
+    @Override
+    public @Nullable KeyHit keyAt(double mouseX, double mouseY) {
+        return view.keyAt(mouseX, mouseY);
     }
 
     @Override
