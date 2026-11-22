@@ -157,7 +157,7 @@ public final class JeiCollector {
             if (v.isEmpty())
                 continue;
             List<GenericStack> options = new ArrayList<>();
-            for (ITypedIngredient<?> t : v.getAllIngredientsList()) {
+            for (ITypedIngredient<?> t : v.getAllIngredients().toList()) {
                 GenericStack s = stackOf(t);
                 if (s != null && !options.contains(s))
                     options.add(s);
