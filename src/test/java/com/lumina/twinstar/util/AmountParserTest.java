@@ -70,10 +70,38 @@ class AmountParserTest {
 
     @Test
     void rejectsOtherInput() {
-        assertNull(AmountParser.parse("64*3"));
         assertNull(AmountParser.parse("abc"));
         assertNull(AmountParser.parse("e3"));
         assertNull(AmountParser.parse("3EE"));
         assertNull(AmountParser.parse(""));
+    }
+
+    @Test
+    void expressions() {
+        is("192", "64*3");
+        is("192", "64 x 3");
+        is("1024", "2^10");
+        is("512", "2^3^2");                    // from the right: 2^(3^2)
+        is("7500", "(2+3)*1.5K");
+        is("2500", "10K/4");
+        is("14", "2+3*4");
+        is("20", "(2+3)*4");
+        is("8", "10-2");
+        is("-5", "-5");
+        is("3000", "1K*3");
+        is("5", "=2+3");
+    }
+
+    @Test
+    void badExpressions() {
+        assertNull(AmountParser.parse("1/0"));
+        assertNull(AmountParser.parse("2^-1"));
+        assertNull(AmountParser.parse("2^0.5"));
+        assertNull(AmountParser.parse("(1+2"));
+        assertNull(AmountParser.parse("1+"));
+        assertNull(AmountParser.parse("*3"));
+        assertNull(AmountParser.parse("10^10000*10"));      // beyond MAX
+        assertNull(AmountParser.parse("2^100000"));
+        assertNull(AmountParser.parse("1e10000*10"));
     }
 }
