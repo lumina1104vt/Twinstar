@@ -1823,6 +1823,14 @@ public final class HubState {
     }
 
     /**
+     * A multiblock's controller has no item inventory (the items go through its input buses): a material with no slot number then
+     * has nowhere to go but the buses, in order, the first one that takes it.
+     */
+    private static boolean controllerTakesNoItems(MachineState m, ServerLevel level) {
+        return MachineIO.itemHandlers(level, m.access.getMachinePos()).isEmpty();
+    }
+
+    /**
      * Puts a material into the hatches bound to the machine ({@link IMachineAccess#ports}): one whose slot number is the material's
      * slot (items into the item inputs, fluids into the fluid inputs, each numbered apart); a fluid with no slot into the first
      * fluid input that takes it. {@code only[0]} is set when a hatch is named for it, so it goes nowhere else even when that hatch
@@ -1843,7 +1851,9 @@ public final class HubState {
                     continue;
                 only[0] = true;
             } else if (!fluid) {
-                continue;               // an item with no slot goes into the machine
+                if (!controllerTakesNoItems(m, level))
+                    continue;           // an item with no slot goes into the machine
+                only[0] = true;         // its controller takes none: the buses only (the click on it would do nothing)
             }
             went += insertOrClick(m, level, port.pos(), ANY_FACE, p.key, p.left - went, 0);
             if (went >= p.left || p.guiSlot > 0)
