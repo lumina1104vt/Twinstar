@@ -348,6 +348,18 @@ final class MachineIO {
                 + (be == null ? "無" : be.getClass().getSimpleName()) + "；有介面的面：" + (has.isEmpty() ? "沒有" : has) + "；不指定面：" + (none ? "也沒有" : "有") + "）";
     }
 
+    /** For the debug log: what the slots of a handler hold (ids, so the log reads in any encoding). */
+    private static String contentsOf(IItemHandler h) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < h.getSlots(); i++) {
+            ItemStack stack = h.getStackInSlot(i);
+            if (!stack.isEmpty())
+                sb.append(sb.isEmpty() ? "" : "、").append("格").append(i + 1).append("=").append(stack.getCount()).append("×")
+                        .append(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()));
+        }
+        return sb.isEmpty() ? "空的" : sb.toString();
+    }
+
     /** For the debug log: how much of {@code key} each face would take now (simulated). */
     static String describeInsert(ServerLevel level, BlockPos pos, List<@Nullable Direction> faces, AEKey key, long amount) {
         StringBuilder sb = new StringBuilder();
@@ -362,6 +374,8 @@ final class MachineIO {
                 int n = (int) Math.min(item.getMaxStackSize(), amount);
                 ItemStack rest = ItemHandlerHelper.insertItemStacked(h, item.toStack(n), true);
                 sb.append("模擬放入 ").append(n - rest.getCount()).append("／").append(n).append("（").append(h.getSlots()).append(" 格）");
+                if (face == faces.get(0))
+                    sb.append("，裡面現有：").append(contentsOf(h));
             } else if (key instanceof AEFluidKey fluid) {
                 IFluidHandler h = com.lumina.twinstar.util.Caps.fluid(level, pos, face);
                 if (h == null) {
