@@ -114,7 +114,7 @@ public final class PerfContent {
         String domain = isHubRow(key) ? "hub" : "theory";
         List<Component> tip = new ArrayList<>();
         tip.add(Component.translatable("gui.twinstar.perf." + domain + "." + key).withStyle(s -> s.withBold(true)));
-        tip.add(Component.translatable("gui.twinstar.perf." + domain + "." + key + ".tip", rest).withColor(DIM));
+        tip.add(Component.translatable("gui.twinstar.perf." + domain + "." + key + ".tip", rest).withStyle(s -> s.withColor(DIM)));
         Rating worst = null;
         for (String c : checks)
             for (Verdict.Reason reason : v.reasons())
@@ -137,9 +137,9 @@ public final class PerfContent {
         int color = PerfIcons.color(r.rating());
         Component text = Component.translatable("gui.twinstar.perf.check." + r.key(), value(r.key(), r.value()))
                 .append(Component.literal("  "))
-                .append(Component.translatable("gui.twinstar.perf.limits", value(r.key(), r.high()), value(r.key(), r.very())).withColor(DIM));
-        return Component.literal(PerfIcons.symbol(r.rating()) + " ").withColor(color)
-                .append(Component.translatable("gui.twinstar.perf.rating." + ratingKey(r.rating())).append(Component.literal(": ")).withColor(color))
+                .append(Component.translatable("gui.twinstar.perf.limits", value(r.key(), r.high()), value(r.key(), r.very())).withStyle(s -> s.withColor(DIM)));
+        return Component.literal(PerfIcons.symbol(r.rating()) + " ").withStyle(s -> s.withColor(color))
+                .append(Component.translatable("gui.twinstar.perf.rating." + ratingKey(r.rating())).append(Component.literal(": ")).withStyle(s -> s.withColor(color)))
                 .append(text);
     }
 
@@ -165,7 +165,7 @@ public final class PerfContent {
     private static List<Component> header(Verdict v, String domain, Object a, Object b) {
         List<Component> tip = new ArrayList<>();
         tip.add(Component.translatable("gui.twinstar.perf.header." + domain, a, b).withStyle(s -> s.withBold(true)));
-        tip.add(Component.translatable("gui.twinstar.perf.header.how").withColor(DIM));
+        tip.add(Component.translatable("gui.twinstar.perf.header.how").withStyle(s -> s.withColor(DIM)));
         for (Verdict.Reason r : v.reasons())
             tip.add(checkLine(r));
         return tip;
