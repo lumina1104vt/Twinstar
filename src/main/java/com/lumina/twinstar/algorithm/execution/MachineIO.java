@@ -339,11 +339,11 @@ final class MachineIO {
     private static String whatIsThere(ServerLevel level, BlockPos pos, boolean items) {
         StringBuilder has = new StringBuilder();
         for (Direction d : Direction.values()) {
-            boolean there = items ? com.lumina.twinstar.util.Caps.item(level, pos, d) != null : com.lumina.twinstar.util.Caps.fluid(level, pos, d) != null;
+            boolean there = items ? level.getCapability(Capabilities.ItemHandler.BLOCK, pos, d) != null : level.getCapability(Capabilities.FluidHandler.BLOCK, pos, d) != null;
             if (there)
                 has.append(has.isEmpty() ? "" : "、").append(d.getName());
         }
-        boolean none = items ? com.lumina.twinstar.util.Caps.item(level, pos, null) == null : com.lumina.twinstar.util.Caps.fluid(level, pos, null) == null;
+        boolean none = items ? level.getCapability(Capabilities.ItemHandler.BLOCK, pos, null) == null : level.getCapability(Capabilities.FluidHandler.BLOCK, pos, null) == null;
         var be = level.getBlockEntity(pos);
         return "（方塊 " + net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(level.getBlockState(pos).getBlock()) + "，方塊實體 "
                 + (be == null ? "無" : be.getClass().getSimpleName()) + "；有介面的面：" + (has.isEmpty() ? "沒有" : has) + "；不指定面：" + (none ? "也沒有" : "有") + "）";
@@ -351,7 +351,7 @@ final class MachineIO {
 
     /** For the debug log: what the item slots of the block at {@code pos} hold now. */
     static String contentsAt(ServerLevel level, BlockPos pos) {
-        IItemHandler h = com.lumina.twinstar.util.Caps.item(level, pos, null);
+        IItemHandler h = level.getCapability(Capabilities.ItemHandler.BLOCK, pos, null);
         return h == null ? "（沒有物品介面）" : contentsOf(h);
     }
 
