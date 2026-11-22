@@ -349,6 +349,12 @@ final class MachineIO {
                 + (be == null ? "無" : be.getClass().getSimpleName()) + "；有介面的面：" + (has.isEmpty() ? "沒有" : has) + "；不指定面：" + (none ? "也沒有" : "有") + "）";
     }
 
+    /** For the debug log: what the item slots of the block at {@code pos} hold now. */
+    static String contentsAt(ServerLevel level, BlockPos pos) {
+        IItemHandler h = com.lumina.twinstar.util.Caps.item(level, pos, null);
+        return h == null ? "（沒有物品介面）" : contentsOf(h);
+    }
+
     /** For the debug log: what the slots of a handler hold (ids, so the log reads in any encoding). */
     private static String contentsOf(IItemHandler h) {
         StringBuilder sb = new StringBuilder();
