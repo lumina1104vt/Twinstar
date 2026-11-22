@@ -8,6 +8,7 @@
     "CraftingServiceMixin",
     "RecipeManagerMixin",
     "CraftingServiceAccessor",
+    "ProviderStateMixin",
     "CraftingCPUMenuMixin",
     "CraftAmountMenuMixin",
     "CraftingStatusEntryMixin"
