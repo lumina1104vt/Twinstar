@@ -5,6 +5,7 @@ import appeng.api.stacks.AEKey;
 import appeng.core.sync.packets.CraftingStatusPacket;
 import appeng.menu.AEBaseMenu;
 import appeng.menu.me.crafting.CraftingCPUMenu;
+import com.lumina.twinstar.cpu.CpuReportPacket;
 import com.lumina.twinstar.cpu.TwinStarCpu;
 import com.lumina.twinstar.menu.PullFromNetworkMenu;
 import net.minecraft.world.entity.player.Inventory;
@@ -67,9 +68,15 @@ public abstract class CraftingCPUMenuMixin extends AEBaseMenu implements PullFro
     }
 
     // vanilla's method: named here, SRG in a production AE2 (this mixin does not remap AE2's class)
+    @Unique
+    private int twinstar$reportTicks;
+
     @Inject(method = {"broadcastChanges", "m_38946_"}, at = @At("HEAD"))
     private void twinstar$broadcastChanges(CallbackInfo ci) {
         if (isServerSide() && twinstar$cpu != null) {
+            if (twinstar$reportTicks++ % 20 == 0 && getPlayer() instanceof net.minecraft.server.level.ServerPlayer player)
+                // memory and speed of the hub's data: once a second is plenty
+                com.lumina.twinstar.TwinNet.toPlayer(player, new CpuReportPacket(containerId, twinstar$cpu.report()));
             var status = twinstar$cpu.createStatus(key -> twinstar$serials.computeIfAbsent(key, k -> twinstar$nextSerial++));
             sendPacketToClient(new CraftingStatusPacket(containerId, status));
         }

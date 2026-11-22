@@ -46,6 +46,9 @@ public class TheoryGraphView extends GraphView {
     private static final int BUTTON = 0xFF1E1C2C, BUTTON_LINE = 0xFF4E4474, BUTTON_HOT = 0xFFA082F0;
 
     private final EditBox search;
+    /** Java memory and speed of the theory layer (bottom left; a click on its header folds it) */
+    private static final PerfPanel PERF_PANEL = new PerfPanel(true);
+    private final PerfPanel perfPanel = PERF_PANEL;
     private @Nullable TheoryMap shownMap;
     /** only this item's part; null = everything */
     private @Nullable AEKey focus;
@@ -474,11 +477,13 @@ public class TheoryGraphView extends GraphView {
 
     @Override
     protected boolean overlayContains(double mx, double my) {
-        return mx >= width - PANEL_W && my >= BAR_H || inResults(mx, my) || onSearch(mx, my) || onAll(mx, my);
+        return mx >= width - PANEL_W && my >= BAR_H || inResults(mx, my) || onSearch(mx, my) || onAll(mx, my) || perfPanel.contains(mx, my);
     }
 
     @Override
     protected boolean overlayClicked(double mx, double my, int button) {
+        if (perfPanel.clicked(mx, my))
+            return true;
         if (inResults(mx, my)) {
             int i = (int) ((my - search.getY() - search.getHeight() - 2) / RESULT_H);
             if (i >= 0 && i < results.size() && shownMap != null) {
@@ -551,6 +556,11 @@ public class TheoryGraphView extends GraphView {
             }
         }
         g.drawString(font, Component.translatable("gui.twinstar.theory.prediction"), 6, height - 12, DIM, false);
+        PerfContent.Content perf = PerfContent.theory(TheoryCache.status().report());
+        perfPanel.draw(g, font, 6, height - 16 - perfPanel.heightFor(perf), perf, mx, my);
+        List<Component> tip = perfPanel.tooltipAt(mx, my);
+        if (tip != null)
+            g.renderComponentTooltip(font, tip, mx, my);
     }
 
     private void button(GuiGraphics g, int x, int y, int w, Component text, boolean hot) {

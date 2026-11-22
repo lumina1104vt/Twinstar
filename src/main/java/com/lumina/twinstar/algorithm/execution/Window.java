@@ -18,6 +18,12 @@ public final class Window {
     int rttCount;
     long lastSendNanos = -1;
 
+    /** Java memory of this window with its timing samples (see {@link com.lumina.twinstar.algorithm.model.Mem}). */
+    long memoryBytes() {
+        return com.lumina.twinstar.algorithm.model.Mem.obj(4 + 4 + 4 + 4 + 8) + size.memoryBytes() + lastOk.memoryBytes()
+                + com.lumina.twinstar.algorithm.model.Mem.longs(rttSamples);
+    }
+
     /** All taken: double. Part taken: the amount taken. Refused: the last good amount, or half. */
     void onPushResult(Amount requested, Amount accepted) {
         if (accepted.compareTo(requested) >= 0)

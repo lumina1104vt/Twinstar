@@ -44,6 +44,8 @@ public final class TwinNet {
                 TheoryPackets.MapReply::handle, toClient);
         CHANNEL.registerMessage(id++, TheoryPackets.ItemReply.class, TheoryPackets.ItemReply::write, TheoryPackets.ItemReply::read,
                 TheoryPackets.ItemReply::handle, toClient);
+        CHANNEL.registerMessage(id++, com.lumina.twinstar.cpu.CpuReportPacket.class, com.lumina.twinstar.cpu.CpuReportPacket::write,
+                com.lumina.twinstar.cpu.CpuReportPacket::read, com.lumina.twinstar.cpu.CpuReportPacket::handle, toClient);
         CHANNEL.registerMessage(id++, JeiPackets.Request.class, JeiPackets.Request::write, JeiPackets.Request::read,
                 JeiPackets.Request::handle, toClient);
         CHANNEL.registerMessage(id++, JeiPackets.Recipes.class, JeiPackets.Recipes::write, JeiPackets.Recipes::read,

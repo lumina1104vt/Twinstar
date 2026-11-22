@@ -33,6 +33,10 @@ import com.lumina.twinstar.algorithm.execution.HubState;
 import com.lumina.twinstar.algorithm.execution.Job;
 import com.lumina.twinstar.algorithm.execution.JobStore;
 import com.lumina.twinstar.algorithm.model.Amount;
+import com.lumina.twinstar.metrics.HubReport;
+import com.lumina.twinstar.metrics.PlanStats;
+import com.lumina.twinstar.metrics.TheoryReport;
+import com.lumina.twinstar.metrics.Trend;
 import com.lumina.twinstar.algorithm.model.Deadline;
 import com.lumina.twinstar.algorithm.model.OrderMode;
 import com.lumina.twinstar.algorithm.model.Overlay;
@@ -595,6 +599,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
             if (!restricted.disabled.isEmpty() && r instanceof OrderResult.Accepted a && !a.plan().isComplete())
                 r = bestWithMachinesMarked(snap, stock, target, amount, mode, free, restricted, marked, r);
             long took = System.nanoTime() - t0;
+            planStats.record(took, deadline.softPassed(), !(r instanceof OrderResult.Accepted) && !(r instanceof OrderResult.Rejected));
             if (r instanceof OrderResult.Accepted a) {
                 String outcome = a.plan().isComplete() ? "可以完成"
                         : !a.plan().missingMachines.isEmpty() ? "缺機器" + (a.plan().missing.isEmpty() ? "" : "、缺料") : "缺料";
@@ -703,8 +708,67 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
      * size, whether the engine has caught up with every change, and the last update.
      */
     public record TheoryStatus(long version, int items, int patterns, int loops, boolean upToDate, boolean busy,
-                               int pendingBatches, int queued, long flushNanos, boolean rebuilt, long flushAgoMillis) {
-        public static final TheoryStatus NONE = new TheoryStatus(-1, 0, 0, 0, false, false, 0, 0, 0, false, 0);
+                               int pendingBatches, int queued, long flushNanos, boolean rebuilt, long flushAgoMillis,
+                               TheoryReport report) {
+        public static final TheoryStatus NONE = new TheoryStatus(-1, 0, 0, 0, false, false, 0, 0, 0, false, 0, TheoryReport.NONE);
+    }
+
+    // ── memory and speed of our own data (what the viewer and the CPU screen show) ──
+
+    private final PlanStats planStats = new PlanStats();
+    private final Trend trend = new Trend();
+    private volatile Snapshot.@Nullable Memory lastMemory;
+    private final java.util.concurrent.atomic.AtomicLong memoryAskedFor = new java.util.concurrent.atomic.AtomicLong(-1);
+    private volatile HubReport hubCache = HubReport.NONE;
+    private volatile long hubCacheJob = Long.MIN_VALUE, hubCacheAt;
+
+    /**
+     * Server thread, never waits: the theory layer's size and speed. The size of a version is worked
+     * out on the engine thread the first time a viewer asks (a pack has tens of thousands of patterns), so
+     * the viewer sees the version before it, for a second or two, until it is done.
+     */
+    private TheoryReport theoryReport(Snapshot snap) {
+        Snapshot.Memory mem = snap.memoryIfReady();
+        if (mem == null) {
+            if (memoryAskedFor.getAndSet(snap.version()) != snap.version())
+                ENGINE.execute(() -> {
+                    Snapshot.Memory m = snap.memory();
+                    trend.add(snap.itemCount() + (long) snap.patternCount(), m.total());
+                    lastMemory = m;
+                });
+            mem = lastMemory;
+        } else {
+            lastMemory = mem;
+        }
+        TheoryLayer.FlushPerf perf = theory.perf();
+        PlanStats.Summary plans = planStats.summary();
+        int patterns = 0;
+        for (int p = 0; p < snap.patternCount(); p++)
+            if (snap.pattern(p) != null)
+                patterns++;
+        return new TheoryReport(mem != null, snap.itemCount(), patterns, snap.sccCount(),
+                mem == null ? 0 : mem.patterns(), mem == null ? 0 : mem.items(), mem == null ? 0 : mem.bom(), mem == null ? 0 : mem.other(),
+                perf.flushes(), perf.rebuilds(), perf.lastNanos(), perf.lastRebuilt(), perf.lastRebuildNanos(), perf.incrMaxNanos(), perf.lastAlloc(),
+                plans.plans(), plans.lastNanos(), plans.maxNanos(), plans.softHits(), plans.hardHits(), trend.growthPermille());
+    }
+
+    /**
+     * Server thread: what a CPU screen shows about the hub memory and speed; {@code job} is the one the
+     * screen's CPU entry stands for (null for the idle entry). Worked out at most once a second per job
+     * (it walks the data of every job), however many screens look.
+     */
+    public HubReport hubReport(@Nullable Job job) {
+        long now = System.nanoTime();
+        long key = job == null ? -1 : job.id;
+        if (key == hubCacheJob && now - hubCacheAt < 1_000_000_000L)
+            return hubCache;
+        Snapshot snap = lastSnapshot;
+        Snapshot.Memory mem = snap == null ? null : snap.memoryIfReady();
+        HubReport r = hub.report(job, snap, mem == null ? 0 : mem.total());
+        hubCache = r;
+        hubCacheJob = key;
+        hubCacheAt = now;
+        return r;
     }
 
     public TheoryStatus theoryStatus() {
@@ -718,7 +782,8 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
         TheoryLayer.FlushStats st = lastFlush;
         return new TheoryStatus(snap.version(), snap.itemCount(), patterns, snap.sccCount(), isUpToDate(),
                 ENGINE.getActiveCount() > 0, pendingPatternChanges.size(), ENGINE.getQueue().size(),
-                st != null ? st.nanos() : 0, st != null && st.rebuilt(), st != null ? System.currentTimeMillis() - lastFlushAt : 0);
+                st != null ? st.nanos() : 0, st != null && st.rebuilt(), st != null ? System.currentTimeMillis() - lastFlushAt : 0,
+                theoryReport(snap));
     }
 
     /** Free black-hole capacity, any size; an unlimited host gives an amount no plan reaches. */

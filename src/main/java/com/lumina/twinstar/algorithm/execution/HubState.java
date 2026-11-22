@@ -15,6 +15,7 @@ import com.lumina.twinstar.algorithm.model.Amount;
 import com.lumina.twinstar.algorithm.model.AmountMap;
 import com.lumina.twinstar.algorithm.model.ChanceSampler;
 import com.lumina.twinstar.algorithm.model.InputKind;
+import com.lumina.twinstar.algorithm.model.Mem;
 import com.lumina.twinstar.algorithm.model.Pattern;
 import com.lumina.twinstar.algorithm.model.PatternLocation;
 import com.lumina.twinstar.algorithm.model.Rational;
@@ -28,6 +29,9 @@ import net.minecraft.core.GlobalPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
+import com.lumina.twinstar.metrics.Alloc;
+import com.lumina.twinstar.metrics.HubReport;
+import com.lumina.twinstar.metrics.TickMeter;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -79,6 +83,44 @@ public final class HubState {
     }
 
     record WindowKey(ICraftingProvider provider, int pattern) {
+    }
+
+    // ───────────────────────────── memory and speed ─────────────────────────────
+
+    private final TickMeter tickMeter = new TickMeter();
+    /** what {@link #sharedBytes} was when the last job ended; −1 before any job ended */
+    private long idleResidual = -1;
+
+    /**
+     * Java memory of what the hub holds beside its jobs (see {@link Mem}): the return pool, the
+     * adaptive windows with their timing samples, the machines it feeds and what is in flight.
+     * Machines are rough (a fixed size per machine and per entry).
+     */
+    public long sharedBytes() {
+        long b = Mem.obj(120) + pool.memoryBytes() + used.memoryBytes() + Mem.arrayList(jobs.size());
+        b += Mem.hashMap(windows.size()) + windows.size() * 8L;
+        for (Window w : windows.values())
+            b += w.memoryBytes() + Mem.obj(8);
+        for (MachineState m : machines.values())
+            b += Mem.obj(120) + Mem.hashMap(m.inFlight.size()) + m.inFlight.size() * 64L
+                    + Mem.hashMap(m.overflow.size()) + m.overflow.size() * 48L + Mem.hashMap(m.frontCells.size()) + m.frontCells.size() * 24L;
+        b += Mem.hashMap(machines.size()) + machines.size() * 8L;
+        b += Mem.hashMap(lostAt.size()) + Mem.hashMap(orphans.size()) + orphans.size() * 40L + Mem.hashMap(restoring.size());
+        for (Map<Flight, Amount> m : lostAt.values())
+            b += Mem.hashMap(m.size()) + m.size() * 64L;
+        return b;
+    }
+
+    /**
+     * What a CPU screen shows: sizes (estimated, nothing is walked more than once per call) and the
+     * executor's speed over the last second.
+     *
+     * @param selected         the job of the CPU entry looked at, null for the idle entry
+     * @param newest           the newest theory version (jobs on older ones keep them alive)
+     * @param newestBytes      its estimated size (0 = unknown)
+     */
+    public HubReport report(@Nullable Job selected, @Nullable Snapshot newest, long newestBytes) {
+        return JobMemory.report(jobs, selected, newest, newestBytes, sharedBytes(), idleResidual, tickMeter.last());
     }
 
     // ───────────────────────────── queries ─────────────────────────────
@@ -257,6 +299,16 @@ public final class HubState {
     // ───────────────────────────── tick ─────────────────────────────
 
     public void hubTick(ExecutionEnv env) {
+        long t0 = System.nanoTime();
+        long a0 = Alloc.threadBytes();
+        boolean active = !jobs.isEmpty();
+        tick(env);
+        tickMeter.record(active, System.nanoTime() - t0, Alloc.since(a0), System.nanoTime());
+        if (active && jobs.isEmpty())
+            idleResidual = sharedBytes();       // the last job is gone: what the hub still holds should be small
+    }
+
+    private void tick(ExecutionEnv env) {
         envNow = env;
         syncMachines(env);
         machineTick(env);

@@ -45,6 +45,16 @@ public final class Amount implements Comparable<Amount> {
         return new Amount(0, v);
     }
 
+    /**
+     * Java memory of this value (see {@link Mem}); 0 for the shared cached small values, whose
+     * holders all point to the same object.
+     */
+    public long memoryBytes() {
+        if (big != null)
+            return Mem.obj(8 + 4) + Mem.bigInteger(big);
+        return small >= 0 && small <= CACHE_MAX ? 0 : Mem.obj(8 + 4);
+    }
+
     public boolean isBig() {
         return big != null;
     }

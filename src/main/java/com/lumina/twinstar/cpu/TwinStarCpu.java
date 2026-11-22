@@ -42,6 +42,11 @@ public final class TwinStarCpu implements ICraftingCPU {
         this.link = link;
     }
 
+    /** What the CPU screen shows about the hub's Java memory and speed (server thread). */
+    public com.lumina.twinstar.metrics.HubReport report() {
+        return service.hubReport(job);
+    }
+
     public @Nullable Job getJob() {
         return job;
     }

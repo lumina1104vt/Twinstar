@@ -2,6 +2,7 @@ package com.lumina.twinstar.algorithm.planning;
 
 import com.lumina.twinstar.algorithm.model.Amount;
 import com.lumina.twinstar.algorithm.model.AmountMap;
+import com.lumina.twinstar.algorithm.model.Mem;
 
 import java.util.Arrays;
 import java.util.List;
@@ -123,6 +124,30 @@ public final class Plan {
     /** This plan with the machines it lacks marked (it cannot run until they are there). */
     public Plan withMissingMachines(Map<Integer, Integer> missingMachines) {
         return new Plan(this, missingMachines);
+    }
+
+    /** Java memory of this plan (see {@link Mem}): its amount maps, loops and chance needs. */
+    public long memoryBytes() {
+        long b = Mem.obj(4 + 4 * 8) + amount.memoryBytes() + patternTimes.memoryBytes() + pulled.memoryBytes()
+                + drawLater.memoryBytes() + missing.memoryBytes() + leftover.memoryBytes() + usage.memoryBytes();
+        for (CycleContract c : contracts.values())
+            b += Mem.obj(12) + Mem.ints(c.patterns()) + Mem.refs(c.batches().length) + batchBytes(c.batches());
+        b += 3L * Mem.obj(16) + contracts.size() * 2L * Mem.obj(4);
+        for (AmountMap m : loopSeeds.values())
+            b += m.memoryBytes();
+        for (Recycle r : recycles)
+            b += Mem.obj(12) + r.seed().memoryBytes() + Mem.ints(r.patterns());
+        for (ChanceNeed n : chanceNeeds.values())
+            b += Mem.obj(8) + n.items().memoryBytes() + n.sureRuns().memoryBytes();
+        b += Mem.refs(recycles.size()) + (long) (loopSeeds.size() + chanceNeeds.size() + missingMachines.size()) * Mem.obj(16);
+        return b;
+    }
+
+    private static long batchBytes(Amount[] batches) {
+        long b = 0;
+        for (Amount a : batches)
+            b += a.memoryBytes();
+        return b;
     }
 
     /** Can be made with what the network has (materials and machines). */

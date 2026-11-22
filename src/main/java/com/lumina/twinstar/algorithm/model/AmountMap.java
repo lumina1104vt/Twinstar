@@ -11,6 +11,20 @@ import java.util.function.BiConsumer;
 public final class AmountMap {
     private final TreeMap<Integer, Amount> map = new TreeMap<>();
 
+    /** Java memory of the map (see {@link Mem}): one tree entry, one boxed id and the amount per item. */
+    public long memoryBytes() {
+        long b = Mem.obj(4) + Mem.treeMap(map.size());
+        for (Map.Entry<Integer, Amount> e : map.entrySet())
+            b += Mem.boxedInt(e.getKey()) + e.getValue().memoryBytes();
+        return b;
+    }
+
+    /** Sets the bit of every id in the map (kinds of items, counted without allocating a key array). */
+    public void markKeys(java.util.BitSet into) {
+        for (Integer k : map.keySet())
+            into.set(k);
+    }
+
     public Amount get(int id) {
         return map.getOrDefault(id, Amount.ZERO);
     }
