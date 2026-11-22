@@ -5,6 +5,7 @@ import com.lumina.twinstar.algorithm.cache.Scc;
 import com.lumina.twinstar.algorithm.cache.Snapshot;
 import com.lumina.twinstar.algorithm.model.Amount;
 import com.lumina.twinstar.algorithm.model.AmountMap;
+import com.lumina.twinstar.algorithm.model.Mem;
 import com.lumina.twinstar.algorithm.model.Pattern;
 import com.lumina.twinstar.algorithm.planning.CycleContract;
 import com.lumina.twinstar.algorithm.planning.Plan;
@@ -151,6 +152,49 @@ public final class Job {
             if (s.pattern(j) == p)
                 return true;
         return false;
+    }
+
+    // ── Java memory (estimated structure by structure, see Mem) ──
+
+    /**
+     * Java memory of this job's own data: its inventory and the other amount maps, tasks, queues and
+     * the plan it runs. The theory version it runs on is shared and not counted (see
+     * {@link com.lumina.twinstar.algorithm.cache.Snapshot#memory}).
+     */
+    public long memoryBytes() {
+        long b = Mem.obj(8 + 4 * 5 + 4 * 30 + 4);
+        b += inventory.memoryBytes() + outstanding.memoryBytes() + releasedUnits.memoryBytes() + releasedBytes.memoryBytes()
+                + protectedSeeds.memoryBytes() + drawLater.memoryBytes() + chanceShort.memoryBytes() + machineLost.memoryBytes()
+                + toolUses.memoryBytes() + occupancy.memoryBytes() + delivered.memoryBytes();
+        b += Mem.arrayList(tasks.size()) + tasks.size() * Mem.obj(3 * 4 + 2 * 4 + 1);
+        for (Task t : tasks)
+            b += t.remaining.memoryBytes() + t.inFlight.memoryBytes();
+        b += Mem.priorityQueue(ready.size()) + Mem.arrayList(retry.size());
+        b += Mem.hashMap(waitingOn.size());
+        for (Map.Entry<Integer, List<Task>> e : waitingOn.entrySet())
+            b += Mem.boxedInt(e.getKey()) + Mem.arrayList(e.getValue().size());
+        b += Mem.hashMapOfLongs(outstandingSince);
+        b += Mem.treeMap(stuck.size()) + Mem.boxedKeys(stuck.keySet()) + stuck.size() * Mem.obj(16);
+        b += Mem.hashMap(sccSeeds.size());
+        for (Map.Entry<Integer, AmountMap> e : sccSeeds.entrySet())
+            b += Mem.boxedInt(e.getKey()) + e.getValue().memoryBytes();
+        b += Mem.arrayList(recycleGuards.size());      // the guards are the plan's own recycles
+        b += Mem.hashMapOfInts(contractStep) + Mem.hashMapOfAmounts(contractLeft);
+        b += Mem.hashMap(chances.size());
+        for (Map.Entry<Integer, ChanceProgress> e : chances.entrySet())
+            b += Mem.boxedInt(e.getKey()) + e.getValue().memoryBytes();
+        b += Mem.hashMap(waitingPatterns.size()) + Mem.boxedKeys(waitingPatterns);
+        return b + plan.memoryBytes();
+    }
+
+    /** Sets the bit of every kind of item this job tracks right now (its inventory, expected returns, seeds, tools, drawn-later items). */
+    public void markTrackedItems(java.util.BitSet into) {
+        inventory.markKeys(into);
+        outstanding.markKeys(into);
+        drawLater.markKeys(into);
+        protectedSeeds.markKeys(into);
+        toolUses.markKeys(into);
+        chanceShort.markKeys(into);
     }
 
     // ── read access for the CPU screen ──

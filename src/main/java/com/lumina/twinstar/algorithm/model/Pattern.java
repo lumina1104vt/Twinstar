@@ -24,6 +24,37 @@ import java.util.List;
 public final class Pattern {
     public final int id;
 
+    /** Shared by every input with no alternatives (nearly all of them): one array instead of one per input. Never written. */
+    private static final int[] NO_ALTERNATIVES = new int[0];
+    /** All-zero int arrays of length 0..7, shared by every pattern whose per-input settings are all unset (the plain ones: nearly all). */
+    private static final int[][] ZEROS = new int[8][];
+    private static final double[][] ONES = new double[8][];
+    private static final boolean[][] NONE = new boolean[8][];
+
+    static {
+        for (int i = 0; i < 8; i++) {
+            ZEROS[i] = new int[i];
+            ONES[i] = new double[i];
+            java.util.Arrays.fill(ONES[i], 1);
+            NONE[i] = new boolean[i];
+        }
+    }
+
+    /** {@code a} itself, or the shared all-zero array of its length when every value is 0. Arrays are never written after construction. */
+    private static int[] shareZeros(int[] a) {
+        if (a.length >= ZEROS.length)
+            return a;
+        for (int v : a)
+            if (v != 0)
+                return a;
+        return ZEROS[a.length];
+    }
+
+    /** The memory of an int array this pattern owns: nothing for the shared ones. */
+    private static long own(int[] a) {
+        return a == NO_ALTERNATIVES || a.length < ZEROS.length && a == ZEROS[a.length] ? 0 : Mem.ints(a);
+    }
+
     private final int[] inputItems;
     private final Amount[] inputAmounts;
     private final InputKind[] inputKinds;
@@ -58,23 +89,26 @@ public final class Pattern {
         this.inputItems = new int[n];
         this.inputAmounts = new Amount[n];
         this.inputKinds = new InputKind[n];
-        this.inputDurability = new int[n];
+        int[] durability = new int[n], faces = new int[n], targets = new int[n], roles = new int[n], guiSlots = new int[n];
         this.inputAlternatives = new int[n][];
-        this.inputFaces = new int[n];
-        this.inputTargets = new int[n];
-        this.inputRoles = new int[n];
-        this.inputGuiSlots = new int[n];
         for (int i = 0; i < n; i++) {
             inputItems[i] = b.inItems.get(i);
             inputAmounts[i] = b.inAmounts.get(i);
             inputKinds[i] = b.inKinds.get(i);
-            inputDurability[i] = b.inDurability.get(i);
-            inputAlternatives[i] = b.inAlternatives.get(i).clone();
-            inputFaces[i] = i < b.inFaces.size() ? b.inFaces.get(i) : 0;
-            inputTargets[i] = i < b.inTargets.size() ? b.inTargets.get(i) : 0;
-            inputRoles[i] = i < b.inRoles.size() ? b.inRoles.get(i) : 0;
-            inputGuiSlots[i] = i < b.inGuiSlots.size() ? b.inGuiSlots.get(i) : 0;
+            durability[i] = b.inDurability.get(i);
+            int[] alt = b.inAlternatives.get(i);
+            inputAlternatives[i] = alt.length == 0 ? NO_ALTERNATIVES : alt.clone();
+            faces[i] = i < b.inFaces.size() ? b.inFaces.get(i) : 0;
+            targets[i] = i < b.inTargets.size() ? b.inTargets.get(i) : 0;
+            roles[i] = i < b.inRoles.size() ? b.inRoles.get(i) : 0;
+            guiSlots[i] = i < b.inGuiSlots.size() ? b.inGuiSlots.get(i) : 0;
         }
+        // per-input settings that are only used by machine patterns: one shared all-zero array when unset
+        this.inputDurability = shareZeros(durability);
+        this.inputFaces = shareZeros(faces);
+        this.inputGuiSlots = shareZeros(guiSlots);
+        this.inputRoles = shareZeros(roles);
+        this.inputTargets = shareZeros(targets);
         // outputs: merge repeated items so outputAmount(x) is a single lookup
         // (an item that is also a main output is a main output for the whole amount)
         List<Integer> oi = new ArrayList<>();
@@ -103,10 +137,16 @@ public final class Pattern {
         }
         this.outputItems = oi.stream().mapToInt(Integer::intValue).toArray();
         this.outputAmounts = oa.toArray(new Amount[0]);
-        this.outputByproduct = new boolean[ob.size()];
+        boolean[] byproduct = new boolean[ob.size()];
+        boolean anyByproduct = false;
         for (int i = 0; i < ob.size(); i++)
-            outputByproduct[i] = ob.get(i);
-        this.outputChance = oc.stream().mapToDouble(Double::doubleValue).toArray();
+            anyByproduct |= byproduct[i] = ob.get(i);
+        this.outputByproduct = !anyByproduct && byproduct.length < NONE.length ? NONE[byproduct.length] : byproduct;
+        double[] chance = oc.stream().mapToDouble(Double::doubleValue).toArray();
+        boolean allSure = chance.length < ONES.length;
+        for (double c : chance)
+            allSure &= c == 1;
+        this.outputChance = allSure ? ONES[chance.length] : chance;
         this.outputGuiSlots = java.util.Map.copyOf(b.outGuiSlots);
         this.nbtFreeOutputs = b.nbtFreeOutputs.stream().mapToInt(Integer::intValue).toArray();
         this.where = b.where;
@@ -116,6 +156,31 @@ public final class Pattern {
         this.allowSubst = b.allowSubst;
         this.energyPerRun = b.energyPerRun;
         this.source = b.source;
+    }
+
+    /**
+     * Java memory of this pattern (see {@link Mem}): the object, its arrays and the amounts in them.
+     * The AE2 pattern it came from ({@link #source()}) is AE2's own data and not counted.
+     */
+    public long memoryBytes() {
+        long b = Mem.obj(89);
+        b += Mem.ints(inputItems) + Mem.refs(inputAmounts.length) + Mem.refs(inputKinds.length) + own(inputDurability)
+                + own(inputFaces) + own(inputGuiSlots) + own(inputRoles) + own(inputTargets);
+        for (Amount a : inputAmounts)
+            b += a.memoryBytes();
+        b += Mem.refs(inputAlternatives.length);
+        for (int[] alt : inputAlternatives)
+            b += own(alt);
+        b += Mem.ints(outputItems) + Mem.refs(outputAmounts.length)
+                + (outputByproduct.length < NONE.length && outputByproduct == NONE[outputByproduct.length] ? 0 : Mem.array(outputByproduct.length, 1))
+                + (outputChance.length < ONES.length && outputChance == ONES[outputChance.length] ? 0 : Mem.doubles(outputChance))
+                + Mem.ints(nbtFreeOutputs) + Mem.ints(subMachines);
+        for (Amount a : outputAmounts)
+            b += a.memoryBytes();
+        if (!outputGuiSlots.isEmpty())      // Map.copyOf: an immutable map with a flat table of keys and values
+            b += Mem.obj(8) + Mem.array(outputGuiSlots.size() * 4L, 4) + outputGuiSlots.size() * 2L * Mem.boxedInt(1000);
+        b += energyPerRun.memoryBytes();
+        return b;
     }
 
     /** The GUI slot product {@code item} is taken out of (1 and up); 0 = from any slot that does not take it. */

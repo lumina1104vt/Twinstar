@@ -46,6 +46,8 @@ public class Twinstar {
         registrar.playToClient(com.lumina.twinstar.order.JobDonePacket.TYPE, com.lumina.twinstar.order.JobDonePacket.STREAM_CODEC,
                 com.lumina.twinstar.order.JobDonePacket::handle);
         registrar.playToServer(TheoryPackets.Request.TYPE, TheoryPackets.Request.STREAM_CODEC, TheoryPackets.Request::handle);
+        registrar.playToClient(com.lumina.twinstar.cpu.CpuReportPacket.TYPE, com.lumina.twinstar.cpu.CpuReportPacket.STREAM_CODEC,
+                com.lumina.twinstar.cpu.CpuReportPacket::handle);
         registrar.playToClient(TheoryPackets.StatusReply.TYPE, TheoryPackets.StatusReply.STREAM_CODEC, TheoryPackets.StatusReply::handle);
         registrar.playToClient(TheoryPackets.MapReply.TYPE, TheoryPackets.MapReply.STREAM_CODEC, TheoryPackets.MapReply::handle);
         registrar.playToClient(TheoryPackets.ItemReply.TYPE, TheoryPackets.ItemReply.STREAM_CODEC, TheoryPackets.ItemReply::handle);
