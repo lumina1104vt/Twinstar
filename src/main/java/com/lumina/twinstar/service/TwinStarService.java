@@ -111,6 +111,11 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
     private final Map<IGridNode, IBigStorage> bigStorages = new LinkedHashMap<>();
     private final Map<IGridNode, IMachineAccess> machineAccess = new LinkedHashMap<>();
 
+    /** The machine access interfaces on the grid (each as the object its block or part is), for the list of what machines use up. */
+    public List<IMachineAccess> accessOwners() {
+        return new ArrayList<>(machineAccess.values());
+    }
+
     /** Every machine the grid's interfaces stand for: an interface may stand for several ({@link IMachineAccess#accessPoints}). */
     private List<IMachineAccess> allAccess() {
         List<IMachineAccess> all = new ArrayList<>();
@@ -220,6 +225,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
                 Twinstar.LOGGER.info(line);
         });
         theory.setUnits(units);
+        hub.setUsage(com.lumina.twinstar.usage.UsageStore::recordHub);
         hub.setOnDone(this::tellDone);
         LIVE.add(this);
     }

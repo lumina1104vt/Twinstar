@@ -50,5 +50,9 @@ public final class TwinNet {
                 JeiPackets.Request::handle, toClient);
         CHANNEL.registerMessage(id++, JeiPackets.Recipes.class, JeiPackets.Recipes::write, JeiPackets.Recipes::read,
                 JeiPackets.Recipes::handle, toServer);
+        CHANNEL.registerMessage(id++, com.lumina.twinstar.usage.UsagePackets.Request.class, com.lumina.twinstar.usage.UsagePackets.Request::write,
+                com.lumina.twinstar.usage.UsagePackets.Request::read, com.lumina.twinstar.usage.UsagePackets.Request::handle, toServer);
+        CHANNEL.registerMessage(id++, com.lumina.twinstar.usage.UsagePackets.Reply.class, com.lumina.twinstar.usage.UsagePackets.Reply::write,
+                com.lumina.twinstar.usage.UsagePackets.Reply::read, com.lumina.twinstar.usage.UsagePackets.Reply::handle, toClient);
     }
 }

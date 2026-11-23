@@ -37,6 +37,7 @@ public class Twinstar {
         MinecraftForge.EVENT_BUS.addListener(RecipeDump::onServerTick);
         MinecraftForge.EVENT_BUS.addListener(JeiRequests::onServerTick);
         MinecraftForge.EVENT_BUS.addListener(JeiRequests::onServerStopping);
+        MinecraftForge.EVENT_BUS.addListener((net.minecraftforge.event.server.ServerStoppedEvent e) -> com.lumina.twinstar.usage.UsageStore.clear());
     }
 
     private static void commonSetup(FMLCommonSetupEvent event) {
