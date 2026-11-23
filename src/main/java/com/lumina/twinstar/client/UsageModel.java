@@ -1,0 +1,84 @@
+package com.lumina.twinstar.client;
+
+import appeng.api.client.AEKeyRendering;
+import appeng.api.stacks.AEKey;
+import appeng.api.stacks.AmountFormat;
+import com.lumina.twinstar.usage.UsageSnapshot;
+import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.Component;
+
+import java.util.List;
+
+/** {@link UsageOrder} over a snapshot's machines, and the texts the usage screen writes. */
+public final class UsageModel {
+    private UsageModel() {
+    }
+
+    public static final UsageOrder.Source<UsageSnapshot.Machine, UsageSnapshot.Row> SOURCE = new UsageOrder.Source<>() {
+        @Override
+        public String id(UsageSnapshot.Machine m) {
+            return m.id();
+        }
+
+        @Override
+        public String name(UsageSnapshot.Machine m) {
+            return m.name().getString();
+        }
+
+        @Override
+        public String ifaceId(UsageSnapshot.Machine m) {
+            return m.ifaceId();
+        }
+
+        @Override
+        public String ifaceName(UsageSnapshot.Machine m) {
+            return ifaceTitle(m).getString();
+        }
+
+        @Override
+        public String place(UsageSnapshot.Machine m) {
+            return pos(m.pos());
+        }
+
+        @Override
+        public List<UsageSnapshot.Row> rows(UsageSnapshot.Machine m) {
+            return m.rows();
+        }
+
+        @Override
+        public long[] totals(UsageSnapshot.Row r) {
+            return r.totals();
+        }
+
+        @Override
+        public String itemName(UsageSnapshot.Row r) {
+            return AEKeyRendering.getDisplayName(r.key()).getString();
+        }
+
+        @Override
+        public double unit(UsageSnapshot.Row r) {
+            return r.key().getType().getAmountPerUnit();
+        }
+    };
+
+    public static UsageOrder<UsageSnapshot.Machine, UsageSnapshot.Row> build(UsageSnapshot s, int window, boolean byInterface,
+                                                                             UsageOrder.Sort sort, boolean ascending, String search) {
+        return UsageOrder.build(s.machines(), SOURCE, window, byInterface, sort, ascending, search);
+    }
+
+    /** The interface own name, or what it is called without one. */
+    public static Component ifaceTitle(UsageSnapshot.Machine m) {
+        return m.ifaceName() != null ? m.ifaceName() : Component.translatable("gui.twinstar.usage.interface_default");
+    }
+
+    public static String pos(long packed) {
+        BlockPos p = BlockPos.of(packed);
+        return p.getX() + ", " + p.getY() + ", " + p.getZ();
+    }
+
+    /** "384/min", the amount in the key own short form. */
+    public static String rateText(AEKey key, long total, long spanTicks) {
+        return Component.translatable("gui.twinstar.usage.per_min", key.formatAmount(UsageOrder.perMinute(total, spanTicks), AmountFormat.SLOT))
+                .getString();
+    }
+}

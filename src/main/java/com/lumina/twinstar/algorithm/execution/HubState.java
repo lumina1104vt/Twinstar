@@ -82,6 +82,18 @@ public final class HubState {
         this.debug = debug;
     }
 
+    /** Told what the hub puts into a machine for its runs (the list of what machines use up). */
+    @FunctionalInterface
+    public interface UsageSink {
+        void used(IMachineAccess machine, AEKey key, long amount);
+    }
+
+    private @Nullable UsageSink usage;
+
+    public void setUsage(@Nullable UsageSink usage) {
+        this.usage = usage;
+    }
+
     record WindowKey(ICraftingProvider provider, int pattern) {
     }
 
@@ -1955,6 +1967,8 @@ public final class HubState {
             f.fed += in;
             if (in > 0 && p.role != PatternInputRoles.NORMAL)
                 m.held.computeIfAbsent(new Flight(f.job, f.pattern), k -> new LinkedHashMap<>()).merge(p.key, in, Long::sum);
+            else if (in > 0 && usage != null)
+                usage.used(m.access, p.key, in);        // a material the machine uses up (a catalyst or a tool comes back: not counted)
             if (stuck != null && p.left > 0)
                 stuck.append("\n    ").append(p.key.getDisplayName().getString()).append("（").append(p.key.getType().getDescription().getString())
                         .append("）還剩 ").append(p.left).append("，這次放入 ").append(in).append("；")

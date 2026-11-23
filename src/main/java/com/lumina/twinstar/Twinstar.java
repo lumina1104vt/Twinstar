@@ -38,6 +38,7 @@ public class Twinstar {
         NeoForge.EVENT_BUS.addListener(RecipeDump::onServerTick);
         NeoForge.EVENT_BUS.addListener(JeiRequests::onServerTick);
         NeoForge.EVENT_BUS.addListener(JeiRequests::onServerStopping);
+        NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.event.server.ServerStoppedEvent e) -> com.lumina.twinstar.usage.UsageStore.clear());
     }
 
     private static void registerPayloads(RegisterPayloadHandlersEvent event) {
@@ -51,6 +52,10 @@ public class Twinstar {
         registrar.playToClient(TheoryPackets.StatusReply.TYPE, TheoryPackets.StatusReply.STREAM_CODEC, TheoryPackets.StatusReply::handle);
         registrar.playToClient(TheoryPackets.MapReply.TYPE, TheoryPackets.MapReply.STREAM_CODEC, TheoryPackets.MapReply::handle);
         registrar.playToClient(TheoryPackets.ItemReply.TYPE, TheoryPackets.ItemReply.STREAM_CODEC, TheoryPackets.ItemReply::handle);
+        registrar.playToServer(com.lumina.twinstar.usage.UsagePackets.Request.TYPE, com.lumina.twinstar.usage.UsagePackets.Request.STREAM_CODEC,
+                com.lumina.twinstar.usage.UsagePackets.Request::handle);
+        registrar.playToClient(com.lumina.twinstar.usage.UsagePackets.Reply.TYPE, com.lumina.twinstar.usage.UsagePackets.Reply.STREAM_CODEC,
+                com.lumina.twinstar.usage.UsagePackets.Reply::handle);
         registrar.playToClient(JeiPackets.Request.TYPE, JeiPackets.Request.STREAM_CODEC, JeiPackets.Request::handle);
         registrar.playToServer(JeiPackets.Recipes.TYPE, JeiPackets.Recipes.STREAM_CODEC, JeiPackets.Recipes::handle);
     }

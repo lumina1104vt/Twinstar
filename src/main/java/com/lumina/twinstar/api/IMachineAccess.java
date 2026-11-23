@@ -136,4 +136,30 @@ public interface IMachineAccess {
 
     /** Powered and on the grid. */
     boolean isAccessActive();
+
+    /**
+     * Where this interface itself is (the block it stands in: a cable part gives the cable's block), for the list of what
+     * machines use up; null when it does not say.
+     */
+    default @Nullable net.minecraft.core.GlobalPos interfacePlace() {
+        return null;
+    }
+
+    /** The side of the cable block a part stands on (a direction's index), -1 for a block of its own. */
+    default int interfaceSide() {
+        return -1;
+    }
+
+    /**
+     * Where the machines this interface works on are (the list of what machines use up shows each of them, also one that used
+     * nothing); empty when it does not say.
+     */
+    default java.util.List<net.minecraft.core.GlobalPos> machinePlaces() {
+        return java.util.List.of();
+    }
+
+    /** The name the player gave the interface, or null. */
+    default @Nullable net.minecraft.network.chat.Component interfaceName() {
+        return null;
+    }
 }
