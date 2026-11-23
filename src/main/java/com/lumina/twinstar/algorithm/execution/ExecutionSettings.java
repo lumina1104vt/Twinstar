@@ -6,6 +6,8 @@ package com.lumina.twinstar.algorithm.execution;
  */
 public final class ExecutionSettings {
     private static volatile long guiPollTicks = 1, toolDelayTicks = 1;
+    private static volatile long forcedIdleSeconds = 30 * 60;
+    private static volatile int maxForcedJobs = 4;
 
     private ExecutionSettings() {
     }
@@ -13,6 +15,20 @@ public final class ExecutionSettings {
     public static void set(long guiPollTicks, long toolDelayTicks) {
         ExecutionSettings.guiPollTicks = Math.max(1, guiPollTicks);
         ExecutionSettings.toolDelayTicks = Math.max(0, toolDelayTicks);
+    }
+
+    /** Forced orders: how long one that lacks materials may make no progress before it is cancelled, and how many may wait at once. */
+    public static void setForced(long idleSeconds, int maxJobs) {
+        forcedIdleSeconds = Math.max(10, idleSeconds);
+        maxForcedJobs = Math.max(1, maxJobs);
+    }
+
+    public static long forcedIdleNanos() {
+        return forcedIdleSeconds * 1_000_000_000L;
+    }
+
+    public static int maxForcedJobs() {
+        return maxForcedJobs;
     }
 
     /** How often (ticks) a machine without item slots has its GUI opened to see whether a product is in it. */

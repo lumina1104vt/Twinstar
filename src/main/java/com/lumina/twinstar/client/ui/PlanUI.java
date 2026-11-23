@@ -77,9 +77,11 @@ public class PlanUI {
     private final ScrollerView missingList = new ScrollerView();
     private final Button replan = PixelLabel.button(Component.translatable("gui.twinstar.plan.replan"));
     private final Button start = PixelLabel.button(Component.translatable("gui.twinstar.plan.start"));
+    private final Button force = new Button();
     private final Button bookmark = PixelLabel.button(Component.translatable("gui.twinstar.plan.bookmark"));
     private final Player player;
     private boolean bookmarkShown;
+    private boolean forceShown;
     private boolean canStart;               // the start button is usable
     private boolean enterHandled;           // a field (the kept amount) already took this Enter press
 
@@ -171,7 +173,15 @@ public class PlanUI {
         start.setOnClick(e -> menu.start());
         start.layout(l -> l.width(90).height(20));
         UIElement spacer = new UIElement().layout(l -> l.flexGrow(1));
-        UIElement footer = new UIElement().addChildren(back, replan, spacer, start);
+        force.noText();
+        force.addChild(new PixelIcon(PixelIcon.FORCE, TEXT));
+        force.setOnClick(e -> menu.startForced());
+        force.style(s -> s.tooltips(Component.translatable("gui.twinstar.plan.force"),
+                Component.translatable("gui.twinstar.plan.force.tooltip").withColor(DIM),
+                Component.translatable("gui.twinstar.plan.force.risk").withColor(AVOID_COLOR)));
+        force.layout(l -> l.width(20).height(20).paddingAll(0).justifyContent(AlignContent.CENTER).alignItems(AlignItems.CENTER));
+        force.setDisplay(false);
+        UIElement footer = new UIElement().addChildren(back, replan, spacer, force, start);
         footer.layout(l -> l.flexDirection(FlexDirection.ROW).height(20).marginTop(6).gapAll(4).flexShrink(0));
         return footer;
     }
@@ -228,6 +238,12 @@ public class PlanUI {
         // too big for the black hole: starting would only fail
         canStart = view != null && view.complete() && view.fits();
         start.setActive(canStart);
+        // 強制下單: only when the plan lacks something and there is something to make
+        boolean canForce = view != null && !view.complete() && view.fits() && view.patterns() > 0;
+        if (canForce != forceShown) {
+            forceShown = canForce;
+            force.setDisplay(canForce);
+        }
         if (view == shownView && planning == shownPlanning && error.equals(shownError))
             return;
         shownView = view;

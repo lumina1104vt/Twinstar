@@ -82,6 +82,16 @@ public final class PatternCompiler {
         this.craftable = craftable;
     }
 
+    /**
+     * Keys that are only a mark and no real item (the dispatch marker): a product of one is done on dispatch and lives in the
+     * job's ledger only; a pattern of an ordinary provider may not take one as a material. None by default.
+     */
+    private java.util.function.Predicate<AEKey> virtualKeys = key -> false;
+
+    public void setVirtualKeys(java.util.function.Predicate<AEKey> virtualKeys) {
+        this.virtualKeys = virtualKeys;
+    }
+
     /** Whether a hub pattern naming a crafting table or the like is that block's real recipe; none is by default. */
     private java.util.function.BiPredicate<IPatternDetails, Item> workstationCheck = (details, machine) -> false;
 
@@ -111,6 +121,11 @@ public final class PatternCompiler {
         PatternChances chances = details.getDefinition().get(TwinstarContent.PATTERN_CHANCES.get());
         if (!hubInternal && chances != null && !chances.entries().isEmpty())
             return List.of();   // a pattern with probable outputs only runs in the hub
+        if (!hubInternal)
+            for (IPatternDetails.IInput in : details.getInputs())
+                for (GenericStack g : in.getPossibleInputs())
+                    if (virtualKeys.test(g.what()))
+                        return List.of();   // a mark is no material for a provider: nothing could hand it over
         Item machine = hubInternal ? PatternMachines.of(details.getDefinition()) : null;
         if (hubInternal && !checkedByAe2(details)) {
             // the black hole makes what the pattern says: only what a real machine does, or a real
@@ -252,9 +267,14 @@ public final class PatternCompiler {
             if (!worn.isEmpty())
                 subst = true;
         }
+        PatternDispatchDone dispatchDone = details.getDefinition().get(TwinstarContent.PATTERN_DISPATCH_DONE.get());
         for (GenericStack out : details.getOutputs()) {
             double chance = chances == null ? 1 : chances.chanceOf(out.what());
             b.output(index.idOf(out.what()), Amount.of(out.amount()), chance > 0 && chance < 1 ? chance : 1);
+            if (virtualKeys.test(out.what()))
+                b.virtualOf(index.idOf(out.what()));
+            else if (dispatchDone != null && dispatchDone.has(out.what()) && !(chance > 0 && chance < 1))
+                b.dispatchDoneOf(index.idOf(out.what()));
             if (outGuiSlots != null && outGuiSlots.slotOf(out.what()) > 0)
                 b.outputGuiSlot(index.idOf(out.what()), outGuiSlots.slotOf(out.what()));
         }

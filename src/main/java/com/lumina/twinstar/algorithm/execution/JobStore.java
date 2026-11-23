@@ -342,6 +342,8 @@ public final class JobStore {
             });
             t.put("chances", chances);
             t.put("chanceShort", amounts(job.chanceShort, this::key));
+            t.put("shortage", amounts(job.shortage, this::key));
+            t.putBoolean("forced", job.forced);
             t.put("machineLost", amounts(job.machineLost, p -> pattern(job, p)));
             t.putBoolean("suspended", job.suspended);
             t.putBoolean("unloaded", job.unloaded);
@@ -713,6 +715,8 @@ public final class JobStore {
                 job.chances.put(p, c);
             }
             amounts(t.getList("chanceShort", Tag.TAG_COMPOUND), this::item, job.chanceShort, false);
+            amounts(t.getList("shortage", Tag.TAG_COMPOUND), this::item, job.shortage, false);
+            job.forced = t.getBoolean("forced");
             amounts(t.getList("machineLost", Tag.TAG_COMPOUND), this::pattern, job.machineLost, false);
             job.suspended = t.getBoolean("suspended");
             job.unloaded = t.getBoolean("unloaded");

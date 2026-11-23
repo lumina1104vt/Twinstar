@@ -71,6 +71,8 @@ public final class Pattern {
     private final double[] outputChance;        // 1: always
     private final java.util.Map<Integer, Integer> outputGuiSlots;   // HUB_MACHINE: product item id -> GUI slot it is taken out of
     private final int[] nbtFreeOutputs;         // HUB_MACHINE: products that count whatever their NBT
+    private final int[] doneOutputs;            // products that count as made once the run's materials are in (not waited for)
+    private final int[] virtualOutputs;         // products that are only a mark in the job's ledger (never real items)
 
     public final PatternLocation where;
     /** HUB_MACHINE: the item id of the machine it runs in; −1 otherwise */
@@ -149,6 +151,8 @@ public final class Pattern {
         this.outputChance = allSure ? ONES[chance.length] : chance;
         this.outputGuiSlots = java.util.Map.copyOf(b.outGuiSlots);
         this.nbtFreeOutputs = b.nbtFreeOutputs.stream().mapToInt(Integer::intValue).toArray();
+        this.doneOutputs = b.doneOutputs.stream().mapToInt(Integer::intValue).toArray();
+        this.virtualOutputs = b.virtualOutputs.stream().mapToInt(Integer::intValue).toArray();
         this.where = b.where;
         this.machine = b.machine;
         this.subMachines = b.subMachines.stream().mapToInt(Integer::intValue).toArray();
@@ -174,7 +178,7 @@ public final class Pattern {
         b += Mem.ints(outputItems) + Mem.refs(outputAmounts.length)
                 + (outputByproduct.length < NONE.length && outputByproduct == NONE[outputByproduct.length] ? 0 : Mem.array(outputByproduct.length, 1))
                 + (outputChance.length < ONES.length && outputChance == ONES[outputChance.length] ? 0 : Mem.doubles(outputChance))
-                + Mem.ints(nbtFreeOutputs) + Mem.ints(subMachines);
+                + Mem.ints(nbtFreeOutputs) + Mem.ints(subMachines) + Mem.ints(doneOutputs) + Mem.ints(virtualOutputs);
         for (Amount a : outputAmounts)
             b += a.memoryBytes();
         if (!outputGuiSlots.isEmpty())      // Map.copyOf: an immutable map with a flat table of keys and values
@@ -194,6 +198,50 @@ public final class Pattern {
             if (o == item)
                 return true;
         return false;
+    }
+
+    /**
+     * Output {@code i} counts as made once a run's materials are all in its machine (or sent): nobody waits for it to
+     * come back. Never an output that comes with a probability.
+     */
+    public boolean isDispatchDone(int i) {
+        if (doneOutputs.length == 0 || outputChance[i] < 1)
+            return false;
+        for (int o : doneOutputs)
+            if (o == outputItems[i])
+                return true;
+        return false;
+    }
+
+    /** Some output is done on dispatch. */
+    public boolean hasDispatchDone() {
+        for (int i = 0; i < outputItems.length; i++)
+            if (isDispatchDone(i))
+                return true;
+        return false;
+    }
+
+    /** Some output is waited for: a run only ends when it comes back. */
+    public boolean hasWaitedOutput() {
+        for (int i = 0; i < outputItems.length; i++)
+            if (!isDispatchDone(i) && outputChance[i] >= 1)
+                return true;
+        return false;
+    }
+
+    /**
+     * Product {@code item} is a mark and no real item: a done-on-dispatch run puts it into the job's ledger, where
+     * later steps may use it up, and it never reaches the network, a machine or the requester.
+     */
+    public boolean isVirtualOutput(int item) {
+        for (int o : virtualOutputs)
+            if (o == item)
+                return true;
+        return false;
+    }
+
+    public int[] virtualOutputItems() {
+        return virtualOutputs.clone();
     }
 
     public int[] nbtFreeOutputs() {
@@ -423,6 +471,8 @@ public final class Pattern {
         private final List<Integer> inRoles = new ArrayList<>();
         private final List<Integer> inGuiSlots = new ArrayList<>();
         private final List<Integer> nbtFreeOutputs = new ArrayList<>();
+        private final List<Integer> doneOutputs = new ArrayList<>();
+        private final List<Integer> virtualOutputs = new ArrayList<>();
         private int priority;
         private boolean allowSubst;
         private Rational energyPerRun = Rational.ZERO;
@@ -516,6 +566,20 @@ public final class Pattern {
             if (machine >= 0 && machine != this.machine && !subMachines.contains(machine))
                 subMachines.add(machine);
             return this;
+        }
+
+        /** Product {@code item} counts as made once a run's materials are all in the machine (it is not waited for). */
+        public Builder dispatchDoneOf(int item) {
+            if (!doneOutputs.contains(item))
+                doneOutputs.add(item);
+            return this;
+        }
+
+        /** Product {@code item} is only a mark in the job's ledger; it is done on dispatch as well. */
+        public Builder virtualOf(int item) {
+            if (!virtualOutputs.contains(item))
+                virtualOutputs.add(item);
+            return dispatchDoneOf(item);
         }
 
         /** Product {@code item} counts whatever its NBT. */

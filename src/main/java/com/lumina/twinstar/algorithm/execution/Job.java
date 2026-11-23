@@ -74,6 +74,36 @@ public final class Job {
     /** patterns that had work but nobody offered them at the last try (等樣板) */
     final java.util.Set<Integer> waitingPatterns = new java.util.HashSet<>();
 
+    /**
+     * A forced order (started although the plan lacked materials): what the job still lacks from the network. It is taken
+     * from network storage as it appears; the job is not done while any is lacking.
+     */
+    final AmountMap shortage = new AmountMap();
+    /** started as a forced order */
+    boolean forced;
+    /** cancelled because a forced order waited too long for its materials */
+    boolean timedOut;
+    /** last time (nanos) the job made progress: ran a task, got a return or a material; for the forced order's time limit */
+    long lastProgress;
+    /** last time a forced order looked in network storage for what it lacks */
+    long lastTopUp;
+    private java.util.Set<Integer> virtualItems;
+
+    /** Items of this job's patterns that are only marks (see {@link Pattern#isVirtualOutput}). */
+    java.util.Set<Integer> virtualItems() {
+        if (virtualItems == null) {
+            java.util.Set<Integer> set = new java.util.HashSet<>();
+            for (Task t : tasks) {
+                Pattern p = snap.pattern(t.pattern);
+                if (p != null)
+                    for (int item : p.virtualOutputItems())
+                        set.add(item);
+            }
+            virtualItems = set.isEmpty() ? java.util.Set.of() : set;
+        }
+        return virtualItems;
+    }
+
     boolean suspended;
     boolean unloaded;
     boolean cancelled;
@@ -164,7 +194,7 @@ public final class Job {
     public long memoryBytes() {
         long b = Mem.obj(8 + 4 * 5 + 4 * 30 + 4);
         b += inventory.memoryBytes() + outstanding.memoryBytes() + releasedUnits.memoryBytes() + releasedBytes.memoryBytes()
-                + protectedSeeds.memoryBytes() + drawLater.memoryBytes() + chanceShort.memoryBytes() + machineLost.memoryBytes()
+                + protectedSeeds.memoryBytes() + drawLater.memoryBytes() + chanceShort.memoryBytes() + machineLost.memoryBytes() + shortage.memoryBytes()
                 + toolUses.memoryBytes() + occupancy.memoryBytes() + delivered.memoryBytes();
         b += Mem.arrayList(tasks.size()) + tasks.size() * Mem.obj(3 * 4 + 2 * 4 + 1);
         for (Task t : tasks)
@@ -195,6 +225,7 @@ public final class Job {
         protectedSeeds.markKeys(into);
         toolUses.markKeys(into);
         chanceShort.markKeys(into);
+        shortage.markKeys(into);
     }
 
     // ── read access for the CPU screen ──
@@ -221,6 +252,21 @@ public final class Job {
     }
 
     /** 機率產物不足: per item, what the probable outputs did not give after all the planned runs. */
+    /** 缺少的材料: what a forced order still lacks from the network. */
+    public AmountMap shortage() {
+        return shortage.copy();
+    }
+
+    /** Started although the plan lacked materials (a forced order). */
+    public boolean isForced() {
+        return forced;
+    }
+
+    /** A forced order cancelled because it waited too long. */
+    public boolean isTimedOut() {
+        return timedOut;
+    }
+
     public AmountMap chanceShortages() {
         return chanceShort.copy();
     }
