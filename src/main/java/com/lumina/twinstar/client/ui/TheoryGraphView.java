@@ -47,7 +47,7 @@ public class TheoryGraphView extends GraphView {
 
     private final EditBox search;
     /** Java memory and speed of the theory layer (bottom left; a click on its header folds it) */
-    private static final PerfPanel PERF_PANEL = new PerfPanel(true);
+    private static final PerfPanel PERF_PANEL = new PerfPanel(true, "theory");
     private final PerfPanel perfPanel = PERF_PANEL;
     private @Nullable TheoryMap shownMap;
     /** only this item's part; null = everything */
@@ -481,8 +481,18 @@ public class TheoryGraphView extends GraphView {
     }
 
     @Override
+    protected boolean overlayDragged(double dx, double dy) {
+        return perfPanel.mouseDragged(dx, dy);
+    }
+
+    @Override
+    protected boolean overlayReleased(double mx, double my, int button) {
+        return perfPanel.mouseReleased(mx, my, button);
+    }
+
+    @Override
     protected boolean overlayClicked(double mx, double my, int button) {
-        if (perfPanel.clicked(mx, my))
+        if (perfPanel.mousePressed(mx, my, button))
             return true;
         if (inResults(mx, my)) {
             int i = (int) ((my - search.getY() - search.getHeight() - 2) / RESULT_H);
@@ -557,8 +567,8 @@ public class TheoryGraphView extends GraphView {
         }
         g.drawString(font, Component.translatable("gui.twinstar.theory.prediction"), 6, height - 12, DIM, false);
         PerfContent.Content perf = PerfContent.theory(TheoryCache.status().report());
-        perfPanel.draw(g, font, 6, height - 16 - perfPanel.heightFor(perf), perf, mx, my);
-        List<Component> tip = perfPanel.tooltipAt(mx, my);
+        perfPanel.draw(g, font, 6, height - 16 - perfPanel.openHeightFor(perf), width, height, perf, mx, my);
+        List<Component> tip = perfPanel.isPressed() ? null : perfPanel.tooltipAt(mx, my);
         if (tip != null)
             g.renderComponentTooltip(font, tip, mx, my);
     }

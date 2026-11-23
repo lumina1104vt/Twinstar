@@ -150,6 +150,7 @@
   "gui.twinstar.perf.header.theory": "理論層：物品 %s、樣板 %s",
   "gui.twinstar.perf.header.hub": "中樞：執行中工作 %s 個、追蹤物品 %s 種",
   "gui.twinstar.perf.header.how": "我們自己資料佔用的 Java 記憶體，依結構逐項估算（陣列長度 × 元素大小 + 物件標頭），不是整個遊戲的用量；已對照真正的 JVM，誤差在 ±10 % 內。評級取下列檢查中最差的一項：",
+  "gui.twinstar.perf.move": "按一下：收合／展開。拖曳標題列：移動面板。連按兩下：回到原位。",
   "gui.twinstar.perf.theory.part_patterns": "樣板",
   "gui.twinstar.perf.theory.part_patterns.tip": "每張樣板：物品編號、數量、種類的陣列，以及裡面的數量物件。AE2 自己的樣板物件不算在內。",
   "gui.twinstar.perf.theory.part_items": "物品",

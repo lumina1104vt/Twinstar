@@ -68,6 +68,8 @@ public class OrderUI {
     private @Nullable String appliedInitialAmount;
     private int amountPerUnit = 1;
     private boolean shiftSteps;
+    private boolean selectPending = true;     // the amount is focused and selected once its first value is in
+    private boolean enterHandled;             // the field already took this Enter press
 
     /** @param openTheory opens the theory viewer on the item (a screen of its own) */
     public OrderUI(OrderMenu menu, Player player, Runnable openTheory) {
@@ -156,8 +158,10 @@ public class OrderUI {
         field.setTextResponder(text -> validate());
         field.layout(l -> l.height(16).marginVertical(3).paddingLeft(4).paddingRight(4));
         field.addEventListener(UIEvents.KEY_DOWN, e -> {
-            if (e.keyCode == GLFW.GLFW_KEY_ENTER || e.keyCode == GLFW.GLFW_KEY_KP_ENTER)
+            if (isEnter(e.keyCode)) {
+                enterHandled = true;
                 confirm();
+            }
         });
         field.setText("1");
         UIElement block = new UIElement().addChildren(steps(true), field, steps(false));
@@ -218,6 +222,7 @@ public class OrderUI {
             if (!menu.initialAmount.equals(appliedInitialAmount)) {
                 field.setText(fieldText(menu.initialAmount, amountPerUnit));
                 appliedInitialAmount = menu.initialAmount;
+                selectPending = true;
             }
             stock.setText(menu.infinite ? Component.translatable("gui.twinstar.order.infinite").withColor(GOOD)
                     : Component.translatable("gui.twinstar.order.stock", shortAmount(menu.stock, key)));
@@ -239,6 +244,36 @@ public class OrderUI {
             }
         }
         next.setActive(isValid());
+        if (selectPending && appliedInitialAmount != null)
+            focusAmount();
+    }
+
+    /** The amount field has the keyboard with its text selected: the player can type over it at once. */
+    public void focusAmount() {
+        field.focus();
+        field.setSelection(0, field.getText().length());
+        selectPending = false;
+    }
+
+    static boolean isEnter(int keyCode) {
+        return keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER;
+    }
+
+    /** Call before a key press is handed on. */
+    public void beginKey() {
+        enterHandled = false;
+    }
+
+    /**
+     * Enter anywhere on the screen plans, as the button does (the amount field has already done it when it had the
+     * keyboard). Nothing happens while the amount is not a valid one. True when the key was Enter.
+     */
+    public boolean enterPressed(int keyCode) {
+        if (!isEnter(keyCode))
+            return false;
+        if (!enterHandled)
+            confirm();
+        return true;
     }
 
     // ── amount ──

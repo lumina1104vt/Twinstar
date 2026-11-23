@@ -52,6 +52,12 @@ public class PlanScreen extends net.minecraft.client.gui.screens.inventory.Abstr
     }
 
     @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        ui.beginKey();
+        return super.keyPressed(keyCode, scanCode, modifiers) || ui.enterPressed(keyCode);
+    }
+
+    @Override
     protected void containerTick() {
         super.containerTick();
         ui.refresh();

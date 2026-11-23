@@ -7,6 +7,7 @@ import com.lumina.twinstar.client.ui.PerfPanel;
 import com.lumina.twinstar.cpu.CpuReportPacket;
 import com.lumina.twinstar.metrics.HubReport;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.neoforged.api.distmarker.Dist;
@@ -23,7 +24,7 @@ import java.util.List;
  */
 @EventBusSubscriber(modid = Twinstar.MODID, value = Dist.CLIENT)
 public final class CpuPerfOverlay {
-    private static final PerfPanel PANEL = new PerfPanel(true);
+    private static final PerfPanel PANEL = new PerfPanel(true, "cpu");
     private static final int TOP = 44;      // below the "pull from network" button
 
     private CpuPerfOverlay() {
@@ -48,16 +49,32 @@ public final class CpuPerfOverlay {
         if (r == null)
             return;
         var font = Minecraft.getInstance().font;
-        PANEL.draw(e.getGuiGraphics(), font, panelX(screen), screen.getGuiTop() + TOP, content(r), e.getMouseX(), e.getMouseY());
-        List<Component> tip = PANEL.tooltipAt(e.getMouseX(), e.getMouseY());
+        PerfContent.Content c = content(r);
+        PANEL.draw(e.getGuiGraphics(), font, panelX(screen), screen.getGuiTop() + TOP, screen.width, screen.height, c, e.getMouseX(), e.getMouseY());
+        List<Component> tip = PANEL.isPressed() ? null : PANEL.tooltipAt(e.getMouseX(), e.getMouseY());
         if (tip != null)
             e.getGuiGraphics().renderComponentTooltip(font, tip, e.getMouseX(), e.getMouseY());
     }
 
+    private static boolean shown(Screen s) {
+        return s instanceof CraftingCPUScreen<?> screen && CpuReportPacket.Latest.of(screen.getMenu().containerId) != null;
+    }
+
     @SubscribeEvent
     static void click(ScreenEvent.MouseButtonPressed.Pre e) {
-        if (e.getScreen() instanceof CraftingCPUScreen<?> screen && CpuReportPacket.Latest.of(screen.getMenu().containerId) != null
-                && e.getButton() == 0 && PANEL.clicked(e.getMouseX(), e.getMouseY()))
+        if (shown(e.getScreen()) && PANEL.mousePressed(e.getMouseX(), e.getMouseY(), e.getButton()))
+            e.setCanceled(true);
+    }
+
+    @SubscribeEvent
+    static void drag(ScreenEvent.MouseDragged.Pre e) {
+        if (shown(e.getScreen()) && e.getMouseButton() == 0 && PANEL.mouseDragged(e.getDragX(), e.getDragY()))
+            e.setCanceled(true);
+    }
+
+    @SubscribeEvent
+    static void release(ScreenEvent.MouseButtonReleased.Pre e) {
+        if (shown(e.getScreen()) && PANEL.mouseReleased(e.getMouseX(), e.getMouseY(), e.getButton()))
             e.setCanceled(true);
     }
 }

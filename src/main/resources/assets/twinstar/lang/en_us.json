@@ -150,6 +150,7 @@
   "gui.twinstar.perf.header.theory": "Theory layer: %s items, %s patterns",
   "gui.twinstar.perf.header.hub": "Hub: %s running jobs, %s kinds of items tracked",
   "gui.twinstar.perf.header.how": "Java memory of our own data, counted structure by structure (array length × element size + object headers), not the whole game. Checked against a real JVM to within ±10 %. The rating is the worst of these checks:",
+  "gui.twinstar.perf.move": "Click: fold. Drag the title bar: move the panel. Double-click: back to its place.",
   "gui.twinstar.perf.theory.part_patterns": "Patterns",
   "gui.twinstar.perf.theory.part_patterns.tip": "Per pattern: its arrays of item ids, amounts and kinds, and the amount objects in them. AE2's own pattern objects are not counted.",
   "gui.twinstar.perf.theory.part_items": "Items",
