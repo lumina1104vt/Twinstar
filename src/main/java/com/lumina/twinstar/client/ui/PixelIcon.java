@@ -37,6 +37,15 @@ public class PixelIcon extends UIElement {
             "....",
             ".##.",
             ".##."};
+    /** 強制下單: a bolt (start now, whatever is lacking) */
+    public static final String[] FORCE = {
+            "...###.",
+            "..###..",
+            ".###...",
+            "#######",
+            "...###.",
+            "..###..",
+            ".##...."};
     /** an infinite source */
     public static final String[] INFINITE = {
             ".##...##.",

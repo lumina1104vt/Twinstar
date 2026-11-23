@@ -204,5 +204,10 @@
   "gui.twinstar.perf.check.tick_avg": "Average tick %s",
   "gui.twinstar.perf.check.tick_max": "Slowest tick %s",
   "gui.twinstar.perf.check.alloc": "Allocation %s",
-  "gui.twinstar.perf.check.old_snapshots": "Old versions held, about %s"
+  "gui.twinstar.perf.check.old_snapshots": "Old versions held, about %s",
+  "gui.twinstar.plan.force": "Force order",
+  "gui.twinstar.plan.force.tooltip": "Starts the order although materials or machines are missing: what can be made is made now, the rest is taken from the network as it appears.",
+  "gui.twinstar.plan.force.risk": "It keeps its black-hole capacity while it waits, and is cancelled (everything returned) after a long time without progress. You can also cancel it on the CPU screen. At most a few forced orders may wait at once.",
+  "gui.twinstar.shortage": "Waiting for missing material: %s",
+  "message.twinstar.forced_timeout": "The forced order for %s waited too long for its materials and was cancelled; everything was returned."
 }
