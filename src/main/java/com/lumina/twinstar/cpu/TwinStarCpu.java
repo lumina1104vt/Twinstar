@@ -133,6 +133,7 @@ public final class TwinStarCpu implements ICraftingCPU {
         AmountMap active = job.outstanding();
         AmountMap later = job.drawLater();
         AmountMap chanceShort = job.chanceShortages();
+        AmountMap lacking = job.shortage();
         // runs lost with a machine taken away: shown on the item the pattern makes
         AmountMap lost = new AmountMap();
         job.machineLosses().forEach((p, runs) -> {
@@ -184,6 +185,8 @@ public final class TwinStarCpu implements ICraftingCPU {
             items.add(i);
         for (int i : lost.keys())
             items.add(i);
+        for (int i : lacking.keys())
+            items.add(i);
         var entries = new ArrayList<CraftingStatusEntry>();
         for (int id : items) {
             AEKey key = index.keyOf(id);
@@ -195,7 +198,7 @@ public final class TwinStarCpu implements ICraftingCPU {
             ((BigStatusEntry) entry).twinstar$setBig(new BigStatusAmounts(stored.get(id).bigValue(),
                     active.get(id).bigValue(), pending.get(id).bigValue(), later.get(id).signum() > 0,
                     chanceShort.get(id).bigValue(), lost.get(id).bigValue(), waiting.contains(id),
-                    job.wasUnloaded() && active.get(id).signum() > 0));
+                    job.wasUnloaded() && active.get(id).signum() > 0, lacking.get(id).bigValue()));
             entries.add(entry);
         }
         return new CraftingStatus(true, System.nanoTime() - job.startNanos(), remaining.saturatedLong(),

@@ -186,6 +186,74 @@ public final class HubState {
         return job;
     }
 
+    // ───────────────────────────── forced orders ─────────────────────────────
+
+    /** How often a forced job looks in network storage for what it still lacks. */
+    private static final long TOPUP_NANOS = 1_000_000_000L;
+
+    /** Jobs that still wait for materials they were started without. */
+    public int forcedWaiting() {
+        int n = 0;
+        for (Job j : jobs)
+            if (j.forced && !j.cancelled && !j.finished && waitsForMore(j))
+                n++;
+        return n;
+    }
+
+    /**
+     * An order started although the plan lacks materials (or machines): takes what the network has of what the plan
+     * pulls, remembers what is lacking ({@link Job#shortage}) and goes on with what can be made. The lacking
+     * materials are taken from network storage as they appear; the job ends when everything has come and run, or
+     * when it has made no progress for {@link ExecutionSettings#forcedIdleNanos()}, or when it is cancelled.
+     * Null when too many forced jobs already wait ({@link ExecutionSettings#maxForcedJobs()}) or there is nothing to run.
+     */
+    public @Nullable Job submitForced(Plan plan, Snapshot snap, ExecutionEnv env) {
+        if (plan.patternTimes.isEmpty())
+            return null;
+        if (forcedWaiting() >= ExecutionSettings.maxForcedJobs())
+            return null;
+        AmountMap now = plan.pulled.copy();
+        plan.drawLater.forEach(now::sub);
+        AmountMap lack = ForcedOrder.lacking(now, (item, want) -> extractFromNetwork(item, want, env));
+        Job job = new Job(nextJobId++, plan, snap, env.nowNanos());
+        lack.forEach((item, a) -> job.inventory.sub(item, a));
+        lack.forEach(job.shortage::add);
+        plan.missing.forEach(job.shortage::add);
+        job.forced = true;
+        job.lastProgress = env.nowNanos();
+        used = used.add(job.occupancy);
+        jobs.add(job);
+        for (Task t : job.tasks)
+            checkReady(job, t);
+        return job;
+    }
+
+    /** A forced order lacks materials, or machines nothing is running in. */
+    private static boolean waitsForMore(Job job) {
+        return !job.shortage.isEmpty() || !job.plan.missingMachines.isEmpty() && job.outstanding.isEmpty();
+    }
+
+    /** A forced job takes what it lacks from network storage as it appears (once a second). */
+    private void topUpShortage(Job job, ExecutionEnv env) {
+        if (job.shortage.isEmpty() || job.suspended || env.nowNanos() - job.lastTopUp < TOPUP_NANOS)
+            return;
+        job.lastTopUp = env.nowNanos();
+        if (ForcedOrder.topUp(job.shortage, (item, want) -> extractFromNetwork(item, want, env), job.inventory, item -> notifyItem(job, item)))
+            job.lastProgress = env.nowNanos();
+    }
+
+    private Amount extractFromNetwork(int item, Amount want, ExecutionEnv env) {
+        AEKey key = env.index().keyOf(item);
+        return key == null ? Amount.ZERO : env.store().extract(key, want);
+    }
+
+    /** A forced job that lacks materials and has done nothing for too long is cancelled (it gives everything back). */
+    private boolean forcedExpired(Job job, ExecutionEnv env) {
+        if (!job.forced || !waitsForMore(job) || job.suspended || job.cancelled)
+            return false;
+        return ForcedOrder.expired(true, env.nowNanos(), job.lastProgress, ExecutionSettings.forcedIdleNanos());
+    }
+
     /**
      * Someone offers the pattern now: for a hub pattern the hub itself, for any other pattern any
      * provider. A pattern built from ids (tests) has no source and always counts as offered; a saved
@@ -211,6 +279,7 @@ public final class HubState {
         jobs.add(job);
         used = used.add(job.occupancy);
         nextJobId = Math.max(nextJobId, job.id + 1);
+        job.lastProgress = nowNanos;
         for (int item : job.outstanding.keys())
             job.outstandingSince.put(item, nowNanos);
         for (Task t : job.tasks)
@@ -328,6 +397,12 @@ public final class HubState {
             pullReturns(job, env);      // returns are taken even while paused
             if (job.finished)
                 continue;
+            if (forcedExpired(job, env)) {
+                job.timedOut = true;
+                cancel(job, env);
+                continue;
+            }
+            topUpShortage(job, env);
             if (!job.suspended)
                 runJob(job, env, deadline);
             if (allDone(job))
@@ -424,6 +499,7 @@ public final class HubState {
                 }
             }
             payEnergy(pat, n, env);
+            job.lastProgress = env.nowNanos();
             t.remaining = t.remaining.sub(n);
             release(job, n);            // one byte per run
             if (chance != null && pat.where == PatternLocation.HUB_INTERNAL)
@@ -449,7 +525,7 @@ public final class HubState {
         for (Task t : job.tasks)
             if (t.remaining.signum() > 0)
                 return false;
-        return job.outstanding.isEmpty();
+        return job.outstanding.isEmpty() && job.shortage.isEmpty() && !feeding(job);
     }
 
     // ───────────────────────────── readiness ─────────────────────────────
@@ -730,6 +806,7 @@ public final class HubState {
                     if (pushed > 0) {
                         w.lastSendNanos = env.nowNanos();
                         expectOutputs(job, t, pat, pushed, env.nowNanos());
+                        creditDispatched(job, pat, Amount.of(pushed));
                         sent += pushed;
                         progress = true;
                     }
@@ -795,9 +872,13 @@ public final class HubState {
             job.inventory.sub(item, amt);
             taken.add(item, amt);
             out[s] = new KeyCounter();
-            out[s].add(key, amt.longValue());
+            if (!isVirtual(job, item))      // a mark is used up in the ledger and sent nowhere
+                out[s].add(key, amt.longValue());
         }
-        taken.forEach((id, a) -> releaseItems(job, id, a));
+        taken.forEach((id, a) -> {
+            if (!isVirtual(job, id))
+                releaseItems(job, id, a);
+        });
         return out;
     }
 
@@ -827,14 +908,54 @@ public final class HubState {
     private void expectOutputs(Job job, Task t, Pattern pat, long runs, long now) {
         Amount r = Amount.of(runs);
         for (int o = 0; o < pat.outputCount(); o++)
-            if (!pat.isChance(o))
+            if (!pat.isChance(o) && !pat.isDispatchDone(o))
                 expect(job, pat.outputItem(o), pat.outputAmount(o).mul(r), now);
         for (int s = 0; s < pat.inputCount(); s++)
             if ((pat.inputKind(s) == InputKind.CONTAINER || pat.inputKind(s) == InputKind.CATALYST)
                     // a tool goes back into the job by itself, a kept catalyst is expected once per batch (startRun)
                     && pat.inputRole(s) != PatternInputRoles.TOOL && pat.inputRole(s) != PatternInputRoles.CATALYST)
                 expect(job, pat.inputItem(s), pat.inputAmount(s).mul(r), now);
-        t.inFlight = t.inFlight.add(r);
+        // a run whose products all count as made once it is fed has nothing coming back to show as in flight
+        if (!pat.hasDispatchDone() || pat.hasWaitedOutput())
+            t.inFlight = t.inFlight.add(r);
+    }
+
+    /**
+     * A run's materials are all in its machine (or were sent): the products it is done on dispatch for count as made.
+     * A real item is not put into the job (it comes out of the machine by itself and nobody waits for it); a mark is
+     * put into the job's ledger so later steps can use it, and it never leaves the job ({@link #isVirtual}).
+     */
+    private void creditDispatched(Job job, Pattern pat, Amount runs) {
+        AmountMap credit = DispatchLedger.credits(pat, runs);
+        if (credit.isEmpty())
+            return;
+        if (envNow != null)
+            job.lastProgress = envNow.nowNanos();
+        credit.forEach((item, a) -> {
+            job.inventory.add(item, a);
+            notifyItem(job, item);
+        });
+    }
+
+    /** Marks of this job's patterns (see {@link Pattern#isVirtualOutput}): no real item, so they never leave the job. */
+    private static boolean isVirtual(Job job, int item) {
+        return job.virtualItems().contains(item);
+    }
+
+    /** Throws away the marks left in the job's inventory (what is left of a mark is not an item to give back). */
+    private void dropVirtual(Job job) {
+        job.delivered = job.delivered.add(DispatchLedger.dropMarks(job.inventory, job.virtualItems(), job.plan.target));
+    }
+
+    /** Some machine is still being fed a run of this job (the job is not done while it is). */
+    private boolean feeding(Job job) {
+        for (MachineState m : machines.values())
+            if (m.feed != null && m.feed.job == job)
+                return true;
+        for (RestoredMachine r : restoring.values())
+            if (r.feed() != null && r.feed().job == job)
+                return true;
+        return false;
     }
 
     private static void expect(Job job, int item, Amount a, long now) {
@@ -881,6 +1002,7 @@ public final class HubState {
             if (got.signum() <= 0)
                 continue;
             pool.sub(item, got);
+            job.lastProgress = env.nowNanos();
             job.outstanding.sub(item, got);
             job.inventory.add(item, got);
             job.chanceShort.sub(item, got.min(job.chanceShort.get(item)));
@@ -909,6 +1031,12 @@ public final class HubState {
         Amount have = job.inventory.get(target);
         if (have.signum() <= 0)
             return;
+        if (isVirtual(job, target)) {
+            // a mark is the whole product: nothing to hand over
+            job.inventory.sub(target, have);
+            job.delivered = job.delivered.add(have);
+            return;
+        }
         Amount in = Amount.ZERO;
         AEKey key = env.index().keyOf(target);
         if (job.sink != null && key != null) {
@@ -979,6 +1107,7 @@ public final class HubState {
     /** Cancel: inventory back as it is (intermediates are not taken apart), expectations dropped, capacity freed. */
     public void cancel(Job job, ExecutionEnv env) {
         job.cancelled = true;
+        job.shortage.clear();
         job.outstanding.clear();
         job.outstandingSince.clear();
         returnInventory(job, env);
@@ -990,6 +1119,7 @@ public final class HubState {
 
     /** True when all of it went in (a full network keeps the rest in the job for the next tick). */
     private boolean returnInventory(Job job, ExecutionEnv env) {
+        dropVirtual(job);
         for (int item : job.inventory.keys()) {
             Amount in = insertAll(env, item, job.inventory.get(item));
             job.inventory.sub(item, in);
@@ -1333,7 +1463,7 @@ public final class HubState {
                 continue;
             Pattern pat = job.snap.pattern(e.getKey().pattern());
             for (int o = 0; o < pat.outputCount(); o++)
-                if (!pat.isChance(o)) {
+                if (!pat.isChance(o) && !pat.isDispatchDone(o)) {
                     int item = pat.outputItem(o);
                     job.outstanding.sub(item, pat.outputAmount(o).mul(e.getValue()).min(job.outstanding.get(item)));
                 }
@@ -1365,7 +1495,7 @@ public final class HubState {
             Pattern pat = job.snap.pattern(e.getKey().pattern());
             Amount r = e.getValue();
             for (int o = 0; o < pat.outputCount(); o++)
-                if (!pat.isChance(o))
+                if (!pat.isChance(o) && !pat.isDispatchDone(o))
                     expect(job, pat.outputItem(o), pat.outputAmount(o).mul(r), env.nowNanos());
             job.machineLost.sub(e.getKey().pattern(), r.min(job.machineLost.get(e.getKey().pattern())));
             m.inFlight.merge(e.getKey(), r, Amount::add);
@@ -1445,7 +1575,7 @@ public final class HubState {
             Pattern pat = f.job().snap.pattern(f.pattern());
             boolean sure = false;
             for (int o = 0; o < pat.outputCount() && !sure; o++)
-                sure = !pat.isChance(o);
+                sure = !pat.isChance(o) && !pat.isDispatchDone(o);
             if (!sure && !(m.feed != null && m.feed.job == f.job() && m.feed.pattern == f.pattern()) && !holds(m, pat, env))
                 it.remove();
         }
@@ -1845,6 +1975,7 @@ public final class HubState {
             }
             m.feed = null;
             useTools(m, f, level, pos);
+            creditDispatched(f.job, pat, Amount.ONE);
             // runs fed together in one tick (dropped in front all at once) get one pulse, not one each
             if (m.pulsedAt != level.getGameTime()) {
                 m.access.onRunFed();

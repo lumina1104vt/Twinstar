@@ -36,6 +36,7 @@ import java.util.concurrent.Future;
  */
 public class PlanMenu extends AEBaseMenu implements ISubMenu {
     private static final String START = "start";
+    private static final String FORCE = "force";
     private static final String REPLAN = "replan";
     private static final String BACK = "back";
     private static final String MARK = "mark";
@@ -77,6 +78,7 @@ public class PlanMenu extends AEBaseMenu implements ISubMenu {
         super(TwinstarContent.PLAN_MENU.get(), id, playerInventory, host);
         this.host = host;
         registerClientAction(START, this::start);
+        registerClientAction(FORCE, this::startForced);
         registerClientAction(REPLAN, this::replan);
         registerClientAction(BACK, this::back);
         registerClientAction(MARK, MarkRequest.class, this::mark);
@@ -169,6 +171,26 @@ public class PlanMenu extends AEBaseMenu implements ISubMenu {
             return;
         Player player = getPlayer();
         ICraftingSubmitResult r = service.submit(result, null, IActionSource.ofPlayer(player, getActionHost()));
+        if (r.successful())
+            host.returnToMainMenu(player, this);
+        else
+            error = r.errorCode() != null ? r.errorCode().name() : "unknown";
+    }
+
+    /**
+     * 強制下單: starts the plan although it lacks materials or machines (see {@link TwinStarService#submitForced}). Only for
+     * a plan that has something to make; a complete plan starts the ordinary way.
+     */
+    public void startForced() {
+        if (!isServerSide()) {
+            sendClientAction(FORCE);
+            return;
+        }
+        TwinStarService service = service();
+        if (result == null || service == null)
+            return;
+        Player player = getPlayer();
+        ICraftingSubmitResult r = service.submitForced(result, null, IActionSource.ofPlayer(player, getActionHost()));
         if (r.successful())
             host.returnToMainMenu(player, this);
         else

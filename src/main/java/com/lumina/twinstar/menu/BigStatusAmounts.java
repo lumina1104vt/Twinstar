@@ -11,11 +11,12 @@ import java.math.BigInteger;
  * what outputs that come with a probability did not give after all their runs (機率產物不足); and
  * the runs making it whose materials stayed in a machine that was taken away; and whether a
  * pattern making it waits for someone to offer it again (等樣板); and whether what it waits for may
- * have gone into network storage while the hub was down.
+ * have gone into network storage while the hub was down; and how much of it a forced order still lacks from the network
+ * (缺少的材料).
  */
 public record BigStatusAmounts(BigInteger stored, BigInteger active, BigInteger pending, boolean infinite,
                                BigInteger chanceShort, BigInteger machineLost, boolean waitingPattern,
-                               boolean mayBeInNetwork) {
+                               boolean mayBeInNetwork, BigInteger shortage) {
     public void write(FriendlyByteBuf buf) {
         BigIntCodec.write(buf, stored);
         BigIntCodec.write(buf, active);
@@ -25,10 +26,12 @@ public record BigStatusAmounts(BigInteger stored, BigInteger active, BigInteger 
         BigIntCodec.write(buf, machineLost);
         buf.writeBoolean(waitingPattern);
         buf.writeBoolean(mayBeInNetwork);
+        BigIntCodec.write(buf, shortage);
     }
 
     public static BigStatusAmounts read(FriendlyByteBuf buf) {
         return new BigStatusAmounts(BigIntCodec.read(buf), BigIntCodec.read(buf),
-                BigIntCodec.read(buf), buf.readBoolean(), BigIntCodec.read(buf), BigIntCodec.read(buf), buf.readBoolean(), buf.readBoolean());
+                BigIntCodec.read(buf), buf.readBoolean(), BigIntCodec.read(buf), BigIntCodec.read(buf), buf.readBoolean(), buf.readBoolean(),
+                BigIntCodec.read(buf));
     }
 }

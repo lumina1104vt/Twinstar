@@ -207,5 +207,10 @@
   "gui.twinstar.perf.check.tick_avg": "平均每刻 %s",
   "gui.twinstar.perf.check.tick_max": "最慢的一刻 %s",
   "gui.twinstar.perf.check.alloc": "分配量 %s",
-  "gui.twinstar.perf.check.old_snapshots": "被旧版本占住约 %s"
+  "gui.twinstar.perf.check.old_snapshots": "被旧版本占住约 %s",
+  "gui.twinstar.plan.force": "强制下单",
+  "gui.twinstar.plan.force.tooltip": "材料或机器不够也照样下单：现在做得出的先做，缺的材料等它出现在网络里再自动补上。",
+  "gui.twinstar.plan.force.risk": "等待期间会一直占着黑洞容量；太久没有进度会被自动取消（东西全部退回）。也可以在 CPU 界面手动取消。同时等待的强制工作有数量上限。",
+  "gui.twinstar.shortage": "等待缺少的材料：%s",
+  "message.twinstar.forced_timeout": "%s 的强制下单等材料等太久，已取消，东西全部退回。"
 }

@@ -56,6 +56,9 @@ public abstract class CraftingStatusTableRendererMixin {
         if (big.machineLost().signum() > 0)
             lines.add(Component.translatable("gui.twinstar.machine_lost", big.machineLost().toString())
                     .withStyle(net.minecraft.ChatFormatting.RED));
+        if (big.shortage().signum() > 0)
+            lines.add(Component.translatable("gui.twinstar.shortage", AmountText.format(what, big.shortage(), full))
+                    .withStyle(net.minecraft.ChatFormatting.GOLD));
         if (big.waitingPattern())
             lines.add(Component.translatable("gui.twinstar.waiting_pattern").withStyle(net.minecraft.ChatFormatting.RED));
         if (big.mayBeInNetwork()) {

@@ -18,6 +18,7 @@ import com.lumina.twinstar.order.PlanView;
 import com.lumina.twinstar.util.AmountParser;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
@@ -74,7 +75,8 @@ public class PlanScreen extends AbstractContainerScreen<PlanMenu> implements Key
     private final Inventory playerInventory;
     private final UiKit.Scroller treeScroll = new UiKit.Scroller(), missingScroll = new UiKit.Scroller();
     private final Map<Integer, EditBox> keepBoxes = new HashMap<>();
-    private PixelButton replan, start;
+    private PixelButton replan, start, force;
+    private boolean forceShown;
     /** the start button is usable (the plan is complete and fits) */
     private boolean canStart;
     /** what the start button looks like now (mode and whether something is missing); -1 before the first look */
@@ -135,6 +137,15 @@ public class PlanScreen extends AbstractContainerScreen<PlanMenu> implements Key
                 }, this::pressStart);
         startLook = -1;
         addRenderableWidget(start);
+        // 強制下單: starts the plan although materials or machines are missing
+        force = new PixelButton(x + WIDTH - 7 - 90 - 4 - 20, footerY, 20, 20, Component.empty(),
+                (g, bx, by, w, h, hot) -> PixelIcon.draw(g, PixelIcon.FORCE, bx + 6, by + 6, TEXT), menu::startForced);
+        force.setTooltip(Tooltip.create(Component.translatable("gui.twinstar.plan.force").withStyle(ChatFormatting.WHITE)
+                .append(Component.literal("\n")).append(Component.translatable("gui.twinstar.plan.force.tooltip").withStyle(ChatFormatting.GRAY))
+                .append(Component.literal("\n")).append(Component.translatable("gui.twinstar.plan.force.risk").withStyle(ChatFormatting.GOLD))));
+        force.visible = false;
+        forceShown = false;
+        addRenderableWidget(force);
         shownView = null;
         keepBoxes.clear();
         refresh();
@@ -148,6 +159,11 @@ public class PlanScreen extends AbstractContainerScreen<PlanMenu> implements Key
         // too big for the black hole: starting would only fail
         canStart = view != null && view.complete() && view.fits();
         updateStartButton();
+        boolean canForce = view != null && !view.complete() && view.fits() && view.patterns() > 0;
+        if (canForce != forceShown) {
+            forceShown = canForce;
+            force.visible = canForce;
+        }
         if (view == shownView && planning == shownPlanning && menu.error.equals(shownError))
             return;
         if (view != shownView) {

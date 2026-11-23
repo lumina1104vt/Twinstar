@@ -29,6 +29,7 @@ import com.lumina.twinstar.algorithm.ae2.StockSnapshotter;
 import com.lumina.twinstar.algorithm.cache.Snapshot;
 import com.lumina.twinstar.algorithm.cache.TheoryLayer;
 import com.lumina.twinstar.algorithm.execution.ExecutionEnv;
+import com.lumina.twinstar.algorithm.execution.ExecutionSettings;
 import com.lumina.twinstar.algorithm.execution.HubState;
 import com.lumina.twinstar.algorithm.execution.Job;
 import com.lumina.twinstar.algorithm.execution.JobStore;
@@ -415,6 +416,11 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
                 return false;
             if (!job.isCancelled() && cpu.getLink() != null)
                 cpu.getLink().markDone();
+            else if (job.isTimedOut()) {
+                if (cpu.getLink() != null)
+                    cpu.getLink().cancel();
+                tellTimedOut(job);
+            }
             EngineLog.jobEnded(job, index);
             return true;
         });
@@ -442,6 +448,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
         craftableIndex = null;
         compiler.setVariants(this::variantsOf, this::craftableOf);
         compiler.setWorkstationCheck(this::isWorkstationRecipe);
+        compiler.setVirtualKeys(com.lumina.twinstar.algorithm.ae2.VirtualKeys::isVirtual);
 
         Map<IPatternDetails, Compiled> now = new HashMap<>();
         List<Pattern> add = new ArrayList<>();
@@ -816,6 +823,17 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
                 new com.lumina.twinstar.order.JobDonePacket(key, job.plan.amount.toString(), seconds));
     }
 
+    /** A forced order gave up waiting for its materials: the player who ordered it (when online) is told. */
+    private void tellTimedOut(Job job) {
+        if (job.player == null)
+            return;
+        var server = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
+        net.minecraft.server.level.ServerPlayer p = server == null ? null : server.getPlayerList().getPlayer(job.player);
+        AEKey key = index.keyOf(job.plan.target);
+        if (p != null && key != null)
+            p.sendSystemMessage(Component.translatable("message.twinstar.forced_timeout", key.getDisplayName()));
+    }
+
     // ───────────────────────────── submit / cancel ─────────────────────────────
 
     /** Only plans this engine made can run here: they contain hub patterns other CPUs cannot run. */
@@ -853,6 +871,29 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
                 return firstMissing(again);
         }
 
+        return startJob(job, requester, source);
+    }
+
+    /**
+     * 強制下單: starts the plan although it lacks materials (or machines). What the network has is taken now and what can be
+     * made is made; what is lacking is taken from network storage as it appears and the job waits for it. It gives up
+     * (cancelled, everything returned) after a long time without progress, or when the player cancels it. Refused as
+     * CPU_BUSY when too many forced orders already wait.
+     */
+    public ICraftingSubmitResult submitForced(ICraftingPlan plan, @Nullable ICraftingRequester requester, IActionSource source) {
+        if (!(plan instanceof PlanWrapper pw))
+            return wrongEngine(source, false);
+        if (pw.usage().compareTo(freeCapacity()) > 0)
+            return CraftingSubmitResult.CPU_TOO_SMALL;
+        if (hub.forcedWaiting() >= ExecutionSettings.maxForcedJobs())
+            return CraftingSubmitResult.CPU_BUSY;
+        Job job = hub.submitForced(pw.plan(), pw.snapshot(), env());
+        if (job == null)
+            return CraftingSubmitResult.INCOMPLETE_PLAN;
+        return startJob(job, requester, source);
+    }
+
+    private ICraftingSubmitResult startJob(Job job, @Nullable ICraftingRequester requester, IActionSource source) {
         UUID craftId = UUID.randomUUID();
         if (source.player().isPresent())
             job.player = source.player().get().getUUID();

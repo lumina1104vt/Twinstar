@@ -5,6 +5,7 @@ import appeng.blockentity.AEBaseBlockEntity;
 import appeng.menu.implementations.MenuTypeBuilder;
 import com.lumina.twinstar.Twinstar;
 import com.lumina.twinstar.algorithm.ae2.PatternChances;
+import com.lumina.twinstar.algorithm.ae2.PatternDispatchDone;
 import com.lumina.twinstar.algorithm.ae2.PatternInputFaces;
 import com.lumina.twinstar.algorithm.ae2.PatternInputGuiSlots;
 import com.lumina.twinstar.algorithm.ae2.PatternOutputGuiSlots;
@@ -50,6 +51,8 @@ public final class TwinstarContent {
     public static final PatternData<PatternInputGuiSlots> PATTERN_INPUT_GUI_SLOTS = new PatternData<>("pattern_input_gui_slots", PatternInputGuiSlots.CODEC);
     /** The GUI slot each product of a hub pattern is taken out of, for machines that give them only in a GUI. */
     public static final PatternData<PatternOutputGuiSlots> PATTERN_OUTPUT_GUI_SLOTS = new PatternData<>("pattern_output_gui_slots", PatternOutputGuiSlots.CODEC);
+    /** The products of a hub pattern that count as made once the run's materials are all in the machine. */
+    public static final PatternData<PatternDispatchDone> PATTERN_DISPATCH_DONE = new PatternData<>("pattern_dispatch_done", PatternDispatchDone.CODEC);
     /** What each material of a hub pattern is besides used up: catalyst, catalyst kept for the batch, tool to right-click with. */
     public static final PatternData<PatternInputRoles> PATTERN_INPUT_ROLES = new PatternData<>("pattern_input_roles", PatternInputRoles.CODEC);
 
