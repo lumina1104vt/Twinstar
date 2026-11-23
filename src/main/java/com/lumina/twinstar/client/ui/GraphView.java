@@ -239,7 +239,19 @@ public abstract class GraphView {
         return true;
     }
 
+    /** An overlay that is being dragged (a movable panel) takes the drag. */
+    protected boolean overlayDragged(double dx, double dy) {
+        return false;
+    }
+
+    /** The button came up: an overlay that took the press ends it. */
+    protected boolean overlayReleased(double mx, double my, int button) {
+        return false;
+    }
+
     public boolean mouseDragged(int button, double dx, double dy) {
+        if (button == 0 && overlayDragged(dx, dy))
+            return true;
         if (!pressing || button != 0)
             return false;
         dragged += Math.abs(dx) + Math.abs(dy);
@@ -253,6 +265,8 @@ public abstract class GraphView {
     }
 
     public boolean mouseReleased(double mx, double my, int button) {
+        if (overlayReleased(mx, my, button))
+            return true;
         if (!pressing || button != 0)
             return false;
         pressing = false;

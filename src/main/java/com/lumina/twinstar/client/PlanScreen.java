@@ -502,7 +502,15 @@ public class PlanScreen extends AbstractContainerScreen<PlanMenu> implements Key
             }
             return box.keyPressed(keyCode, scanCode, modifiers) || box.canConsumeInput();    // E must not close it
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        if (super.keyPressed(keyCode, scanCode, modifiers))
+            return true;
+        // Enter anywhere starts the order, as the start button does (nothing while it is not usable)
+        if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+            if (start.active)
+                menu.start();
+            return true;
+        }
+        return false;
     }
 
     @Override

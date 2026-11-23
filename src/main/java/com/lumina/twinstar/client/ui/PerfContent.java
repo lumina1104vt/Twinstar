@@ -168,6 +168,7 @@ public final class PerfContent {
         tip.add(Component.translatable("gui.twinstar.perf.header.how").withStyle(s -> s.withColor(DIM)));
         for (Verdict.Reason r : v.reasons())
             tip.add(checkLine(r));
+        tip.add(Component.translatable("gui.twinstar.perf.move").withStyle(s -> s.withColor(DIM).withItalic(true)));
         return tip;
     }
 }

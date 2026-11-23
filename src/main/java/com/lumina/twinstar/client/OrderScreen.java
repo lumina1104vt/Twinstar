@@ -57,6 +57,7 @@ public class OrderScreen extends AbstractContainerScreen<OrderMenu> implements K
     private String fieldValue = "1";
     private int amountPerUnit = 1;
     private boolean shiftSteps;
+    private boolean selectPending = true;     // focus and select the amount once its first value is in
 
     public OrderScreen(OrderMenu menu, Inventory playerInventory, Component title) {
         super(menu, playerInventory, title);
@@ -104,6 +105,8 @@ public class OrderScreen extends AbstractContainerScreen<OrderMenu> implements K
             field.setTextColor(isValid() ? TEXT : BAD);
         });
         addRenderableWidget(field);
+        setFocused(field);          // typing goes into it at once (refresh() selects it when the amount is known)
+        field.setFocused(true);
 
         craftMissing = option(x + 10, y + 170, "craftMissing", lastCraftMissing, () -> lastCraftMissing = !lastCraftMissing);
         bestEffort = option(x + 10, y + 184, "bestEffort", lastBestEffort, () -> lastBestEffort = !lastBestEffort);
@@ -141,6 +144,7 @@ public class OrderScreen extends AbstractContainerScreen<OrderMenu> implements K
             if (!menu.initialAmount.equals(appliedInitialAmount)) {
                 field.setValue(PlanUI.fieldText(menu.initialAmount, amountPerUnit));
                 appliedInitialAmount = menu.initialAmount;
+                selectPending = true;
             }
         }
         boolean shift = Screen.hasShiftDown() || Screen.hasControlDown();
@@ -148,6 +152,8 @@ public class OrderScreen extends AbstractContainerScreen<OrderMenu> implements K
             updateCaptions();
         shiftSteps = shift;
         next.active = isValid();
+        if (selectPending && appliedInitialAmount != null)
+            focusAmount();
     }
 
     private void updateCaptions() {
@@ -238,7 +244,23 @@ public class OrderScreen extends AbstractContainerScreen<OrderMenu> implements K
             }
             return field.keyPressed(keyCode, scanCode, modifiers) || field.canConsumeInput();    // E must not close it
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        if (super.keyPressed(keyCode, scanCode, modifiers))
+            return true;
+        // Enter anywhere plans, as the button does (nothing while the amount is not a valid one)
+        if (keyCode == GLFW.GLFW_KEY_ENTER || keyCode == GLFW.GLFW_KEY_KP_ENTER) {
+            confirm();
+            return true;
+        }
+        return false;
+    }
+
+    /** The amount field has the keyboard with its text selected: the player can type over it at once. */
+    private void focusAmount() {
+        setFocused(field);
+        field.setFocused(true);
+        field.moveCursorToEnd();
+        field.setHighlightPos(0);
+        selectPending = false;
     }
 
     // ── amount ──

@@ -58,8 +58,11 @@ public abstract class CraftingStatusTableRendererMixin {
                     .withStyle(net.minecraft.ChatFormatting.RED));
         if (big.waitingPattern())
             lines.add(Component.translatable("gui.twinstar.waiting_pattern").withStyle(net.minecraft.ChatFormatting.RED));
-        if (big.mayBeInNetwork())
-            lines.add(Component.translatable("gui.twinstar.may_be_in_network").withStyle(net.minecraft.ChatFormatting.GOLD));
+        if (big.mayBeInNetwork()) {
+            // the table row only shows an orange (!); the whole sentence is in the row's tooltip
+            lines.add(full ? Component.translatable("gui.twinstar.may_be_in_network").withStyle(net.minecraft.ChatFormatting.GOLD)
+                    : Component.literal("(!)").withStyle(net.minecraft.ChatFormatting.GOLD, net.minecraft.ChatFormatting.BOLD));
+        }
         if (big.chanceShort().signum() > 0)
             lines.add(Component.translatable("gui.twinstar.chance_short", AmountText.format(what, big.chanceShort(), full))
                     .withStyle(net.minecraft.ChatFormatting.RED));
