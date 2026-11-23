@@ -40,6 +40,13 @@ public class OrderScreen extends AbstractContainerScreen<OrderMenu> implements K
         imageHeight = OrderUI.HEIGHT;
         super.init();
         ui.refresh();
+        ui.focusAmount();
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        ui.beginKey();
+        return super.keyPressed(keyCode, scanCode, modifiers) || ui.enterPressed(keyCode);
     }
 
     @Override

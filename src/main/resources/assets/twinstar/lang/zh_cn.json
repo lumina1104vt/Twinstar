@@ -150,6 +150,7 @@
   "gui.twinstar.perf.header.theory": "理论层：物品 %s、样板 %s",
   "gui.twinstar.perf.header.hub": "中枢：运行中工作 %s 个、追踪物品 %s 种",
   "gui.twinstar.perf.header.how": "我们自己数据占用的 Java 内存，按结构逐项估算（数组长度 × 元素大小 + 对象头），不是整个游戏的用量；已对照真正的 JVM，误差在 ±10 % 内。评级取下列检查中最差的一项：",
+  "gui.twinstar.perf.move": "单击：折叠／展开。拖动标题栏：移动面板。双击：回到原位。",
   "gui.twinstar.perf.theory.part_patterns": "样板",
   "gui.twinstar.perf.theory.part_patterns.tip": "每张样板：物品编号、数量、种类的数组，以及里面的数量对象。AE2 自己的样板对象不算在内。",
   "gui.twinstar.perf.theory.part_items": "物品",

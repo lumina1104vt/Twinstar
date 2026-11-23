@@ -80,6 +80,8 @@ public class PlanUI {
     private final Button bookmark = PixelLabel.button(Component.translatable("gui.twinstar.plan.bookmark"));
     private final Player player;
     private boolean bookmarkShown;
+    private boolean canStart;               // the start button is usable
+    private boolean enterHandled;           // a field (the kept amount) already took this Enter press
 
     // what is shown now
     private @Nullable PlanView shownView;
@@ -195,6 +197,23 @@ public class PlanUI {
 
     // ── content ──
 
+    /** Call before a key press is handed on. */
+    public void beginKey() {
+        enterHandled = false;
+    }
+
+    /**
+     * Enter starts the order, as the start button does (a kept-amount field that had the keyboard has plans again
+     * with it instead). Nothing happens while the start button is not usable. True when the key was Enter.
+     */
+    public boolean enterPressed(int keyCode) {
+        if (!OrderUI.isEnter(keyCode))
+            return false;
+        if (!enterHandled && canStart)
+            menu.start();
+        return true;
+    }
+
     /** Follows the menu: planning, the plan's view, a failed start. Called every client tick. */
     public void refresh() {
         PlanView view = menu.planning ? null : menu.getView();
@@ -207,7 +226,8 @@ public class PlanUI {
             bookmark.setDisplay(canBookmark);
         }
         // too big for the black hole: starting would only fail
-        start.setActive(view != null && view.complete() && view.fits());
+        canStart = view != null && view.complete() && view.fits();
+        start.setActive(canStart);
         if (view == shownView && planning == shownPlanning && error.equals(shownError))
             return;
         shownView = view;
@@ -347,8 +367,9 @@ public class PlanUI {
         field.addClass("amount_field");
         field.layout(l -> l.width(52).height(9).paddingLeft(2).paddingRight(2).flexShrink(0));
         field.addEventListener(UIEvents.KEY_DOWN, e -> {
-            if (e.keyCode != GLFW.GLFW_KEY_ENTER && e.keyCode != GLFW.GLFW_KEY_KP_ENTER)
+            if (!OrderUI.isEnter(e.keyCode))
                 return;
+            enterHandled = true;
             BigDecimal v = AmountParser.parse(field.getText());
             // anything that is not a number ("all", empty) keeps it whole
             String amount = v == null || v.signum() < 0 ? ""
