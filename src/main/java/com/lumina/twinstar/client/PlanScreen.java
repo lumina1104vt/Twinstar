@@ -64,6 +64,12 @@ public class PlanScreen extends net.minecraft.client.gui.screens.inventory.Abstr
     }
 
     @Override
+    public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        ui.updateStartButton();     // Shift is read every frame: held, the start button is "bookmark missing"
+        super.render(guiGraphics, mouseX, mouseY, partialTick);
+    }
+
+    @Override
     protected void renderBg(GuiGraphics guiGraphics, float partialTick, int mouseX, int mouseY) {
         // drawn by the LDLib2 UI
     }

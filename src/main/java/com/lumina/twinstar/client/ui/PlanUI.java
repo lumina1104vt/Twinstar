@@ -13,6 +13,7 @@ import com.lowdragmc.lowdraglib2.gui.ui.elements.Label;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.ScrollerView;
 import com.lowdragmc.lowdraglib2.gui.ui.event.UIEvents;
 import com.lowdragmc.lowdraglib2.gui.ui.rendering.GUIContext;
+import net.minecraft.client.gui.screens.Screen;
 import com.lumina.twinstar.Twinstar;
 import com.lumina.twinstar.client.Bookmarks;
 import com.lumina.twinstar.client.hover.KeyHit;
@@ -78,9 +79,12 @@ public class PlanUI {
     private final Button replan = PixelLabel.button(Component.translatable("gui.twinstar.plan.replan"));
     private final Button start = PixelLabel.button(Component.translatable("gui.twinstar.plan.start"));
     private final Button force = new Button();
-    private final Button bookmark = PixelLabel.button(Component.translatable("gui.twinstar.plan.bookmark"));
     private final Player player;
-    private boolean bookmarkShown;
+    /** the start button's own caption, and the bookmark icon shown beside it while Shift turns it into "bookmark missing" */
+    private final Label startCaption = (Label) start.getChildren().get(0);
+    private final PixelIcon startIcon = new PixelIcon(BOOKMARK_ICON, TEXT);
+    /** what the start button looks like now (mode and whether something is missing); -1 before the first look */
+    private int startLook = -1;
     private boolean forceShown;
     private boolean canStart;               // the start button is usable
     private boolean enterHandled;           // a field (the kept amount) already took this Enter press
@@ -145,14 +149,7 @@ public class PlanUI {
         summary.layout(l -> l.height(SUMMARY_H).paddingAll(3).gapAll(1).flexShrink(0));
 
         int missingH = BODY_H - SUMMARY_H - SIDE_GAP;
-        missingCard.addClass("card").addChildren(missingTitle, bookmark, missingList);
-        bookmark.setDisplay(false);
-        bookmark.layout(l -> l.widthPercent(100).height(12).paddingAll(0).flexShrink(0));
-        bookmark.setOnClick(e -> bookmarkMissing());
-        bookmark.style(s -> s.tooltips(Component.translatable("gui.twinstar.plan.bookmark"),
-                Component.translatable("gui.twinstar.plan.bookmark.tooltip").withColor(DIM)));
-        if (bookmark.getChildren().get(0) instanceof Label caption)
-            caption.textStyle(t -> t.fontSize(SMALL));
+        missingCard.addClass("card").addChildren(missingTitle, missingList);
         missingCard.layout(l -> l.height(missingH).paddingAll(3).gapAll(2).flexShrink(0));
         missingTitle.layout(l -> l.flexShrink(0));
         missingList.layout(l -> l.flexGrow(1).flexShrink(1).flexBasis(0).minHeight(0));
@@ -170,8 +167,13 @@ public class PlanUI {
         back.layout(l -> l.width(64).height(20));
         replan.setOnClick(e -> menu.replan());
         replan.layout(l -> l.width(74).height(20));
-        start.setOnClick(e -> menu.start());
+        start.setOnClick(e -> pressStart());
         start.layout(l -> l.width(90).height(20));
+        // the bookmark icon sits before the caption; it only shows while Shift turns the button into "bookmark missing"
+        startIcon.layout(l -> l.marginRight(3));
+        startIcon.setDisplay(false);
+        start.clearAllChildren();
+        start.addChildren(startIcon, startCaption);
         UIElement spacer = new UIElement().layout(l -> l.flexGrow(1));
         force.noText();
         force.addChild(new PixelIcon(PixelIcon.FORCE, TEXT));
@@ -191,14 +193,79 @@ public class PlanUI {
         return KeyRow.under(modularUI);
     }
 
+    /** A bookmark ribbon (the start button while Shift is held and something is missing). */
+    private static final String[] BOOKMARK_ICON = {
+            "#####",
+            "#####",
+            "#####",
+            "#####",
+            "#####",
+            "##.##",
+            "#...#"};
+
     /**
-     * The button of a failed plan: puts every missing material (and machine) into JEI / EMI
-     * in one go, so the player can look them up and fetch them. Tells how many were new.
+     * What the start button does now: with Shift held and something missing in the plan it is "bookmark
+     * missing", otherwise "start". 0 start, 1 bookmark missing, 2 start with Shift held but nothing missing.
+     * Asked every frame (the Shift key is read when it is used, never remembered).
+     */
+    private int wantedStartMode() {
+        if (!Screen.hasShiftDown())
+            return 0;
+        PlanView view = menu.planning ? null : menu.getView();
+        return view != null && !view.missing().isEmpty() ? 1 : 2;
+    }
+
+    /** The start button, or with Shift held and something missing, "bookmark missing" in its place. */
+    private void pressStart() {
+        if (wantedStartMode() == 1)
+            bookmarkMissing();
+        else if (canStart)
+            menu.start();
+    }
+
+    /**
+     * Gives the start button its look for the mode (icon and text, never colour alone; the tooltip says what a click does),
+     * when the mode changed. Called every frame and every tick.
+     */
+    public void updateStartButton() {
+        int mode = wantedStartMode();
+        if (mode == 1)
+            start.setActive(true);          // usable even when starting is not (the plan lacks something)
+        else
+            start.setActive(canStart);
+        PlanView view = menu.planning ? null : menu.getView();
+        boolean missing = view != null && !view.missing().isEmpty();
+        int look = mode * 2 + (missing ? 1 : 0);
+        if (look == startLook)
+            return;
+        startLook = look;
+        boolean bookmark = mode == 1;
+        startIcon.setDisplay(bookmark);
+        startCaption.setText(Component.translatable(bookmark ? "gui.twinstar.plan.bookmark" : "gui.twinstar.plan.start"));
+        startCaption.textStyle(t -> t.fontSize(bookmark ? SMALL : 9));
+        if (bookmark)
+            start.style(s -> s.tooltips(Component.translatable("gui.twinstar.plan.bookmark"),
+                    Component.translatable("gui.twinstar.plan.bookmark.tooltip").withColor(DIM)));
+        else if (mode == 2)
+            start.style(s -> s.tooltips(Component.translatable("gui.twinstar.plan.bookmark.nothing").withColor(DIM)));
+        else if (missing)
+            start.style(s -> s.tooltips(Component.translatable("gui.twinstar.plan.bookmark.hint").withColor(DIM)));
+        else
+            start.style(s -> s.tooltips(new Component[0]));
+    }
+
+    /**
+     * Puts every missing material (and machine) into JEI / EMI in one go, so the player can look them up and
+     * fetch them. Tells how many were new, or that JEI / EMI cannot take them (not loaded yet).
      */
     private void bookmarkMissing() {
         PlanView view = menu.planning ? null : menu.getView();
         if (view == null)
             return;
+        if (!Bookmarks.available()) {
+            player.displayClientMessage(Component.translatable("gui.twinstar.plan.bookmark.unavailable"), true);
+            return;
+        }
         List<AEKey> keys = view.missing().stream().map(PlanView.Missing::key).distinct().toList();
         int added = Bookmarks.add(keys);
         player.displayClientMessage(Component.translatable(added > 0 ? "gui.twinstar.plan.bookmark.done" : "gui.twinstar.plan.bookmark.none",
@@ -219,8 +286,8 @@ public class PlanUI {
     public boolean enterPressed(int keyCode) {
         if (!OrderUI.isEnter(keyCode))
             return false;
-        if (!enterHandled && canStart)
-            menu.start();
+        if (!enterHandled)
+            pressStart();
         return true;
     }
 
@@ -230,14 +297,9 @@ public class PlanUI {
         boolean planning = menu.planning;
         String error = menu.error;
         replan.setActive(!planning);
-        boolean canBookmark = view != null && !view.missing().isEmpty() && Bookmarks.available();
-        if (canBookmark != bookmarkShown) {
-            bookmarkShown = canBookmark;
-            bookmark.setDisplay(canBookmark);
-        }
         // too big for the black hole: starting would only fail
         canStart = view != null && view.complete() && view.fits();
-        start.setActive(canStart);
+        updateStartButton();
         // 強制下單: only when the plan lacks something and there is something to make
         boolean canForce = view != null && !view.complete() && view.fits() && view.patterns() > 0;
         if (canForce != forceShown) {
