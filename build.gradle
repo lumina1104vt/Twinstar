@@ -42,6 +42,12 @@ tasks.register('extractLdlibNested', Copy) {
 }
 
 dependencies {
+    // the engine's pure logic and interfaces are their own projects, bundled by the root project's jarJar
+    compileOnly project(':twinstar-core')
+    compileOnly project(':twinstar-api')
+    testImplementation project(':twinstar-core')
+    testImplementation testFixtures(project(':twinstar-core'))
+    testImplementation project(':twinstar-api')
     // the engine hooks AE2's crafting service; AE2 itself is provided by the player
     compileOnly "maven.modrinth:ae2:${ae2_version}"
     // gen_patterns / dump_recipes read recipes (amounts, fluids, all outputs) from the player's JEI

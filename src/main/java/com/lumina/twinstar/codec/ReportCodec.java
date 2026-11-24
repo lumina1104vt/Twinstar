@@ -1,5 +1,7 @@
-package com.lumina.twinstar.metrics;
+package com.lumina.twinstar.codec;
 
+import com.lumina.twinstar.metrics.HubReport;
+import com.lumina.twinstar.metrics.TheoryReport;
 import net.minecraft.network.FriendlyByteBuf;
 
 /** The reports on the wire: server to client, a few dozen varints. */

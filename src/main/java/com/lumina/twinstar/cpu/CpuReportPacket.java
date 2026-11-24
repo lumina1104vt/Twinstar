@@ -2,7 +2,7 @@ package com.lumina.twinstar.cpu;
 
 import com.lumina.twinstar.Twinstar;
 import com.lumina.twinstar.metrics.HubReport;
-import com.lumina.twinstar.metrics.ReportCodec;
+import com.lumina.twinstar.codec.ReportCodec;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;

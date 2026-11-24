@@ -104,11 +104,11 @@ public final class TheoryPackets {
                     buf.writeVarLong(s.flushNanos());
                     buf.writeBoolean(s.rebuilt());
                     buf.writeVarLong(s.flushAgoMillis());
-                    com.lumina.twinstar.metrics.ReportCodec.write(buf, s.report());
+                    com.lumina.twinstar.codec.ReportCodec.write(buf, s.report());
                 },
                 buf -> new StatusReply(new TwinStarService.TheoryStatus(buf.readLong(), buf.readVarInt(), buf.readVarInt(),
                         buf.readVarInt(), buf.readBoolean(), buf.readBoolean(), buf.readVarInt(), buf.readVarInt(),
-                        buf.readVarLong(), buf.readBoolean(), buf.readVarLong(), com.lumina.twinstar.metrics.ReportCodec.readTheory(buf))));
+                        buf.readVarLong(), buf.readBoolean(), buf.readVarLong(), com.lumina.twinstar.codec.ReportCodec.readTheory(buf))));
 
         @Override
         public Type<? extends CustomPacketPayload> type() {

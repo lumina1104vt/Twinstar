@@ -1,0 +1,42 @@
+// twinstar_core - TwinStar Core, a separate lib mod, bundled into ae2_gvt by jarJar. No runs of its own: the
+// root project's runs load it. Shared setup: gradle/mod-common.gradle.
+plugins {
+    id 'java-library'
+    id 'idea'
+    id 'java-test-fixtures'
+    id 'net.neoforged.moddev'   // version from the root project
+}
+
+// version comes from the root gradle.properties (twinstar_core_mod_version); must be set before mod-common reads it
+ext.mod_version = rootProject.twinstar_mod_version
+
+// mod description: the text lives in description.txt (UTF-8, English then 繁體中文)
+ext.mod_description = file('description.txt').getText('UTF-8')
+
+apply from: rootProject.file('gradle/mod-common.gradle')
+
+neoForge {
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+repositories {
+    mavenCentral()  // JUnit
+}
+
+dependencies {
+    compileOnly 'org.jetbrains:annotations:24.1.0'
+
+    testImplementation platform('org.junit:junit-bom:5.10.3')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+    // stress the incremental-vs-rebuild test: gradlew :twinstar-core:test -Drounds=30000
+    systemProperty 'rounds', System.getProperty('rounds', '200')
+}

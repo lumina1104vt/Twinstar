@@ -40,3 +40,19 @@ config="${mod_id}.mixins.json"
     versionRange="[2.2.41,)"
     ordering="NONE"
     side="CLIENT"
+
+# twinstar_core: a Lumina base layer this mod is built on; NeoForge loads it first
+[[dependencies."${mod_id}"]]
+    modId="twinstar_core"
+    type="required"
+    versionRange="[0,)"
+    ordering="AFTER"
+    side="BOTH"
+
+# twinstar_api: a Lumina base layer this mod is built on; NeoForge loads it first
+[[dependencies."${mod_id}"]]
+    modId="twinstar_api"
+    type="required"
+    versionRange="[0,)"
+    ordering="AFTER"
+    side="BOTH"
