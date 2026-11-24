@@ -49,6 +49,14 @@ config="${mod_id}.mixins.json"
     ordering="AFTER"
     side="BOTH"
 
+# twinstar_ae2: the AE2 side of the engine this mod is built on; NeoForge loads it first
+[[dependencies."${mod_id}"]]
+    modId="twinstar_ae2"
+    type="required"
+    versionRange="[0,)"
+    ordering="AFTER"
+    side="BOTH"
+
 # twinstar_api: a Lumina base layer this mod is built on; NeoForge loads it first
 [[dependencies."${mod_id}"]]
     modId="twinstar_api"

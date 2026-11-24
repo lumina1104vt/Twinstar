@@ -1,0 +1,46 @@
+// twinstar_ae2 - TwinStar Pattern Crafting, a separate lib mod, bundled into ae2_gvt by jarJar. No runs of its own: the
+// root project's runs load it. Shared setup: gradle/mod-common.gradle.
+plugins {
+    id 'java-library'
+    id 'idea'
+    id 'net.neoforged.moddev'   // version from the root project
+}
+
+// version comes from the root gradle.properties (twinstar_ae2_mod_version); must be set before mod-common reads it
+ext.mod_version = rootProject.twinstar_ae2_mod_version
+
+// mod description: the text lives in description.txt (UTF-8, English then 繁體中文)
+ext.mod_description = file('description.txt').getText('UTF-8')
+
+apply from: rootProject.file('gradle/mod-common.gradle')
+
+neoForge {
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+repositories {
+    mavenCentral()  // JUnit
+}
+
+dependencies {
+    // AE2 patterns, storage and crafting: the engine's AE2 side; AE2 itself is provided by the player
+    compileOnly "maven.modrinth:ae2:${ae2_version}"
+    compileOnly project(':lumina-bridge')
+    compileOnly project(':lumina-corelib')
+    compileOnly project(':twinstar-core')
+    compileOnly project(':twinstar-api')
+    compileOnly 'org.jetbrains:annotations:24.1.0'
+
+    // (no tests yet)
+    testImplementation platform('org.junit:junit-bom:5.10.3')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+}

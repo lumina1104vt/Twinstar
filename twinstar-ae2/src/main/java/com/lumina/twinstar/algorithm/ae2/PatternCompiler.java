@@ -10,7 +10,6 @@ import com.lumina.twinstar.algorithm.model.Pattern;
 import com.lumina.twinstar.algorithm.model.PatternLocation;
 import com.lumina.twinstar.algorithm.model.Rational;
 import com.lumina.twinstar.api.PatternMachines;
-import com.lumina.twinstar.storage.TwinstarContent;
 import appeng.api.stacks.AEItemKey;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
@@ -118,7 +117,7 @@ public final class PatternCompiler {
         PatternLocation where = hubInternal ? PatternLocation.HUB_INTERNAL
                 : details instanceof AEProcessingPattern ? PatternLocation.EXTERNAL_PROCESS
                 : PatternLocation.EXTERNAL_CRAFT;
-        PatternChances chances = details.getDefinition().get(TwinstarContent.PATTERN_CHANCES.get());
+        PatternChances chances = details.getDefinition().get(PatternComponents.PATTERN_CHANCES.get());
         if (!hubInternal && chances != null && !chances.entries().isEmpty())
             return List.of();   // a pattern with probable outputs only runs in the hub
         if (!hubInternal)
@@ -180,12 +179,12 @@ public final class PatternCompiler {
             for (Item sub : subMachines)
                 b.subMachine(index.idOf(AEItemKey.of(sub)));
         }
-        PatternInputFaces faces = machine != null ? details.getDefinition().get(TwinstarContent.PATTERN_INPUT_FACES.get()) : null;
-        PatternInputTargets targets = machine != null ? details.getDefinition().get(TwinstarContent.PATTERN_INPUT_TARGETS.get()) : null;
-        PatternInputGuiSlots guiSlots = machine != null ? details.getDefinition().get(TwinstarContent.PATTERN_INPUT_GUI_SLOTS.get()) : null;
-        PatternOutputGuiSlots outGuiSlots = machine != null ? details.getDefinition().get(TwinstarContent.PATTERN_OUTPUT_GUI_SLOTS.get()) : null;
-        PatternInputRoles roles = machine != null ? details.getDefinition().get(TwinstarContent.PATTERN_INPUT_ROLES.get()) : null;
-        PatternIgnoreNbt ignoreNbt = details.getDefinition().get(TwinstarContent.PATTERN_IGNORE_NBT.get());
+        PatternInputFaces faces = machine != null ? details.getDefinition().get(PatternComponents.PATTERN_INPUT_FACES.get()) : null;
+        PatternInputTargets targets = machine != null ? details.getDefinition().get(PatternComponents.PATTERN_INPUT_TARGETS.get()) : null;
+        PatternInputGuiSlots guiSlots = machine != null ? details.getDefinition().get(PatternComponents.PATTERN_INPUT_GUI_SLOTS.get()) : null;
+        PatternOutputGuiSlots outGuiSlots = machine != null ? details.getDefinition().get(PatternComponents.PATTERN_OUTPUT_GUI_SLOTS.get()) : null;
+        PatternInputRoles roles = machine != null ? details.getDefinition().get(PatternComponents.PATTERN_INPUT_ROLES.get()) : null;
+        PatternIgnoreNbt ignoreNbt = details.getDefinition().get(PatternComponents.PATTERN_IGNORE_NBT.get());
         boolean subst = false;
         Rational energy = Rational.ZERO;
         List<GenericStack> remainders = new ArrayList<>();
@@ -267,7 +266,7 @@ public final class PatternCompiler {
             if (!worn.isEmpty())
                 subst = true;
         }
-        PatternDispatchDone dispatchDone = details.getDefinition().get(TwinstarContent.PATTERN_DISPATCH_DONE.get());
+        PatternDispatchDone dispatchDone = details.getDefinition().get(PatternComponents.PATTERN_DISPATCH_DONE.get());
         for (GenericStack out : details.getOutputs()) {
             double chance = chances == null ? 1 : chances.chanceOf(out.what());
             b.output(index.idOf(out.what()), Amount.of(out.amount()), chance > 0 && chance < 1 ? chance : 1);
