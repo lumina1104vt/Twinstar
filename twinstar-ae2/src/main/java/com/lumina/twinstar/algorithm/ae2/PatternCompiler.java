@@ -131,7 +131,7 @@ public final class PatternCompiler {
             // recipe of a crafting table and the like, may come out
             if (machine == null)
                 return List.of();
-            if (WorkstationRecipes.isWorkstation(machine) && !workstationCheck.test(details, machine))
+            if (PatternJudging.isJudged(machine) && !workstationCheck.test(details, machine))
                 return List.of();
         }
         if (machine != null && machine.builtInRegistryHolder().is(NO_MACHINE))

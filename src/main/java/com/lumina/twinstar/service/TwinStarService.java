@@ -190,8 +190,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
             var server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
             if (server == null)
                 return false;
-            boolean ok = com.lumina.twinstar.algorithm.ae2.WorkstationRecipes.matches(machine, d,
-                    server.getRecipeManager(), server.registryAccess());
+            boolean ok = com.lumina.twinstar.algorithm.ae2.PatternJudging.accepts(machine, d, server.overworld());
             if (!ok)
                 Twinstar.LOGGER.info("Twin-star engine leaves out a pattern that is no recipe of {}: {} → {}",
                         machine, java.util.Arrays.toString(d.getInputs()), d.getOutputs());

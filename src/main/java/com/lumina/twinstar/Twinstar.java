@@ -25,6 +25,7 @@ public class Twinstar {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public Twinstar(IEventBus modEventBus) {
+        com.lumina.twinstar.crafting.RecipeJudges.register(new com.lumina.twinstar.algorithm.ae2.VanillaRecipeJudge());
         GridServices.register(ITwinStarService.class, TwinStarService.class);
         modEventBus.addListener(Twinstar::registerPayloads);
         TwinstarContent.register(modEventBus);
