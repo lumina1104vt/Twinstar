@@ -36,7 +36,7 @@ ${mod_description}
 # twinstar_core: a Lumina base layer this mod is built on; Forge loads it first
 [[dependencies."${mod_id}"]]
     modId="twinstar_core"
-    type="required"
+    mandatory=true
     versionRange="[0,)"
     ordering="AFTER"
     side="BOTH"
@@ -44,7 +44,7 @@ ${mod_description}
 # twinstar_ae2: the AE2 side of the engine this mod is built on; Forge loads it first
 [[dependencies."${mod_id}"]]
     modId="twinstar_ae2"
-    type="required"
+    mandatory=true
     versionRange="[0,)"
     ordering="AFTER"
     side="BOTH"
@@ -52,7 +52,7 @@ ${mod_description}
 # twinstar_api: a Lumina base layer this mod is built on; Forge loads it first
 [[dependencies."${mod_id}"]]
     modId="twinstar_api"
-    type="required"
+    mandatory=true
     versionRange="[0,)"
     ordering="AFTER"
     side="BOTH"
