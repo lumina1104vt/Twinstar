@@ -1,6 +1,8 @@
 package com.lumina.twinstar.menu;
 
-import com.lumina.twinstar.util.BigIntCodec;
+import com.lumina.bridge.wire.Wire;
+import com.lumina.bridge.wire.WireBuf;
+import com.lumina.corelib.util.BigIntCodec;
 import net.minecraft.network.FriendlyByteBuf;
 
 import java.math.BigInteger;
@@ -18,20 +20,23 @@ public record BigStatusAmounts(BigInteger stored, BigInteger active, BigInteger 
                                BigInteger chanceShort, BigInteger machineLost, boolean waitingPattern,
                                boolean mayBeInNetwork, BigInteger shortage) {
     public void write(FriendlyByteBuf buf) {
-        BigIntCodec.write(buf, stored);
-        BigIntCodec.write(buf, active);
-        BigIntCodec.write(buf, pending);
+        WireBuf wire = Wire.of(buf);
+        BigIntCodec.write(wire, stored);
+        BigIntCodec.write(wire, active);
+        BigIntCodec.write(wire, pending);
         buf.writeBoolean(infinite);
-        BigIntCodec.write(buf, chanceShort);
-        BigIntCodec.write(buf, machineLost);
+        BigIntCodec.write(wire, chanceShort);
+        BigIntCodec.write(wire, machineLost);
         buf.writeBoolean(waitingPattern);
         buf.writeBoolean(mayBeInNetwork);
-        BigIntCodec.write(buf, shortage);
+        BigIntCodec.write(wire, shortage);
     }
 
     public static BigStatusAmounts read(FriendlyByteBuf buf) {
-        return new BigStatusAmounts(BigIntCodec.read(buf), BigIntCodec.read(buf),
-                BigIntCodec.read(buf), buf.readBoolean(), BigIntCodec.read(buf), BigIntCodec.read(buf), buf.readBoolean(), buf.readBoolean(),
-                BigIntCodec.read(buf));
+        WireBuf wire = Wire.of(buf);
+        // the arguments are read left to right, in the order they were written
+        return new BigStatusAmounts(BigIntCodec.read(wire), BigIntCodec.read(wire),
+                BigIntCodec.read(wire), buf.readBoolean(), BigIntCodec.read(wire), BigIntCodec.read(wire), buf.readBoolean(), buf.readBoolean(),
+                BigIntCodec.read(wire));
     }
 }

@@ -43,6 +43,8 @@ tasks.register('extractLdlibNested', Copy) {
 
 dependencies {
     // the engine's pure logic and interfaces are their own projects, bundled by the root project's jarJar
+    compileOnly project(':lumina-bridge')
+    testImplementation project(':lumina-bridge')
     compileOnly project(':lumina-corelib')
     testImplementation project(':lumina-corelib')
     compileOnly project(':twinstar-core')
