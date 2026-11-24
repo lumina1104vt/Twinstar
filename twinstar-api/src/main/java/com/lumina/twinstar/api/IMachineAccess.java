@@ -1,10 +1,10 @@
 package com.lumina.twinstar.api;
 
+import com.lumina.bridge.key.Key;
 import com.lumina.twinstar.port.World;
 import com.lumina.bridge.Pos;
 import com.lumina.bridge.Face;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.item.Item;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -30,7 +30,7 @@ public interface IMachineAccess {
      * A machine this interface also stands for, besides the block it sits on (its ghost slot: a
      * multiblock's port, another tier of the same machine); null when not set.
      */
-    @Nullable Item getMachine();
+    @Nullable Key getMachine();
 
     /** How a machine waits before it gets more. */
     enum BlockMode {

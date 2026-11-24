@@ -1009,7 +1009,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
             if (block != net.minecraft.world.item.Items.AIR)
                 out.add(index.idOf(appeng.api.stacks.AEItemKey.of(block)));
             if (a.getMachine() != null)
-                out.add(index.idOf(appeng.api.stacks.AEItemKey.of(a.getMachine())));
+                out.add(index.idOf(a.getMachine()));
         }
         return out;
     }
@@ -1096,7 +1096,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
             if (!c.hubInternal)
                 return;
             net.minecraft.world.item.Item m = com.lumina.twinstar.api.PatternMachines.of(details.getDefinition());
-            if (m == null || (m != block && m != access.getMachine()))
+            if (m == null || (m != block && m != machineItem(access)))
                 return;
             for (net.minecraft.world.item.Item sub : com.lumina.twinstar.api.PatternMachines.subMachinesOf(details.getDefinition())) {
                 String id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(sub).toString();
@@ -1137,6 +1137,13 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
                 s.runsIn().saturatedLong(), chance);
     }
 
+    /** The item of the machine set on an interface, or null. */
+    private static net.minecraft.world.item.@Nullable Item machineItem(IMachineAccess access) {
+        var key = access.getMachine();
+        var item = key == null ? null : key.handle(appeng.api.stacks.AEItemKey.class);
+        return item == null ? null : item.getItem();
+    }
+
     /** Some hub pattern on the grid is for the block {@code access} sits on or the machine set on it. */
     private boolean isPatternMachine(IMachineAccess access) {
         if (machinesReadFrom != compiled) {
@@ -1151,7 +1158,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
             patternMachines = items;
             machinesReadFrom = compiled;
         }
-        if (access.getMachine() != null && patternMachines.contains(access.getMachine()))
+        if (machineItem(access) != null && patternMachines.contains(machineItem(access)))
             return true;
         net.minecraft.server.level.ServerLevel level = access.getMachineLevel();
         return level != null && level.isLoaded(com.lumina.bridge.Positions.toMc(access.getMachinePos()))

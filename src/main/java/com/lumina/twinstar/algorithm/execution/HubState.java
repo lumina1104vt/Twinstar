@@ -22,8 +22,6 @@ import com.lumina.bridge.Pos;
 import com.lumina.bridge.Face;
 import com.lumina.bridge.Place;
 import com.lumina.twinstar.port.World;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.Items;
 import com.lumina.twinstar.metrics.Alloc;
 import com.lumina.twinstar.metrics.HubReport;
 import com.lumina.twinstar.metrics.TickMeter;
@@ -2279,8 +2277,8 @@ public final class HubState {
         return out;
     }
 
-    private static @Nullable String idOf(@Nullable Item item) {
-        return item == null ? null : net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString();
+    private static @Nullable String idOf(@Nullable Key item) {
+        return item == null ? null : item.id();
     }
 
     private static boolean isMachine(@Nullable String itemId, Pattern pat, ExecutionEnv env) {

@@ -1,6 +1,5 @@
 package com.lumina.twinstar.algorithm.execution;
 
-import appeng.api.networking.security.IActionSource;
 import com.lumina.twinstar.algorithm.ae2.ItemIndex;
 import com.lumina.twinstar.port.PatternSites;
 import com.lumina.twinstar.port.Power;
@@ -28,7 +27,4 @@ public record ExecutionEnv(ItemIndex index, NetworkStore store, Power energy,
                            @Nullable ITwinStarEnergySource hubEnergy,
                            PatternSites providers, List<IMachineAccess> machines,
                            @Nullable Amount parallelism, long nowNanos, long tickBudgetNanos) {
-    public IActionSource source() {
-        return store.source();
-    }
 }
