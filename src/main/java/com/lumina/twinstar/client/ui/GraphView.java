@@ -397,8 +397,13 @@ public abstract class GraphView {
             Component msg = emptyText();
             g.drawString(font, msg, (width - rightPanelWidth() - font.width(msg)) / 2, height / 2, TEXT, false);
         }
+        // items are drawn raised by the game (about 150 up): the overlay and the bar go above them, or the graph's
+        // icons would show through the panels
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 300);
         drawOverlay(g, mx, my);
         bar(g, mx, my);
+        g.pose().popPose();
         if (layout != null && layout.graph.truncated()) {
             Component t = Component.translatable("gui.twinstar.graph.truncated");
             g.drawString(font, t, 6, height - 12, DIM, false);
