@@ -1,8 +1,8 @@
 package com.lumina.twinstar.port;
 
 import com.lumina.bridge.key.Key;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
+import com.lumina.bridge.Pos;
+import com.lumina.bridge.Face;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Map;
@@ -16,32 +16,32 @@ import java.util.function.Predicate;
  * click gave back that was not asked for. One instance is for one world. Server thread only.
  */
 public interface WorldActions {
-    long rightClick(BlockPos pos, Direction face, Key key, long amount, BiConsumer<Key, Long> stray);
+    long rightClick(Pos pos, Face face, Key key, long amount, BiConsumer<Key, Long> stray);
 
     /** Uses the tool on the machine; returns the tool as it is after (null if it is gone). */
-    @Nullable Key useTool(BlockPos pos, Direction face, Key tool, BiConsumer<Key, Long> stray);
+    @Nullable Key useTool(Pos pos, Face face, Key tool, BiConsumer<Key, Long> stray);
 
-    void emptyClick(BlockPos pos, Direction face, BiConsumer<Key, Long> stray);
+    void emptyClick(Pos pos, Face face, BiConsumer<Key, Long> stray);
 
-    long insertViaGui(BlockPos pos, Direction face, Key key, long amount, int onlySlot,
+    long insertViaGui(Pos pos, Face face, Key key, long amount, int onlySlot,
                       BiConsumer<Key, Long> stray);
 
-    long extractViaGui(BlockPos pos, Direction face, Map<Key, Integer> products, BiConsumer<Key, Long> taken,
+    long extractViaGui(Pos pos, Face face, Map<Key, Integer> products, BiConsumer<Key, Long> taken,
                        BiConsumer<Key, Long> stray);
 
     /** The position {@code distance} blocks in front of the interface's face. */
-    BlockPos front(BlockPos pos, Direction interfaceFace, int distance);
+    Pos front(Pos pos, Face interfaceFace, int distance);
 
-    long place(BlockPos cell, Key key);
+    long place(Pos cell, Key key);
 
-    long drop(BlockPos cell, Key key, long amount);
+    long drop(Pos cell, Key key, long amount);
 
-    boolean holdsAny(BlockPos cell, Set<Key> keys);
+    boolean holdsAny(Pos cell, Set<Key> keys);
 
     /** An item that is put down as a block (placed in front of the machine), not just dropped. */
     boolean isBlockItem(Key key);
 
-    void pickUp(BlockPos cell, Predicate<Key> wanted, BiConsumer<Key, Long> taken);
+    void pickUp(Pos cell, Predicate<Key> wanted, BiConsumer<Key, Long> taken);
 
     /** What the last click did, for the debug log. */
     String lastClick();

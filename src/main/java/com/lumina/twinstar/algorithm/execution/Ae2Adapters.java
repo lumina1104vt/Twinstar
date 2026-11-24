@@ -7,6 +7,9 @@ import com.lumina.bridge.key.Keys;
 import com.lumina.twinstar.port.MachineStorage;
 import com.lumina.twinstar.port.World;
 import com.lumina.twinstar.port.WorldActions;
+import com.lumina.bridge.Face;
+import com.lumina.bridge.Pos;
+import com.lumina.bridge.Positions;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -68,92 +71,107 @@ public final class Ae2Adapters {
         return (k, n) -> sink.accept(Keys.of(k), n);
     }
 
+    private static BlockPos mc(Pos pos) {
+        return Positions.toMc(pos);
+    }
+
+    private static Direction mc(Face face) {
+        return Positions.toMc(face);
+    }
+
+    private static List<@Nullable Direction> mcFaces(List<@Nullable Face> faces) {
+        List<@Nullable Direction> out = new java.util.ArrayList<>(faces.size());
+        for (Face f : faces)
+            out.add(f == null ? null : Positions.toMc(f));
+        return out;
+    }
+
     private record Storage(ServerLevel level) implements MachineStorage {
-        public boolean hasItemStorage(BlockPos pos) {
-            return !MachineIO.itemHandlers(level, pos).isEmpty();
+        public boolean hasItemStorage(Pos pos) {
+            return !MachineIO.itemHandlers(level, mc(pos)).isEmpty();
         }
 
-        public long insert(BlockPos pos, List<@Nullable Direction> faces, Key key, long amount) {
-            return MachineIO.insert(level, pos, faces, ae(key), amount);
+        public long insert(Pos pos, List<@Nullable Face> faces, Key key, long amount) {
+            return MachineIO.insert(level, mc(pos), mcFaces(faces), ae(key), amount);
         }
 
-        public long retrieve(BlockPos pos, Key key, long amount, BiConsumer<Key, Long> taken) {
-            return MachineIO.retrieve(level, pos, aeItem(key), amount, wrap(taken));
+        public long retrieve(Pos pos, Key key, long amount, BiConsumer<Key, Long> taken) {
+            return MachineIO.retrieve(level, mc(pos), aeItem(key), amount, wrap(taken));
         }
 
-        public void extractOutputs(BlockPos pos, Set<Key> wantOther, Set<Key> keep, BiConsumer<Key, Long> taken) {
-            MachineIO.extractOutputs(level, pos, aeSet(wantOther), aeSet(keep), wrap(taken));
+        public void extractOutputs(Pos pos, Set<Key> wantOther, Set<Key> keep, BiConsumer<Key, Long> taken) {
+            MachineIO.extractOutputs(level, mc(pos), aeSet(wantOther), aeSet(keep), wrap(taken));
         }
 
-        public boolean holdsAny(BlockPos pos, Set<Key> keys) {
-            return MachineIO.holdsAny(level, pos, aeSet(keys));
+        public boolean holdsAny(Pos pos, Set<Key> keys) {
+            return MachineIO.holdsAny(level, mc(pos), aeSet(keys));
         }
 
-        public void forget(BlockPos pos) {
-            MachineIO.forget(level, pos);
+        public void forget(Pos pos) {
+            MachineIO.forget(level, mc(pos));
         }
 
-        public String describe(BlockPos pos) {
-            return MachineIO.describe(level, pos);
+        public String describe(Pos pos) {
+            return MachineIO.describe(level, mc(pos));
         }
 
-        public String contentsAt(BlockPos pos) {
-            return MachineIO.contentsAt(level, pos);
+        public String contentsAt(Pos pos) {
+            return MachineIO.contentsAt(level, mc(pos));
         }
 
-        public String describeInsert(BlockPos pos, List<@Nullable Direction> faces, Key key, long amount) {
-            return MachineIO.describeInsert(level, pos, faces, ae(key), amount);
+        public String describeInsert(Pos pos, List<@Nullable Face> faces, Key key, long amount) {
+            return MachineIO.describeInsert(level, mc(pos), mcFaces(faces), ae(key), amount);
         }
     }
 
     private record Actions(ServerLevel level) implements WorldActions {
-        public long rightClick(BlockPos pos, Direction face, Key key, long amount, BiConsumer<Key, Long> stray) {
-            return WorldIO.rightClick(level, pos, face, aeItem(key), amount, wrap(stray));
+        public long rightClick(Pos pos, Face face, Key key, long amount, BiConsumer<Key, Long> stray) {
+            return WorldIO.rightClick(level, mc(pos), mc(face), aeItem(key), amount, wrap(stray));
         }
 
-        public @Nullable Key useTool(BlockPos pos, Direction face, Key tool, BiConsumer<Key, Long> stray) {
-            AEItemKey back = WorldIO.useTool(level, pos, face, aeItem(tool), wrap(stray));
+        public @Nullable Key useTool(Pos pos, Face face, Key tool, BiConsumer<Key, Long> stray) {
+            AEItemKey back = WorldIO.useTool(level, mc(pos), mc(face), aeItem(tool), wrap(stray));
             return back == null ? null : Keys.of(back);
         }
 
-        public void emptyClick(BlockPos pos, Direction face, BiConsumer<Key, Long> stray) {
-            WorldIO.emptyClick(level, pos, face, wrap(stray));
+        public void emptyClick(Pos pos, Face face, BiConsumer<Key, Long> stray) {
+            WorldIO.emptyClick(level, mc(pos), mc(face), wrap(stray));
         }
 
-        public long insertViaGui(BlockPos pos, Direction face, Key key, long amount, int onlySlot,
+        public long insertViaGui(Pos pos, Face face, Key key, long amount, int onlySlot,
                                  BiConsumer<Key, Long> stray) {
-            return WorldIO.insertViaGui(level, pos, face, aeItem(key), amount, onlySlot, wrap(stray));
+            return WorldIO.insertViaGui(level, mc(pos), mc(face), aeItem(key), amount, onlySlot, wrap(stray));
         }
 
-        public long extractViaGui(BlockPos pos, Direction face, Map<Key, Integer> products,
+        public long extractViaGui(Pos pos, Face face, Map<Key, Integer> products,
                                   BiConsumer<Key, Long> taken, BiConsumer<Key, Long> stray) {
             Map<AEKey, Integer> ae = new HashMap<>();
             products.forEach((k, v) -> ae.put(ae(k), v));
-            return WorldIO.extractViaGui(level, pos, face, ae, wrap(taken), wrap(stray));
+            return WorldIO.extractViaGui(level, mc(pos), mc(face), ae, wrap(taken), wrap(stray));
         }
 
-        public BlockPos front(BlockPos pos, Direction interfaceFace, int distance) {
-            return WorldIO.front(level, pos, interfaceFace, distance);
+        public Pos front(Pos pos, Face interfaceFace, int distance) {
+            return Positions.of(WorldIO.front(level, mc(pos), mc(interfaceFace), distance));
         }
 
-        public long place(BlockPos cell, Key key) {
-            return WorldIO.place(level, cell, aeItem(key));
+        public long place(Pos cell, Key key) {
+            return WorldIO.place(level, mc(cell), aeItem(key));
         }
 
-        public long drop(BlockPos cell, Key key, long amount) {
-            return WorldIO.drop(level, cell, aeItem(key), amount);
+        public long drop(Pos cell, Key key, long amount) {
+            return WorldIO.drop(level, mc(cell), aeItem(key), amount);
         }
 
-        public boolean holdsAny(BlockPos cell, Set<Key> keys) {
-            return WorldIO.holdsAny(level, cell, aeSet(keys));
+        public boolean holdsAny(Pos cell, Set<Key> keys) {
+            return WorldIO.holdsAny(level, mc(cell), aeSet(keys));
         }
 
         public boolean isBlockItem(Key key) {
             return aeItem(key).getItem() instanceof net.minecraft.world.item.BlockItem;
         }
 
-        public void pickUp(BlockPos cell, Predicate<Key> wanted, BiConsumer<Key, Long> taken) {
-            WorldIO.pickUp(level, cell, k -> wanted.test(Keys.of(k)), wrap(taken));
+        public void pickUp(Pos cell, Predicate<Key> wanted, BiConsumer<Key, Long> taken) {
+            WorldIO.pickUp(level, mc(cell), k -> wanted.test(Keys.of(k)), wrap(taken));
         }
 
         public String lastClick() {

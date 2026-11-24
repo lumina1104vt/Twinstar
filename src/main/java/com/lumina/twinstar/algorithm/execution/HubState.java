@@ -23,8 +23,8 @@ import com.lumina.twinstar.algorithm.planning.CycleContract;
 import com.lumina.twinstar.algorithm.planning.Plan;
 import com.lumina.twinstar.api.IMachineAccess;
 import it.unimi.dsi.fastutil.objects.Object2LongMap;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
+import com.lumina.bridge.Pos;
+import com.lumina.bridge.Face;
 import net.minecraft.core.GlobalPos;
 import com.lumina.twinstar.port.World;
 import net.minecraft.world.item.Item;
@@ -1333,9 +1333,9 @@ public final class HubState {
         /** where the machine is, kept for when the interface is gone (lost runs are kept by place) */
         @Nullable GlobalPos place;
         /** cells in front of it that materials were placed or dropped in: products are picked up there */
-        final Set<BlockPos> frontCells = new HashSet<>();
+        final Set<Pos> frontCells = new HashSet<>();
         /** its sub-machines for {@link #subsFor}, found at {@link #subsAt} (game time) */
-        @Nullable List<BlockPos> subs;
+        @Nullable List<Pos> subs;
         @Nullable Pattern subsFor;
         long subsAt;
         /** game time the GUI was last opened to look for products */
@@ -1346,7 +1346,7 @@ public final class HubState {
          * sub-machines that took something by a right-click (no item slots: an altar's pedestal) and still hold it: a
          * second right-click would swap what is on it, so they are left alone until the machine has no run left
          */
-        final Set<BlockPos> filledSubs = new HashSet<>();
+        final Set<Pos> filledSubs = new HashSet<>();
         /** catalysts (role CATALYST) put into the machine and not yet back out, per batch of runs */
         final Map<Flight, Map<Key, Long>> held = new LinkedHashMap<>();
         /** catalysts to take out of the machine now: those of batches that are done */
@@ -1388,7 +1388,7 @@ public final class HubState {
     static final class Part {
         final Key key;
         long left;
-        final List<@Nullable Direction> faces;
+        final List<@Nullable Face> faces;
         /** where it goes ({@link PatternInputTargets}) */
         final int target;
         /** what it is besides used up ({@link PatternInputRoles}) */
@@ -1396,9 +1396,9 @@ public final class HubState {
         /** the slot of the machine's GUI it goes into, for machines that take items only there (0 = the first that takes it) */
         final int guiSlot;
         /** the hatch (input bus, fluid input) it began going into when it has no slot number: it stays there, and no other material goes there */
-        @Nullable BlockPos hatchPort;
+        @Nullable Pos hatchPort;
 
-        Part(Key key, long left, List<@Nullable Direction> faces, int target, int role, int guiSlot) {
+        Part(Key key, long left, List<@Nullable Face> faces, int target, int role, int guiSlot) {
             this.guiSlot = guiSlot;
             this.key = key;
             this.left = left;
@@ -1526,7 +1526,7 @@ public final class HubState {
         }
         for (MachineState m : machines.values()) {
             World level = m.access.getMachineWorld();
-            BlockPos pos = m.access.getMachinePos();
+            Pos pos = m.access.getMachinePos();
             if (level == null || !level.isLoaded(pos))
                 continue;
             if (m.place == null)
@@ -1834,7 +1834,7 @@ public final class HubState {
     }
 
 
-    private void takeFromGui(MachineState m, World level, BlockPos pos, ExecutionEnv env, boolean[] took) {
+    private void takeFromGui(MachineState m, World level, Pos pos, ExecutionEnv env, boolean[] took) {
         if (took[0] || m.inFlight.isEmpty() || m.feed != null)
             return;
         long now = level.getGameTime();
@@ -1866,7 +1866,7 @@ public final class HubState {
      * Takes catalysts back out of the machine: those of finished runs, and the kept ones of finished batches.
      * What does not come out this tick is tried again on the next.
      */
-    private void retrieveCatalysts(MachineState m, World level, BlockPos pos, ExecutionEnv env) {
+    private void retrieveCatalysts(MachineState m, World level, Pos pos, ExecutionEnv env) {
         if (m.held.isEmpty() && m.due.isEmpty())
             return;
         for (Map.Entry<Flight, Map<Key, Long>> e : new ArrayList<>(m.held.entrySet())) {
@@ -1897,7 +1897,7 @@ public final class HubState {
             for (Map.Entry<Flight, Map<Key, Long>> h : new ArrayList<>(m.held.entrySet())) {
                 if (m.due.getOrDefault(item, 0L) <= 0)
                     break;
-                for (BlockPos sub : subsOf(m, h.getKey().job().snap.pattern(h.getKey().pattern()), level, pos))
+                for (Pos sub : subsOf(m, h.getKey().job().snap.pattern(h.getKey().pattern()), level, pos))
                     if (level.isLoaded(sub))
                         level.storage().retrieve(sub, item, m.due.getOrDefault(item, 0L), (k, n) -> takeProduct(m, k, n, env));
             }
@@ -1905,7 +1905,7 @@ public final class HubState {
     }
 
     /** Every material of the run is in: right-click the machine with each of its tools, and keep the tools as the clicks left them. */
-    private void useTools(MachineState m, Feed f, World level, BlockPos pos) {
+    private void useTools(MachineState m, Feed f, World level, Pos pos) {
         for (Key key : f.tools) {
             if (key.kind() != Key.Kind.ITEM)
                 continue;
@@ -1920,7 +1920,7 @@ public final class HubState {
     }
 
     /** Puts in what the machine takes of its current run. */
-    private void feed(MachineState m, World level, BlockPos pos) {
+    private void feed(MachineState m, World level, Pos pos) {
         Feed f = m.feed;
         if (f == null)
             return;
@@ -1932,7 +1932,7 @@ public final class HubState {
             long in = switch (PatternInputTargets.kind(p.target)) {
                 case PatternInputTargets.SUB -> {
                     long went = 0;
-                    for (BlockPos sub : subsOf(m, pat, level, pos)) {
+                    for (Pos sub : subsOf(m, pat, level, pos)) {
                         if (m.filledSubs.contains(sub))
                             continue;
                         long got = insertOrClick(m, level, sub, ANY_FACE, p.key, p.left - went, p.guiSlot);
@@ -1948,7 +1948,7 @@ public final class HubState {
                     if (p.key.kind() != Key.Kind.ITEM)
                         yield 0;
                     Key item = p.key;
-                    BlockPos cell = level.actions().front(pos, m.access.getMachineFace(), PatternInputTargets.distance(p.target));
+                    Pos cell = level.actions().front(pos, m.access.getMachineFace(), PatternInputTargets.distance(p.target));
                     m.frontCells.add(cell);
                     long went = PatternInputTargets.kind(p.target) == PatternInputTargets.FRONT_BLOCK ? level.actions().place(cell, item) : 0;
                     // not a block (or a block it may not place): dropped instead
@@ -2084,7 +2084,7 @@ public final class HubState {
         if (!fluid)
             only[0] = true;         // the controller takes none: the buses only (the click on it would do nothing)
         java.util.Set<Integer> claimed = new java.util.HashSet<>();
-        java.util.Set<BlockPos> used = new java.util.HashSet<>();
+        java.util.Set<Pos> used = new java.util.HashSet<>();
         if (m.feed != null)
             for (Part other : m.feed.parts) {
                 if (other == p || (other.key.kind() == Key.Kind.FLUID) != fluid)
@@ -2114,25 +2114,25 @@ public final class HubState {
     }
 
     /** No face, then every face: a sub-machine is put into however it lets anything in. */
-    private static final List<@Nullable Direction> ANY_FACE = java.util.Arrays.asList(null, Direction.DOWN, Direction.UP,
-            Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST);
+    private static final List<@Nullable Face> ANY_FACE = java.util.Arrays.asList(null, Face.DOWN, Face.UP,
+            Face.NORTH, Face.SOUTH, Face.WEST, Face.EAST);
 
     /**
      * Puts {@code amount} of {@code key} into the block at {@code pos} through its capabilities; an
      * item into a block that has no item capability at all goes in by a right-click with it instead
      * (an altar that only takes what a player puts on it). What the click gives back goes to the network.
      */
-    private long insertOrClick(MachineState m, World level, BlockPos pos, List<@Nullable Direction> faces, Key key, long amount, int guiSlot) {
+    private long insertOrClick(MachineState m, World level, Pos pos, List<@Nullable Face> faces, Key key, long amount, int guiSlot) {
         if (guiSlot > 0 && key.kind() == Key.Kind.ITEM) {
             Key item = key;
             // a GUI slot the pattern names: that slot, nowhere else (an ordered crafting table puts it by place; the machine's
             // own item slots would put it wherever they like)
-            Direction face = faces.isEmpty() || faces.get(0) == null ? m.access.getMachineFace() : faces.get(0);
+            Face face = faces.isEmpty() || faces.get(0) == null ? m.access.getMachineFace() : faces.get(0);
             return level.actions().insertViaGui(pos, face, item, amount, guiSlot, (k, n) -> m.overflow.merge(k, n, Long::sum));
         }
         long in = level.storage().insert(pos, faces, key, amount);
         if (in == 0 && key.kind() == Key.Kind.ITEM && !level.storage().hasItemStorage(pos)) {
-            Direction face = faces.isEmpty() || faces.get(0) == null ? m.access.getMachineFace() : faces.get(0);
+            Face face = faces.isEmpty() || faces.get(0) == null ? m.access.getMachineFace() : faces.get(0);
             in = level.actions().rightClick(pos, face, key, amount, (k, n) -> m.overflow.merge(k, n, Long::sum));
             if (in == 0)
                 // not a block that takes a hand-held item: one that keeps its items inside and shows them in a GUI
@@ -2142,7 +2142,7 @@ public final class HubState {
     }
 
     /** The sub-machines of {@code pat} around machine {@code m} ({@link SubMachines}), looked for again once a second. */
-    private List<BlockPos> subsOf(MachineState m, Pattern pat, World level, BlockPos pos) {
+    private List<Pos> subsOf(MachineState m, Pattern pat, World level, Pos pos) {
         long now = level.getGameTime();
         if (m.subs != null && m.subsFor == pat && now - m.subsAt < 20)
             return m.subs;
@@ -2151,7 +2151,7 @@ public final class HubState {
             for (int i = 0; i < pat.subMachineCount(); i++)
                 if (envNow.index().key(pat.subMachine(i)) instanceof Key k && k.kind() == Key.Kind.ITEM)
                     kinds.add(k.id());
-        List<BlockPos> others = new ArrayList<>();
+        List<Pos> others = new ArrayList<>();
         for (MachineState other : machines.values())
             if (other != m && level.equals(other.access.getMachineWorld()))
                 others.add(other.access.getMachinePos());
@@ -2180,7 +2180,7 @@ public final class HubState {
             inMachine |= holds(m, pat, env);
         }
         boolean lying = false;
-        for (BlockPos cell : m.frontCells)
+        for (Pos cell : m.frontCells)
             lying |= level.actions().holdsAny(cell, inputs);
         if (inMachine || lying) {
             m.access.onRunFed();
@@ -2211,7 +2211,7 @@ public final class HubState {
         }
         wanted.removeAll(inputs);
         Set<Key> wantedExact = wanted;
-        for (BlockPos cell : m.frontCells)
+        for (Pos cell : m.frontCells)
             level.actions().pickUp(cell, k -> wantedExact.contains(k) || (!inputs.contains(k) && productAs(m, k, env) != k),
                     (key, n) -> takeProduct(m, key, n, env));
     }
@@ -2273,7 +2273,7 @@ public final class HubState {
         List<MachineState> out = new ArrayList<>();
         for (MachineState m : machines.values()) {
             World level = m.access.getMachineWorld();
-            BlockPos pos = m.access.getMachinePos();
+            Pos pos = m.access.getMachinePos();
             if (level == null || !m.access.isAccessActive() || !level.isLoaded(pos))
                 continue;
             if (isMachine(level.blockItemId(pos), pat, env) || isMachine(idOf(m.access.getMachine()), pat, env))
@@ -2331,11 +2331,11 @@ public final class HubState {
                 return true;
             Set<Key> keys = inputKeys(pat, env);
             keys.removeAll(m.access.getStockedKeys());
-            for (BlockPos cell : m.frontCells)
+            for (Pos cell : m.frontCells)
                 if (level.actions().holdsAny(cell, keys))
                     return true;
             if (m.subs != null)
-                for (BlockPos sub : m.subs)
+                for (Pos sub : m.subs)
                     if (level.isLoaded(sub) && level.storage().holdsAny(sub, keys))
                         return true;
         }
@@ -2458,7 +2458,7 @@ public final class HubState {
             if (inputs[s] == null)
                 continue;
             int role = pat.inputRole(s);
-            List<@Nullable Direction> faces = facesFor(m.access, pat.inputFaces(s));
+            List<@Nullable Face> faces = facesFor(m.access, pat.inputFaces(s));
             for (Object2LongMap.Entry<appeng.api.stacks.AEKey> e : inputs[s]) {
                 if (role == PatternInputRoles.TOOL) {
                     f.tools.add(Keys.of(e.getKey()));
@@ -2484,13 +2484,13 @@ public final class HubState {
      * The faces a material goes in through: the pattern's faces for it when it gives any (unless the interface lets
      * the machine choose), else the interface's own face, or no face for "any".
      */
-    private static List<@Nullable Direction> facesFor(IMachineAccess a, int patternFaces) {
-        List<@Nullable Direction> out = new ArrayList<>();
+    private static List<@Nullable Face> facesFor(IMachineAccess a, int patternFaces) {
+        List<@Nullable Face> out = new ArrayList<>();
         if (a.getInsertMode() == IMachineAccess.InsertMode.ANY) {
             out.add(null);
             return out;
         }
-        out.addAll(PatternInputFaces.directions(patternFaces));
+        out.addAll(PatternInputFaces.faces(patternFaces));
         if (out.isEmpty())
             out.add(a.getMachineFace());
         return out;

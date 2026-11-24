@@ -1,8 +1,8 @@
 package com.lumina.twinstar.api;
 
 import com.lumina.twinstar.port.World;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
+import com.lumina.bridge.Pos;
+import com.lumina.bridge.Face;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.Item;
 import org.jetbrains.annotations.Nullable;
@@ -57,10 +57,10 @@ public interface IMachineAccess {
     /** The same world as {@link #getMachineLevel()}, as the engine sees it; null when there is none. */
     @Nullable World getMachineWorld();
 
-    BlockPos getMachinePos();
+    Pos getMachinePos();
 
     /** The machine's face the interface sits on. */
-    Direction getMachineFace();
+    Face getMachineFace();
 
     /**
      * Interfaces of one machine that is spread over several blocks (a multiblock's input and output
@@ -127,7 +127,7 @@ public interface IMachineAccess {
      * A block that belongs to this machine: where it is, what it is for and, for the inputs, its slot number (1 and up, the
      * number a pattern's material slot names; each kind of input is numbered apart).
      */
-    record Port(BlockPos pos, PortRole role, int slot) {
+    record Port(Pos pos, PortRole role, int slot) {
     }
 
     /**

@@ -1,6 +1,6 @@
 package com.lumina.twinstar.algorithm.execution;
 
-import net.minecraft.core.BlockPos;
+import com.lumina.bridge.Pos;
 import com.lumina.twinstar.port.World;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
@@ -21,25 +21,36 @@ public final class SubMachines {
 
     private static final String AIR = "minecraft:air";
 
+    /** The cells within {@code range} sideways and one up or down of {@code pos}. */
+    private static List<Pos> around(Pos pos, int range) {
+        List<Pos> cells = new ArrayList<>();
+        // the order Minecraft's own box walk has (x fastest): ties in distance keep it
+        for (int z = -range; z <= range; z++)
+            for (int y = -1; y <= 1; y++)
+                for (int x = -range; x <= range; x++)
+                    cells.add(pos.offset(x, y, z));
+        return cells;
+    }
+
     private SubMachines() {
     }
 
     /** {@code others}: where the other machines with an interface are (those of another kind are skipped). */
-    public static List<BlockPos> find(World level, BlockPos pos, int range, List<String> kinds, Collection<BlockPos> others) {
-        List<BlockPos> out = new ArrayList<>();
+    public static List<Pos> find(World level, Pos pos, int range, List<String> kinds, Collection<Pos> others) {
+        List<Pos> out = new ArrayList<>();
         if (kinds.isEmpty())
             return out;
         range = Math.max(1, Math.min(MAX_RANGE, range));
         String self = level.blockItemId(pos);
-        List<BlockPos> rivals = new ArrayList<>();
-        for (BlockPos op : others)
+        List<Pos> rivals = new ArrayList<>();
+        for (Pos op : others)
             if (!op.equals(pos) && op.distManhattan(pos) <= 4 * range + 2 && level.isLoaded(op)
                     && level.blockItemId(op).equals(self))
                 rivals.add(op);
-        List<List<BlockPos>> byKind = new ArrayList<>();
+        List<List<Pos>> byKind = new ArrayList<>();
         for (int i = 0; i < kinds.size(); i++)
             byKind.add(new ArrayList<>());
-        for (BlockPos at : BlockPos.betweenClosed(pos.offset(-range, -1, -range), pos.offset(range, 1, range))) {
+        for (Pos at : around(pos, range)) {
             if (at.equals(pos) || !level.isLoaded(at))
                 continue;
             String item = level.blockItemId(at);
@@ -50,12 +61,12 @@ public final class SubMachines {
                 continue;
             double d = at.distSqr(pos);
             boolean theirs = false;
-            for (BlockPos rival : rivals)
+            for (Pos rival : rivals)
                 theirs |= at.distSqr(rival) < d;
             if (!theirs)
-                byKind.get(kind).add(at.immutable());
+                byKind.get(kind).add(at);
         }
-        for (List<BlockPos> kind : byKind) {
+        for (List<Pos> kind : byKind) {
             kind.sort(Comparator.comparingDouble(a -> a.distSqr(pos)));
             out.addAll(kind);
         }

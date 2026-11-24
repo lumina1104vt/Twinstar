@@ -3,6 +3,8 @@ package com.lumina.twinstar.algorithm.execution;
 import com.lumina.twinstar.port.MachineStorage;
 import com.lumina.twinstar.port.World;
 import com.lumina.twinstar.port.WorldActions;
+import com.lumina.bridge.Pos;
+import com.lumina.bridge.Positions;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -30,24 +32,24 @@ public final class Ae2World implements World {
         return actions;
     }
 
-    public boolean isLoaded(BlockPos pos) {
-        return level.isLoaded(pos);
+    public boolean isLoaded(Pos pos) {
+        return level.isLoaded(Positions.toMc(pos));
     }
 
     public long getGameTime() {
         return level.getGameTime();
     }
 
-    public String blockItemId(BlockPos pos) {
-        return BuiltInRegistries.ITEM.getKey(level.getBlockState(pos).getBlock().asItem()).toString();
+    public String blockItemId(Pos pos) {
+        return BuiltInRegistries.ITEM.getKey(level.getBlockState(Positions.toMc(pos)).getBlock().asItem()).toString();
     }
 
-    public String blockId(BlockPos pos) {
-        return BuiltInRegistries.BLOCK.getKey(level.getBlockState(pos).getBlock()).toString();
+    public String blockId(Pos pos) {
+        return BuiltInRegistries.BLOCK.getKey(level.getBlockState(Positions.toMc(pos)).getBlock()).toString();
     }
 
-    public GlobalPos globalPos(BlockPos pos) {
-        return GlobalPos.of(level.dimension(), pos);
+    public GlobalPos globalPos(Pos pos) {
+        return GlobalPos.of(level.dimension(), Positions.toMc(pos));
     }
 
     @Override

@@ -3,6 +3,7 @@ package com.lumina.twinstar.algorithm.ae2;
 import appeng.api.stacks.AEKey;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import com.lumina.bridge.Face;
 import net.minecraft.core.Direction;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
@@ -42,6 +43,15 @@ public record PatternInputFaces(List<Entry> entries) {
             if (e.key().equals(key))
                 return e.faces();
         return 0;
+    }
+
+    /** The same as {@link #directions}, neutral. */
+    public static List<Face> faces(int faces) {
+        List<Face> out = new ArrayList<>();
+        for (Face f : Face.values())
+            if ((faces & (1 << f.ordinal())) != 0)
+                out.add(f);
+        return out;
     }
 
     /** The faces of a bit set, in {@link Direction} order (down, up, north, south, west, east). */

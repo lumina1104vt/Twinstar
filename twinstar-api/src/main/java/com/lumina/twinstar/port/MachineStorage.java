@@ -1,8 +1,8 @@
 package com.lumina.twinstar.port;
 
 import com.lumina.bridge.key.Key;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
+import com.lumina.bridge.Pos;
+import com.lumina.bridge.Face;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -16,26 +16,26 @@ import java.util.function.BiConsumer;
  */
 public interface MachineStorage {
     /** Whether the position has any item container (what a machine with only a GUI does not have). */
-    boolean hasItemStorage(BlockPos pos);
+    boolean hasItemStorage(Pos pos);
 
     /** Puts in; returns how much went in. {@code faces}: the sides to try, null = no side. */
-    long insert(BlockPos pos, List<@Nullable Direction> faces, Key key, long amount);
+    long insert(Pos pos, List<@Nullable Face> faces, Key key, long amount);
 
     /** Takes out up to {@code amount} of an item; what is taken is also reported to {@code taken}. */
-    long retrieve(BlockPos pos, Key key, long amount, BiConsumer<Key, Long> taken);
+    long retrieve(Pos pos, Key key, long amount, BiConsumer<Key, Long> taken);
 
     /** Takes what the machine made: every output except {@code keep}; {@code wantOther} are also taken. */
-    void extractOutputs(BlockPos pos, Set<Key> wantOther, Set<Key> keep, BiConsumer<Key, Long> taken);
+    void extractOutputs(Pos pos, Set<Key> wantOther, Set<Key> keep, BiConsumer<Key, Long> taken);
 
-    boolean holdsAny(BlockPos pos, Set<Key> keys);
+    boolean holdsAny(Pos pos, Set<Key> keys);
 
     /** Forgets what was learnt about the machine at the position (its slot roles). */
-    void forget(BlockPos pos);
+    void forget(Pos pos);
 
     /** Text for the debug log. */
-    String describe(BlockPos pos);
+    String describe(Pos pos);
 
-    String contentsAt(BlockPos pos);
+    String contentsAt(Pos pos);
 
-    String describeInsert(BlockPos pos, List<@Nullable Direction> faces, Key key, long amount);
+    String describeInsert(Pos pos, List<@Nullable Face> faces, Key key, long amount);
 }

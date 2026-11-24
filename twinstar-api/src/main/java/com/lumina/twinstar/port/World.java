@@ -1,6 +1,6 @@
 package com.lumina.twinstar.port;
 
-import net.minecraft.core.BlockPos;
+import com.lumina.bridge.Pos;
 import net.minecraft.core.GlobalPos;
 
 /**
@@ -15,16 +15,16 @@ public interface World {
     /** What a player would do in this world (right click, GUI, placing). */
     WorldActions actions();
 
-    boolean isLoaded(BlockPos pos);
+    boolean isLoaded(Pos pos);
 
     long getGameTime();
 
     /** The registry name of the item of the block at the position ("minecraft:air" when there is none): what kind of machine stands there. */
-    String blockItemId(BlockPos pos);
+    String blockItemId(Pos pos);
 
     /** The registry name of the block at the position, for the debug log. */
-    String blockId(BlockPos pos);
+    String blockId(Pos pos);
 
     /** The position together with this world, to keep for later. */
-    GlobalPos globalPos(BlockPos pos);
+    GlobalPos globalPos(Pos pos);
 }

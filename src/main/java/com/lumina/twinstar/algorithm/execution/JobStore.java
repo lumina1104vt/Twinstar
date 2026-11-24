@@ -1,5 +1,6 @@
 package com.lumina.twinstar.algorithm.execution;
 
+import com.lumina.bridge.Face;
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.crafting.PatternDetailsHelper;
 import appeng.api.stacks.AEItemKey;
@@ -252,7 +253,7 @@ public final class JobStore {
                     pt.putLong("left", part.left);
                     int[] faces = new int[part.faces.size()];
                     for (int i = 0; i < faces.length; i++)
-                        faces[i] = part.faces.get(i) == null ? -1 : part.faces.get(i).get3DDataValue();
+                        faces[i] = part.faces.get(i) == null ? -1 : part.faces.get(i).ordinal();
                     pt.putIntArray("faces", faces);
                     pt.putInt("target", part.target);
                     pt.putInt("role", part.role);
@@ -477,9 +478,9 @@ public final class JobStore {
                     Key k = r.key(ptt.getInt("k"));
                     if (k == null)
                         continue;
-                    List<@Nullable Direction> faces = new ArrayList<>();
+                    List<@Nullable Face> faces = new ArrayList<>();
                     for (int f : ptt.getIntArray("faces"))
-                        faces.add(f < 0 ? null : Direction.from3DDataValue(f));
+                        faces.add(f < 0 ? null : Face.values()[f]);
                     feed.parts.add(new HubState.Part(k, ptt.getLong("left"), faces, ptt.getInt("target"), ptt.getInt("role"), ptt.getInt("guiSlot")));
                 }
                 for (Tag tt : ft.getList("tools", Tag.TAG_COMPOUND)) {

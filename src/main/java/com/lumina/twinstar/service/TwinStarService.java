@@ -1003,9 +1003,9 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
         Set<Integer> out = new HashSet<>();
         for (IMachineAccess a : allAccess()) {
             var level = a.getMachineLevel();
-            if (level == null || !a.isAccessActive() || !level.isLoaded(a.getMachinePos()))
+            if (level == null || !a.isAccessActive() || !level.isLoaded(com.lumina.bridge.Positions.toMc(a.getMachinePos())))
                 continue;
-            net.minecraft.world.item.Item block = level.getBlockState(a.getMachinePos()).getBlock().asItem();
+            net.minecraft.world.item.Item block = level.getBlockState(com.lumina.bridge.Positions.toMc(a.getMachinePos())).getBlock().asItem();
             if (block != net.minecraft.world.item.Items.AIR)
                 out.add(index.idOf(appeng.api.stacks.AEItemKey.of(block)));
             if (a.getMachine() != null)
@@ -1074,7 +1074,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
     private Set<net.minecraft.world.item.Item> patternMachines = Set.of();
 
     /** Per interface its sub-machines as last looked for, and when (game time). */
-    private final Map<IMachineAccess, List<net.minecraft.core.BlockPos>> subsByAccess = new java.util.WeakHashMap<>();
+    private final Map<IMachineAccess, List<com.lumina.bridge.Pos>> subsByAccess = new java.util.WeakHashMap<>();
     private final Map<IMachineAccess, Long> subsAtByAccess = new java.util.WeakHashMap<>();
 
     /**
@@ -1082,15 +1082,15 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
      * machine name, within its range ({@link com.lumina.twinstar.algorithm.execution.SubMachines}). For
      * the interface to power them. Looked for again once a second. Server thread.
      */
-    public List<net.minecraft.core.BlockPos> subMachinesOf(IMachineAccess access) {
+    public List<com.lumina.bridge.Pos> subMachinesOf(IMachineAccess access) {
         net.minecraft.server.level.ServerLevel level = access.getMachineLevel();
-        if (level == null || !level.isLoaded(access.getMachinePos()))
+        if (level == null || !level.isLoaded(com.lumina.bridge.Positions.toMc(access.getMachinePos())))
             return List.of();
         long now = level.getGameTime();
         Long at = subsAtByAccess.get(access);
         if (at != null && now - at < 20)
             return subsByAccess.getOrDefault(access, List.of());
-        net.minecraft.world.item.Item block = level.getBlockState(access.getMachinePos()).getBlock().asItem();
+        net.minecraft.world.item.Item block = level.getBlockState(com.lumina.bridge.Positions.toMc(access.getMachinePos())).getBlock().asItem();
         List<String> kinds = new ArrayList<>();
         compiled.forEach((details, c) -> {
             if (!c.hubInternal)
@@ -1104,11 +1104,11 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
                     kinds.add(id);
             }
         });
-        List<net.minecraft.core.BlockPos> others = new ArrayList<>();
+        List<com.lumina.bridge.Pos> others = new ArrayList<>();
         for (IMachineAccess a : allAccess())
             if (a != access && a.getMachineLevel() == level)
                 others.add(a.getMachinePos());
-        List<net.minecraft.core.BlockPos> found = com.lumina.twinstar.algorithm.execution.SubMachines.find(
+        List<com.lumina.bridge.Pos> found = com.lumina.twinstar.algorithm.execution.SubMachines.find(
                 com.lumina.twinstar.algorithm.execution.Ae2Adapters.world(level), access.getMachinePos(),
                 access.getSubRange(), kinds, others);
         subsByAccess.put(access, found);
@@ -1154,8 +1154,8 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
         if (access.getMachine() != null && patternMachines.contains(access.getMachine()))
             return true;
         net.minecraft.server.level.ServerLevel level = access.getMachineLevel();
-        return level != null && level.isLoaded(access.getMachinePos())
-                && patternMachines.contains(level.getBlockState(access.getMachinePos()).getBlock().asItem());
+        return level != null && level.isLoaded(com.lumina.bridge.Positions.toMc(access.getMachinePos()))
+                && patternMachines.contains(level.getBlockState(com.lumina.bridge.Positions.toMc(access.getMachinePos())).getBlock().asItem());
     }
 
     private IActionSource actionSource() {
