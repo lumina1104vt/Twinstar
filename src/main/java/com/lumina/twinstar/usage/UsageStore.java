@@ -21,6 +21,29 @@ public final class UsageStore {
     /** an ME interface stocked the machine */
     public static final int STOCK = 2;
 
+    /** The monitor's entry ({@link com.lumina.twinstar.monitor.Transfers}): a block sent {@code amount} of {@code key} on. */
+    public static void transfer(com.lumina.bridge.Place from, @Nullable com.lumina.bridge.Place to, com.lumina.bridge.key.Key key,
+                                long amount, int kind) {
+        MinecraftServer server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
+        AEKey ae = com.lumina.bridge.key.Keys.toAe(key);
+        if (server == null || ae == null || amount <= 0)
+            return;
+        net.minecraft.resources.ResourceLocation dimName = net.minecraft.resources.ResourceLocation.tryParse(from.dimension());
+        if (dimName == null)
+            return;
+        net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dim =
+                net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION, dimName);
+        ServerLevel level = server.getLevel(dim);
+        if (level == null)
+            return;
+        BlockPos pos = com.lumina.bridge.Positions.toMc(from.pos());
+        // a sender is its own source: it stands in for itself, with no interface (side -1)
+        record(level, pos, GlobalPos.of(dim, pos.immutable()), TRANSFER_SIDE, ae, amount, kind);
+    }
+
+    /** {@link Source#side()} of a source that is a sender and no machine. */
+    public static final int TRANSFER_SIDE = -1;
+
     /** What used something: a machine, as one interface (this block, this side) stands for it. */
     public record Source(GlobalPos machine, @Nullable GlobalPos iface, int side) {
     }

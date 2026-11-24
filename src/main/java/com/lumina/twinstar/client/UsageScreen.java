@@ -34,7 +34,8 @@ public class UsageScreen extends Screen implements KeyHover {
     private static final int ASK_EVERY_TICKS = 40;
     private static final int BG = 0xFF07070C, PANEL = 0xF0100F1A, PANEL_LINE = 0xFF3A3458, ROW = 0xFF14121F, ROW_HOT = 0xFF1E1B30,
             ROW_SELECTED = 0xFF2A2446, HEADER = 0xFF1B1830, BUTTON = 0xFF1E1C2C, BUTTON_LINE = 0xFF4E4474, BUTTON_HOT = 0xFFA082F0,
-            BUTTON_ON = 0xFF3A3070, TEXT = 0xFFDEDEEA, DIM = 0xFF9894B4, ACCENT = 0xFFB4A6FF, STOCK = 0xFFFFB45A, HUB = 0xFF78B4FF;
+            BUTTON_ON = 0xFF3A3070, TEXT = 0xFFDEDEEA, DIM = 0xFF9894B4, ACCENT = 0xFFB4A6FF, STOCK = 0xFFFFB45A, HUB = 0xFF78B4FF,
+            PROVIDER = 0xFF5ADCC8, EXPORT = 0xFFE6E678, INTERFACE = 0xFFD08CFF, SENDER = 0xFFB0B0B8;
 
     /** 8x8 bars: the button that opens this screen */
     private static final String[] ICON = {
@@ -377,10 +378,12 @@ public class UsageScreen extends Screen implements KeyHover {
         g.drawString(font, font.plainSubstrByWidth(Component.translatable("gui.twinstar.usage.at", pos(mc.pos()), shortDim(mc.dim())).getString(), w),
                 x, y, DIM, false);
         y += 10;
-        Component iface = mc.ifaceName() != null ? mc.ifaceName() : Component.translatable("gui.twinstar.usage.interface_default");
-        g.drawString(font, font.plainSubstrByWidth(Component.translatable("gui.twinstar.usage.via", iface,
-                pos(mc.ifacePos())).getString(), w), x, y, DIM, false);
-        y += 10;
+        if (mc.side() != UsageStore.TRANSFER_SIDE) {
+            Component iface = mc.ifaceName() != null ? mc.ifaceName() : Component.translatable("gui.twinstar.usage.interface_default");
+            g.drawString(font, font.plainSubstrByWidth(Component.translatable("gui.twinstar.usage.via", iface,
+                    pos(mc.ifacePos())).getString(), w), x, y, DIM, false);
+            y += 10;
+        }
         if ((mc.kinds() & UsageStore.HUB) != 0) {
             g.fill(x, y + 1, x + 6, y + 7, HUB);
             g.drawString(font, Component.translatable("gui.twinstar.usage.kind.hub"), x + 10, y, DIM, false);
@@ -391,6 +394,16 @@ public class UsageScreen extends Screen implements KeyHover {
             g.drawString(font, Component.translatable("gui.twinstar.usage.kind.stock"), x + 10, y, DIM, false);
             y += 10;
         }
+        int[] sentKinds = {com.lumina.twinstar.monitor.Transfers.PROVIDER, com.lumina.twinstar.monitor.Transfers.EXPORT_BUS,
+                com.lumina.twinstar.monitor.Transfers.INTERFACE, com.lumina.twinstar.monitor.Transfers.OTHER};
+        int[] sentColors = {PROVIDER, EXPORT, INTERFACE, SENDER};
+        String[] sentKeys = {"provider", "export", "interface", "other"};
+        for (int i = 0; i < sentKinds.length; i++)
+            if ((mc.kinds() & sentKinds[i]) != 0) {
+                g.fill(x, y + 1, x + 6, y + 7, sentColors[i]);
+                g.drawString(font, Component.translatable("gui.twinstar.usage.kind." + sentKeys[i]), x + 10, y, DIM, false);
+                y += 10;
+            }
         if (!mc.loaded()) {
             g.drawString(font, Component.translatable("gui.twinstar.usage.unloaded").withColor(STOCK), x, y, STOCK, false);
             y += 10;

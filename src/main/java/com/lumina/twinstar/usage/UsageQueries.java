@@ -28,8 +28,11 @@ public final class UsageQueries {
     private record IfaceKey(GlobalPos place, int side) {
     }
 
-    /** @param interfaces the machine access interfaces on the network */
-    public static UsageSnapshot build(MinecraftServer server, Collection<IMachineAccess> interfaces) {
+    /**
+     * @param interfaces the machine access interfaces on the network
+     * @param gridPlaces where the network's nodes are: a sender that is one of them, or stands next to one, is listed
+     */
+    public static UsageSnapshot build(MinecraftServer server, Collection<IMachineAccess> interfaces, java.util.Set<GlobalPos> gridPlaces) {
         UsageLedger<UsageStore.Source, AEKey> ledger = UsageStore.ledger(server);
         int now = server.getTickCount();
         ledger.prune(now);
@@ -49,11 +52,18 @@ public final class UsageQueries {
             for (com.lumina.bridge.Place place : a.machinePlaces())
                 sources.putIfAbsent(new UsageStore.Source(com.lumina.bridge.Positions.toMc(place), com.lumina.bridge.Positions.toMc(a.interfacePlace()), a.interfaceSide()), a);
         for (UsageStore.Source s : ledger.sources())
-            if (s.iface() != null) {
+            if (s.iface() != null && s.side() != UsageStore.TRANSFER_SIDE) {
                 IMachineAccess a = byIface.get(new IfaceKey(s.iface(), s.side()));
                 if (a != null)
                     sources.putIfAbsent(s, a);
             }
+        // senders (providers, buses, interfaces, addons' blocks) at or beside a node of this network
+        List<UsageStore.Source> senders = new ArrayList<>();
+        for (UsageStore.Source s : ledger.sources())
+            if (s.side() == UsageStore.TRANSFER_SIDE && onNetwork(gridPlaces, s.machine()))
+                senders.add(s);
+        for (UsageStore.Source s : senders)
+            sources.putIfAbsent(s, null);
 
         List<UsageSnapshot.Machine> out = new ArrayList<>();
         for (Map.Entry<UsageStore.Source, IMachineAccess> e : sources.entrySet()) {
@@ -82,9 +92,19 @@ public final class UsageQueries {
             }
             out.add(new UsageSnapshot.Machine(s.machine().dimension().location().toString(), s.machine().pos().asLong(),
                     s.iface().dimension().location().toString(), s.iface().pos().asLong(), s.side(),
-                    nameOf(loaded ? level : null, s.machine().pos(), label), e.getValue().interfaceName(), loaded, kinds, rows, other));
+                    nameOf(loaded ? level : null, s.machine().pos(), label), e.getValue() == null ? null : e.getValue().interfaceName(),
+                    loaded, kinds, rows, other));
         }
         return new UsageSnapshot(true, spans, ledger.droppedSources(), ledger.memoryBytes(), out);
+    }
+
+    private static boolean onNetwork(java.util.Set<GlobalPos> places, GlobalPos at) {
+        if (places.contains(at))
+            return true;
+        for (net.minecraft.core.Direction d : net.minecraft.core.Direction.values())
+            if (places.contains(GlobalPos.of(at.dimension(), at.pos().relative(d))))
+                return true;
+        return false;
     }
 
     /** The name the player gave the block, else the block's own name (from what was seen before when it is not loaded). */

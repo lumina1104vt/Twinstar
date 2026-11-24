@@ -66,7 +66,20 @@ public final class UsagePackets {
             return UsageSnapshot.NONE;
         if (!(grid.getService(com.lumina.twinstar.api.ITwinStarService.class) instanceof TwinStarService service))
             return UsageSnapshot.NONE;
-        return UsageQueries.build(player.server, service.accessOwners());
+        return UsageQueries.build(player.server, service.accessOwners(), gridPlaces(grid));
+    }
+
+    /** Where the nodes of the network are (a block entity, or the block a part sits in). */
+    private static java.util.Set<net.minecraft.core.GlobalPos> gridPlaces(IGrid grid) {
+        java.util.Set<net.minecraft.core.GlobalPos> places = new java.util.HashSet<>();
+        for (appeng.api.networking.IGridNode node : grid.getNodes()) {
+            Object owner = node.getOwner();
+            net.minecraft.world.level.block.entity.BlockEntity be = owner instanceof net.minecraft.world.level.block.entity.BlockEntity b ? b
+                    : owner instanceof appeng.parts.AEBasePart part ? part.getBlockEntity() : null;
+            if (be != null && be.getLevel() != null)
+                places.add(net.minecraft.core.GlobalPos.of(be.getLevel().dimension(), be.getBlockPos().immutable()));
+        }
+        return places;
     }
 
     /** Server to client. */

@@ -26,6 +26,7 @@ public class Twinstar {
 
     public Twinstar(IEventBus modEventBus) {
         com.lumina.twinstar.crafting.RecipeJudges.register(new com.lumina.twinstar.algorithm.ae2.VanillaRecipeJudge());
+        com.lumina.twinstar.monitor.Transfers.setSink(com.lumina.twinstar.usage.UsageStore::transfer);
         GridServices.register(ITwinStarService.class, TwinStarService.class);
         modEventBus.addListener(Twinstar::registerPayloads);
         TwinstarContent.register(modEventBus);
