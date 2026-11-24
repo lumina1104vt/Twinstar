@@ -26,9 +26,7 @@ import it.unimi.dsi.fastutil.objects.Object2LongMap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.GlobalPos;
-import com.lumina.twinstar.port.MachineStorage;
-import com.lumina.twinstar.port.WorldActions;
-import net.minecraft.server.level.ServerLevel;
+import com.lumina.twinstar.port.World;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import com.lumina.twinstar.metrics.Alloc;
@@ -1443,8 +1441,8 @@ public final class HubState {
     }
 
     private static @Nullable GlobalPos placeOf(IMachineAccess a) {
-        ServerLevel level = a.getMachineLevel();
-        return level == null ? null : GlobalPos.of(level.dimension(), a.getMachinePos());
+        World level = Ae2Adapters.world(a.getMachineLevel());
+        return level == null ? null : level.globalPos(a.getMachinePos());
     }
 
     /**
@@ -1453,9 +1451,9 @@ public final class HubState {
      * for, and the job shows why it stopped. Nothing is made again on its own.
      */
     private void machineGone(MachineState m, ExecutionEnv env) {
-        ServerLevel gone = m.access.getMachineLevel();
+        World gone = Ae2Adapters.world(m.access.getMachineLevel());
         if (gone != null)
-            io(gone).forget(m.access.getMachinePos());
+            gone.storage().forget(m.access.getMachinePos());
         if (m.feed != null) {
             Feed f = m.feed;
             for (Part p : f.parts)
@@ -1527,25 +1525,25 @@ public final class HubState {
                 e.setValue(e.getValue() - went);
         }
         for (MachineState m : machines.values()) {
-            ServerLevel level = m.access.getMachineLevel();
+            World level = Ae2Adapters.world(m.access.getMachineLevel());
             BlockPos pos = m.access.getMachinePos();
             if (level == null || !level.isLoaded(pos))
                 continue;
             if (m.place == null)
-                m.place = GlobalPos.of(level.dimension(), pos);
+                m.place = level.globalPos(pos);
             dropFeedOfEndedJob(m, env);
             if (m.feed == null && m.inFlight.isEmpty())
                 m.filledSubs.clear();
             flushOverflow(m, env);
             boolean[] took = {false};
-            io(level).extractOutputs(pos, otherOutputs(m, env), materialsInside(m, env), (key, n) -> {
+            level.storage().extractOutputs(pos, otherOutputs(m, env), materialsInside(m, env), (key, n) -> {
                 took[0] = true;
                 takeProduct(m, key, n, env);
             });
             // the output hatches bound to it
             for (IMachineAccess.Port port : m.access.ports())
                 if (port.role() == IMachineAccess.PortRole.OUTPUT && level.isLoaded(port.pos()))
-                    io(level).extractOutputs(port.pos(), otherOutputs(m, env), materialsInside(m, env), (key, n) -> {
+                    level.storage().extractOutputs(port.pos(), otherOutputs(m, env), materialsInside(m, env), (key, n) -> {
                         took[0] = true;
                         takeProduct(m, key, n, env);
                     });
@@ -1563,7 +1561,7 @@ public final class HubState {
                 for (Amount r : m.inFlight.values())
                     runs = runs.add(r);
                 note(outNotes, m, "[雙星] 機器產物 " + pos.toShortString() + "：等 " + runs + " 份的產物，這 tick 沒抽到東西；看到："
-                        + io(level).describe(pos));
+                        + level.storage().describe(pos));
             }
             if (m.access.isAccessActive() && m.access.getInsertMode() != IMachineAccess.InsertMode.OUTPUT)
                 feed(m, level, pos);
@@ -1832,19 +1830,7 @@ public final class HubState {
     }
 
 
-    private static MachineStorage io(ServerLevel level) {
-        return Ae2Adapters.storage(level);
-    }
-
-    private static WorldActions act(ServerLevel level) {
-        return Ae2Adapters.actions(level);
-    }
-
-    /**
-     * A machine with no item slots at all whose results lie in a GUI slot (a forge's result slot): while runs are
-     * in it and nothing is being fed, its GUI is opened now and then and the products of those runs are taken.
-     */
-    private void takeFromGui(MachineState m, ServerLevel level, BlockPos pos, ExecutionEnv env, boolean[] took) {
+    private void takeFromGui(MachineState m, World level, BlockPos pos, ExecutionEnv env, boolean[] took) {
         if (took[0] || m.inFlight.isEmpty() || m.feed != null)
             return;
         long now = level.getGameTime();
@@ -1862,9 +1848,9 @@ public final class HubState {
                 }
             }
         // a machine with item slots is looked into only for products the pattern says come out of a GUI slot
-        if (products.isEmpty() || io(level).hasItemStorage(pos) && products.values().stream().noneMatch(v -> v > 0))
+        if (products.isEmpty() || level.storage().hasItemStorage(pos) && products.values().stream().noneMatch(v -> v > 0))
             return;
-        long got = act(level).extractViaGui(pos, m.access.getMachineFace(), products, (k, n) -> {
+        long got = level.actions().extractViaGui(pos, m.access.getMachineFace(), products, (k, n) -> {
             took[0] = true;
             takeProduct(m, k, n, env);
         }, (k, n) -> m.overflow.merge(k, n, Long::sum));
@@ -1876,7 +1862,7 @@ public final class HubState {
      * Takes catalysts back out of the machine: those of finished runs, and the kept ones of finished batches.
      * What does not come out this tick is tried again on the next.
      */
-    private void retrieveCatalysts(MachineState m, ServerLevel level, BlockPos pos, ExecutionEnv env) {
+    private void retrieveCatalysts(MachineState m, World level, BlockPos pos, ExecutionEnv env) {
         if (m.held.isEmpty() && m.due.isEmpty())
             return;
         for (Map.Entry<Flight, Map<AEKey, Long>> e : new ArrayList<>(m.held.entrySet())) {
@@ -1897,10 +1883,10 @@ public final class HubState {
             if (!(d.getKey() instanceof AEItemKey item))
                 continue;
             long want = d.getValue();
-            long got = io(level).retrieve(pos, item, want, (k, n) -> takeProduct(m, k, n, env));
-            if (got < want && !io(level).hasItemStorage(pos))
+            long got = level.storage().retrieve(pos, item, want, (k, n) -> takeProduct(m, k, n, env));
+            if (got < want && !level.storage().hasItemStorage(pos))
                 // a block that only gives with a hand (an altar, an infusion chamber): an empty-hand click
-                act(level).emptyClick(pos, m.access.getMachineFace(), (k, n) -> takeProduct(m, k, n, env));
+                level.actions().emptyClick(pos, m.access.getMachineFace(), (k, n) -> takeProduct(m, k, n, env));
             // what was put into its sub-machines (an altar's pedestals) comes out of them; by their item slots only,
             // as a hand on a pedestal would take whatever else lies there
             for (Map.Entry<Flight, Map<AEKey, Long>> h : new ArrayList<>(m.held.entrySet())) {
@@ -1908,17 +1894,17 @@ public final class HubState {
                     break;
                 for (BlockPos sub : subsOf(m, h.getKey().job().snap.pattern(h.getKey().pattern()), level, pos))
                     if (level.isLoaded(sub))
-                        io(level).retrieve(sub, item, m.due.getOrDefault(item, 0L), (k, n) -> takeProduct(m, k, n, env));
+                        level.storage().retrieve(sub, item, m.due.getOrDefault(item, 0L), (k, n) -> takeProduct(m, k, n, env));
             }
         }
     }
 
     /** Every material of the run is in: right-click the machine with each of its tools, and keep the tools as the clicks left them. */
-    private void useTools(MachineState m, Feed f, ServerLevel level, BlockPos pos) {
+    private void useTools(MachineState m, Feed f, World level, BlockPos pos) {
         for (AEKey key : f.tools) {
             if (!(key instanceof AEItemKey tool))
                 continue;
-            AEItemKey back = act(level).useTool(pos, m.access.getMachineFace(), tool, (k, n) -> m.overflow.merge(k, n, Long::sum));
+            AEItemKey back = level.actions().useTool(pos, m.access.getMachineFace(), tool, (k, n) -> m.overflow.merge(k, n, Long::sum));
             if (back != null && envNow != null) {
                 int id = envNow.index().idOf(back);
                 f.job.inventory.add(id, Amount.ONE);
@@ -1928,7 +1914,7 @@ public final class HubState {
     }
 
     /** Puts in what the machine takes of its current run. */
-    private void feed(MachineState m, ServerLevel level, BlockPos pos) {
+    private void feed(MachineState m, World level, BlockPos pos) {
         Feed f = m.feed;
         if (f == null)
             return;
@@ -1944,7 +1930,7 @@ public final class HubState {
                         if (m.filledSubs.contains(sub))
                             continue;
                         long got = insertOrClick(m, level, sub, ANY_FACE, p.key, p.left - went, p.guiSlot);
-                        if (got > 0 && !io(level).hasItemStorage(sub))
+                        if (got > 0 && !level.storage().hasItemStorage(sub))
                             m.filledSubs.add(sub);
                         went += got;
                         if (went >= p.left)
@@ -1955,13 +1941,13 @@ public final class HubState {
                 case PatternInputTargets.FRONT_BLOCK, PatternInputTargets.FRONT_DROP -> {
                     if (!(p.key instanceof AEItemKey item))
                         yield 0;
-                    BlockPos cell = act(level).front(pos, m.access.getMachineFace(), PatternInputTargets.distance(p.target));
+                    BlockPos cell = level.actions().front(pos, m.access.getMachineFace(), PatternInputTargets.distance(p.target));
                     m.frontCells.add(cell);
-                    long went = PatternInputTargets.kind(p.target) == PatternInputTargets.FRONT_BLOCK ? act(level).place(cell, item) : 0;
+                    long went = PatternInputTargets.kind(p.target) == PatternInputTargets.FRONT_BLOCK ? level.actions().place(cell, item) : 0;
                     // not a block (or a block it may not place): dropped instead
                     if (went == 0 && !(PatternInputTargets.kind(p.target) == PatternInputTargets.FRONT_BLOCK
                             && item.getItem() instanceof net.minecraft.world.item.BlockItem))
-                        went = act(level).drop(cell, item, p.left);
+                        went = level.actions().drop(cell, item, p.left);
                     yield went;
                 }
                 default -> {
@@ -1982,9 +1968,9 @@ public final class HubState {
             if (stuck != null && p.left > 0)
                 stuck.append("\n    ").append(p.key.getDisplayName().getString()).append("（").append(p.key.getType().getDescription().getString())
                         .append("）還剩 ").append(p.left).append("，這次放入 ").append(in).append("；")
-                        .append(io(level).describeInsert(pos, p.faces, p.key, p.left))
+                        .append(level.storage().describeInsert(pos, p.faces, p.key, p.left))
                         .append(hatchNote(m, level, p))
-                        .append(act(level).lastClick().isEmpty() ? "" : "；最後一次右鍵：" + act(level).lastClick());
+                        .append(level.actions().lastClick().isEmpty() ? "" : "；最後一次右鍵：" + level.actions().lastClick());
         }
         if (f.done()) {
             if (!f.tools.isEmpty()) {
@@ -2012,7 +1998,7 @@ public final class HubState {
     }
 
     /** For the debug log: the hatch a material's slot number names, and what it does with it. */
-    private String hatchNote(MachineState m, ServerLevel level, Part p) {
+    private String hatchNote(MachineState m, World level, Part p) {
         List<IMachineAccess.Port> ports = m.access.ports();
         if (ports.isEmpty())
             return "";
@@ -2025,8 +2011,8 @@ public final class HubState {
                 continue;
             any = true;
             sb.append("\n      #").append(port.slot()).append(" ").append(port.pos().toShortString()).append(" ")
-                    .append(net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(level.getBlockState(port.pos()).getBlock())).append("：")
-                    .append(io(level).describeInsert(port.pos(), ANY_FACE, p.key, p.left));
+                    .append(level.blockId(port.pos())).append("：")
+                    .append(level.storage().describeInsert(port.pos(), ANY_FACE, p.key, p.left));
         }
         return any ? sb.toString() : sb.append("沒有這個欄位號碼的艙口（綁了 ").append(ports.size()).append(" 個艙口）").toString();
     }
@@ -2035,8 +2021,8 @@ public final class HubState {
      * A multiblock's controller has no item inventory (the items go through its input buses): a material with no slot number then
      * has nowhere to go but the buses, in order, the first one that takes it.
      */
-    private static boolean controllerTakesNoItems(MachineState m, ServerLevel level) {
-        return !io(level).hasItemStorage(m.access.getMachinePos());
+    private static boolean controllerTakesNoItems(MachineState m, World level) {
+        return !level.storage().hasItemStorage(m.access.getMachinePos());
     }
 
     /**
@@ -2045,7 +2031,7 @@ public final class HubState {
      * fluid input that takes it. {@code only[0]} is set when a hatch is named for it, so it goes nowhere else even when that hatch
      * is full (the order of an assembly line matters). Returns how much went in.
      */
-    private long intoHatches(MachineState m, ServerLevel level, Part p, boolean[] only) {
+    private long intoHatches(MachineState m, World level, Part p, boolean[] only) {
         long went = intoHatches0(m, level, p, only);
         if (went > 0 && debug != null) {
             // which hatch took what, by ids: a material in the wrong hatch shows here (what the hatch holds is read after the insert)
@@ -2057,13 +2043,13 @@ public final class HubState {
                 if (port.pos().equals(p.hatchPort) || p.guiSlot > 0 && port.slot() == p.guiSlot
                         && port.role() == (p.key instanceof appeng.api.stacks.AEFluidKey ? IMachineAccess.PortRole.FLUID_IN : IMachineAccess.PortRole.ITEM_IN))
                     sb.append(" 艙口 #").append(port.slot()).append(" ").append(port.pos().toShortString()).append("，現有：")
-                            .append(p.key instanceof AEItemKey ? io(level).contentsAt(port.pos()) : "（流體）");
+                            .append(p.key instanceof AEItemKey ? level.storage().contentsAt(port.pos()) : "（流體）");
             debug.accept(sb.toString());
         }
         return went;
     }
 
-    private long intoHatches0(MachineState m, ServerLevel level, Part p, boolean[] only) {
+    private long intoHatches0(MachineState m, World level, Part p, boolean[] only) {
         List<IMachineAccess.Port> ports = m.access.ports();
         if (ports.isEmpty())
             return 0;
@@ -2131,26 +2117,26 @@ public final class HubState {
      * item into a block that has no item capability at all goes in by a right-click with it instead
      * (an altar that only takes what a player puts on it). What the click gives back goes to the network.
      */
-    private long insertOrClick(MachineState m, ServerLevel level, BlockPos pos, List<@Nullable Direction> faces, AEKey key, long amount, int guiSlot) {
+    private long insertOrClick(MachineState m, World level, BlockPos pos, List<@Nullable Direction> faces, AEKey key, long amount, int guiSlot) {
         if (guiSlot > 0 && key instanceof AEItemKey item) {
             // a GUI slot the pattern names: that slot, nowhere else (an ordered crafting table puts it by place; the machine's
             // own item slots would put it wherever they like)
             Direction face = faces.isEmpty() || faces.get(0) == null ? m.access.getMachineFace() : faces.get(0);
-            return act(level).insertViaGui(pos, face, item, amount, guiSlot, (k, n) -> m.overflow.merge(k, n, Long::sum));
+            return level.actions().insertViaGui(pos, face, item, amount, guiSlot, (k, n) -> m.overflow.merge(k, n, Long::sum));
         }
-        long in = io(level).insert(pos, faces, key, amount);
-        if (in == 0 && key instanceof AEItemKey item && !io(level).hasItemStorage(pos)) {
+        long in = level.storage().insert(pos, faces, key, amount);
+        if (in == 0 && key instanceof AEItemKey item && !level.storage().hasItemStorage(pos)) {
             Direction face = faces.isEmpty() || faces.get(0) == null ? m.access.getMachineFace() : faces.get(0);
-            in = act(level).rightClick(pos, face, item, amount, (k, n) -> m.overflow.merge(k, n, Long::sum));
+            in = level.actions().rightClick(pos, face, item, amount, (k, n) -> m.overflow.merge(k, n, Long::sum));
             if (in == 0)
                 // not a block that takes a hand-held item: one that keeps its items inside and shows them in a GUI
-                in = act(level).insertViaGui(pos, face, item, amount, guiSlot, (k, n) -> m.overflow.merge(k, n, Long::sum));
+                in = level.actions().insertViaGui(pos, face, item, amount, guiSlot, (k, n) -> m.overflow.merge(k, n, Long::sum));
         }
         return in;
     }
 
     /** The sub-machines of {@code pat} around machine {@code m} ({@link SubMachines}), looked for again once a second. */
-    private List<BlockPos> subsOf(MachineState m, Pattern pat, ServerLevel level, BlockPos pos) {
+    private List<BlockPos> subsOf(MachineState m, Pattern pat, World level, BlockPos pos) {
         long now = level.getGameTime();
         if (m.subs != null && m.subsFor == pat && now - m.subsAt < 20)
             return m.subs;
@@ -2161,7 +2147,7 @@ public final class HubState {
                     kinds.add(k.getItem());
         List<BlockPos> others = new ArrayList<>();
         for (MachineState other : machines.values())
-            if (other != m && other.access.getMachineLevel() == level)
+            if (other != m && level.equals(Ae2Adapters.world(other.access.getMachineLevel())))
                 others.add(other.access.getMachinePos());
         m.subs = SubMachines.find(level, pos, m.access.getSubRange(), kinds, others);
         m.subsFor = pat;
@@ -2177,7 +2163,7 @@ public final class HubState {
      * front of it: one shot of an atomic reconstructor converts only what its energy allows, the rest
      * waits for the next.
      */
-    private void pulseAgain(MachineState m, ServerLevel level, ExecutionEnv env) {
+    private void pulseAgain(MachineState m, World level, ExecutionEnv env) {
         if (m.feed != null || m.inFlight.isEmpty() || level.getGameTime() - m.pulsedAt < PULSE_AGAIN_TICKS)
             return;
         Set<AEKey> inputs = new HashSet<>();
@@ -2189,7 +2175,7 @@ public final class HubState {
         }
         boolean lying = false;
         for (BlockPos cell : m.frontCells)
-            lying |= act(level).holdsAny(cell, inputs);
+            lying |= level.actions().holdsAny(cell, inputs);
         if (inMachine || lying) {
             m.access.onRunFed();
             m.pulsedAt = level.getGameTime();
@@ -2200,7 +2186,7 @@ public final class HubState {
      * Products lying in the cells in front of machine {@code m} (or the block there): the outputs of
      * its runs that are not one of their materials as well. The cells are forgotten once no run is in it.
      */
-    private void pickUpFront(MachineState m, ServerLevel level, ExecutionEnv env) {
+    private void pickUpFront(MachineState m, World level, ExecutionEnv env) {
         if (m.frontCells.isEmpty())
             return;
         if (m.inFlight.isEmpty() && m.feed == null) {
@@ -2220,7 +2206,7 @@ public final class HubState {
         wanted.removeAll(inputs);
         Set<AEKey> wantedExact = wanted;
         for (BlockPos cell : m.frontCells)
-            act(level).pickUp(cell, k -> wantedExact.contains(k) || (!inputs.contains(k) && productAs(m, k, env) != k),
+            level.actions().pickUp(cell, k -> wantedExact.contains(k) || (!inputs.contains(k) && productAs(m, k, env) != k),
                     (key, n) -> takeProduct(m, key, n, env));
     }
 
@@ -2280,11 +2266,11 @@ public final class HubState {
     private List<MachineState> machinesFor(Pattern pat, ExecutionEnv env) {
         List<MachineState> out = new ArrayList<>();
         for (MachineState m : machines.values()) {
-            ServerLevel level = m.access.getMachineLevel();
+            World level = Ae2Adapters.world(m.access.getMachineLevel());
             BlockPos pos = m.access.getMachinePos();
             if (level == null || !m.access.isAccessActive() || !level.isLoaded(pos))
                 continue;
-            if (isMachine(level.getBlockState(pos).getBlock().asItem(), pat, env) || isMachine(m.access.getMachine(), pat, env))
+            if (isMachine(level.blockItemAt(pos), pat, env) || isMachine(m.access.getMachine(), pat, env))
                 out.add(m);
         }
         return out;
@@ -2315,7 +2301,7 @@ public final class HubState {
      * still in it, on its sub-machines or lying in front of it: a blocking interface waits for them to go.
      */
     private boolean stillHasMaterials(MachineState m, ExecutionEnv env, @Nullable Pattern only) {
-        ServerLevel level = m.access.getMachineLevel();
+        World level = Ae2Adapters.world(m.access.getMachineLevel());
         if (level == null)
             return false;
         List<Pattern> pats = new ArrayList<>();
@@ -2333,11 +2319,11 @@ public final class HubState {
             Set<AEKey> keys = inputKeys(pat, env);
             keys.removeAll(m.access.getStockedKeys());
             for (BlockPos cell : m.frontCells)
-                if (act(level).holdsAny(cell, keys))
+                if (level.actions().holdsAny(cell, keys))
                     return true;
             if (m.subs != null)
                 for (BlockPos sub : m.subs)
-                    if (level.isLoaded(sub) && io(level).holdsAny(sub, keys))
+                    if (level.isLoaded(sub) && level.storage().holdsAny(sub, keys))
                         return true;
         }
         return false;
@@ -2345,12 +2331,12 @@ public final class HubState {
 
     /** Some input slot of the machine holds a material of {@code pat} (not one its interface keeps stocked). */
     private static boolean holds(MachineState m, Pattern pat, ExecutionEnv env) {
-        ServerLevel level = m.access.getMachineLevel();
+        World level = Ae2Adapters.world(m.access.getMachineLevel());
         if (level == null || !level.isLoaded(m.access.getMachinePos()))
             return false;
         Set<AEKey> keys = inputKeys(pat, env);
         keys.removeAll(m.access.getStockedKeys());
-        return io(level).holdsAny(m.access.getMachinePos(), keys);
+        return level.storage().holdsAny(m.access.getMachinePos(), keys);
     }
 
     /** Machine {@code m} still works on a run of {@code job}'s pattern {@code p}: being fed, or its materials still in. */
@@ -2414,7 +2400,7 @@ public final class HubState {
                 sent++;
                 if (chance != null)
                     chance.ran(Amount.ONE);
-                ServerLevel level = m.access.getMachineLevel();
+                World level = Ae2Adapters.world(m.access.getMachineLevel());
                 if (level != null)
                     feed(m, level, m.access.getMachinePos());
                 if (m.feed != null) {

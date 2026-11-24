@@ -1105,7 +1105,8 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
         for (IMachineAccess a : allAccess())
             if (a != access && a.getMachineLevel() == level)
                 others.add(a.getMachinePos());
-        List<net.minecraft.core.BlockPos> found = com.lumina.twinstar.algorithm.execution.SubMachines.find(level, access.getMachinePos(),
+        List<net.minecraft.core.BlockPos> found = com.lumina.twinstar.algorithm.execution.SubMachines.find(
+                com.lumina.twinstar.algorithm.execution.Ae2Adapters.world(level), access.getMachinePos(),
                 access.getSubRange(), kinds, others);
         subsByAccess.put(access, found);
         subsAtByAccess.put(access, now);

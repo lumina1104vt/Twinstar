@@ -3,6 +3,7 @@ package com.lumina.twinstar.algorithm.execution;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
 import com.lumina.twinstar.port.MachineStorage;
+import com.lumina.twinstar.port.World;
 import com.lumina.twinstar.port.WorldActions;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -19,8 +20,13 @@ import java.util.function.Predicate;
  * The NeoForge 1.21.1 + AE2 side of {@link MachineStorage} and {@link WorldActions}: {@link MachineIO} and
  * {@link WorldIO} for one world. The engine gets them only through the interfaces.
  */
-final class Ae2Adapters {
+public final class Ae2Adapters {
     private Ae2Adapters() {
+    }
+
+    /** The world of a level (null for none). */
+    public static @Nullable World world(@Nullable ServerLevel level) {
+        return level == null ? null : new Ae2World(level);
     }
 
     static MachineStorage storage(ServerLevel level) {
