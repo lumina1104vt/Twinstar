@@ -50,10 +50,14 @@ public final class CpuPerfOverlay {
             return;
         var font = Minecraft.getInstance().font;
         PerfContent.Content c = content(r);
+        // above the screen's item slots (drawn raised by the game)
+        e.getGuiGraphics().pose().pushPose();
+        e.getGuiGraphics().pose().translate(0, 0, 300);
         PANEL.draw(e.getGuiGraphics(), font, panelX(screen), screen.getGuiTop() + TOP, screen.width, screen.height, c, e.getMouseX(), e.getMouseY());
         List<Component> tip = PANEL.isPressed() ? null : PANEL.tooltipAt(e.getMouseX(), e.getMouseY());
         if (tip != null)
             e.getGuiGraphics().renderComponentTooltip(font, tip, e.getMouseX(), e.getMouseY());
+        e.getGuiGraphics().pose().popPose();
     }
 
     private static boolean shown(Screen s) {
