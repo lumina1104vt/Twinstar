@@ -1,7 +1,6 @@
 package com.lumina.twinstar.port;
 
-import appeng.api.stacks.AEItemKey;
-import appeng.api.stacks.AEKey;
+import com.lumina.bridge.key.Key;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import org.jetbrains.annotations.Nullable;
@@ -20,15 +19,15 @@ public interface MachineStorage {
     boolean hasItemStorage(BlockPos pos);
 
     /** Puts in; returns how much went in. {@code faces}: the sides to try, null = no side. */
-    long insert(BlockPos pos, List<@Nullable Direction> faces, AEKey key, long amount);
+    long insert(BlockPos pos, List<@Nullable Direction> faces, Key key, long amount);
 
     /** Takes out up to {@code amount} of an item; what is taken is also reported to {@code taken}. */
-    long retrieve(BlockPos pos, AEItemKey key, long amount, BiConsumer<AEKey, Long> taken);
+    long retrieve(BlockPos pos, Key key, long amount, BiConsumer<Key, Long> taken);
 
     /** Takes what the machine made: every output except {@code keep}; {@code wantOther} are also taken. */
-    void extractOutputs(BlockPos pos, Set<AEKey> wantOther, Set<AEKey> keep, BiConsumer<AEKey, Long> taken);
+    void extractOutputs(BlockPos pos, Set<Key> wantOther, Set<Key> keep, BiConsumer<Key, Long> taken);
 
-    boolean holdsAny(BlockPos pos, Set<AEKey> keys);
+    boolean holdsAny(BlockPos pos, Set<Key> keys);
 
     /** Forgets what was learnt about the machine at the position (its slot roles). */
     void forget(BlockPos pos);
@@ -38,5 +37,5 @@ public interface MachineStorage {
 
     String contentsAt(BlockPos pos);
 
-    String describeInsert(BlockPos pos, List<@Nullable Direction> faces, AEKey key, long amount);
+    String describeInsert(BlockPos pos, List<@Nullable Direction> faces, Key key, long amount);
 }

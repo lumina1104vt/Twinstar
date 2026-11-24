@@ -29,6 +29,7 @@ repositories {
 dependencies {
     // the interfaces speak AE2's keys and grid services; AE2 itself is provided by the player
     compileOnly "maven.modrinth:ae2:${ae2_version}"
+    compileOnly project(':lumina-bridge')
     compileOnly 'org.jetbrains:annotations:24.1.0'
 
     // (no tests yet)

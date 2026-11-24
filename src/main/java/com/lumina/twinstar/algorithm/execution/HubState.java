@@ -1536,14 +1536,14 @@ public final class HubState {
                 m.filledSubs.clear();
             flushOverflow(m, env);
             boolean[] took = {false};
-            level.storage().extractOutputs(pos, otherOutputs(m, env), materialsInside(m, env), (key, n) -> {
+            AeIO.extractOutputs(level, pos, otherOutputs(m, env), materialsInside(m, env), (key, n) -> {
                 took[0] = true;
                 takeProduct(m, key, n, env);
             });
             // the output hatches bound to it
             for (IMachineAccess.Port port : m.access.ports())
                 if (port.role() == IMachineAccess.PortRole.OUTPUT && level.isLoaded(port.pos()))
-                    level.storage().extractOutputs(port.pos(), otherOutputs(m, env), materialsInside(m, env), (key, n) -> {
+                    AeIO.extractOutputs(level, port.pos(), otherOutputs(m, env), materialsInside(m, env), (key, n) -> {
                         took[0] = true;
                         takeProduct(m, key, n, env);
                     });
@@ -1850,7 +1850,7 @@ public final class HubState {
         // a machine with item slots is looked into only for products the pattern says come out of a GUI slot
         if (products.isEmpty() || level.storage().hasItemStorage(pos) && products.values().stream().noneMatch(v -> v > 0))
             return;
-        long got = level.actions().extractViaGui(pos, m.access.getMachineFace(), products, (k, n) -> {
+        long got = AeIO.extractViaGui(level, pos, m.access.getMachineFace(), products, (k, n) -> {
             took[0] = true;
             takeProduct(m, k, n, env);
         }, (k, n) -> m.overflow.merge(k, n, Long::sum));
@@ -1883,10 +1883,10 @@ public final class HubState {
             if (!(d.getKey() instanceof AEItemKey item))
                 continue;
             long want = d.getValue();
-            long got = level.storage().retrieve(pos, item, want, (k, n) -> takeProduct(m, k, n, env));
+            long got = AeIO.retrieve(level, pos, item, want, (k, n) -> takeProduct(m, k, n, env));
             if (got < want && !level.storage().hasItemStorage(pos))
                 // a block that only gives with a hand (an altar, an infusion chamber): an empty-hand click
-                level.actions().emptyClick(pos, m.access.getMachineFace(), (k, n) -> takeProduct(m, k, n, env));
+                AeIO.emptyClick(level, pos, m.access.getMachineFace(), (k, n) -> takeProduct(m, k, n, env));
             // what was put into its sub-machines (an altar's pedestals) comes out of them; by their item slots only,
             // as a hand on a pedestal would take whatever else lies there
             for (Map.Entry<Flight, Map<AEKey, Long>> h : new ArrayList<>(m.held.entrySet())) {
@@ -1894,7 +1894,7 @@ public final class HubState {
                     break;
                 for (BlockPos sub : subsOf(m, h.getKey().job().snap.pattern(h.getKey().pattern()), level, pos))
                     if (level.isLoaded(sub))
-                        level.storage().retrieve(sub, item, m.due.getOrDefault(item, 0L), (k, n) -> takeProduct(m, k, n, env));
+                        AeIO.retrieve(level, sub, item, m.due.getOrDefault(item, 0L), (k, n) -> takeProduct(m, k, n, env));
             }
         }
     }
@@ -1904,7 +1904,7 @@ public final class HubState {
         for (AEKey key : f.tools) {
             if (!(key instanceof AEItemKey tool))
                 continue;
-            AEItemKey back = level.actions().useTool(pos, m.access.getMachineFace(), tool, (k, n) -> m.overflow.merge(k, n, Long::sum));
+            AEItemKey back = AeIO.useTool(level, pos, m.access.getMachineFace(), tool, (k, n) -> m.overflow.merge(k, n, Long::sum));
             if (back != null && envNow != null) {
                 int id = envNow.index().idOf(back);
                 f.job.inventory.add(id, Amount.ONE);
@@ -1943,11 +1943,11 @@ public final class HubState {
                         yield 0;
                     BlockPos cell = level.actions().front(pos, m.access.getMachineFace(), PatternInputTargets.distance(p.target));
                     m.frontCells.add(cell);
-                    long went = PatternInputTargets.kind(p.target) == PatternInputTargets.FRONT_BLOCK ? level.actions().place(cell, item) : 0;
+                    long went = PatternInputTargets.kind(p.target) == PatternInputTargets.FRONT_BLOCK ? AeIO.place(level, cell, item) : 0;
                     // not a block (or a block it may not place): dropped instead
                     if (went == 0 && !(PatternInputTargets.kind(p.target) == PatternInputTargets.FRONT_BLOCK
                             && item.getItem() instanceof net.minecraft.world.item.BlockItem))
-                        went = level.actions().drop(cell, item, p.left);
+                        went = AeIO.drop(level, cell, item, p.left);
                     yield went;
                 }
                 default -> {
@@ -1968,7 +1968,7 @@ public final class HubState {
             if (stuck != null && p.left > 0)
                 stuck.append("\n    ").append(p.key.getDisplayName().getString()).append("（").append(p.key.getType().getDescription().getString())
                         .append("）還剩 ").append(p.left).append("，這次放入 ").append(in).append("；")
-                        .append(level.storage().describeInsert(pos, p.faces, p.key, p.left))
+                        .append(AeIO.describeInsert(level, pos, p.faces, p.key, p.left))
                         .append(hatchNote(m, level, p))
                         .append(level.actions().lastClick().isEmpty() ? "" : "；最後一次右鍵：" + level.actions().lastClick());
         }
@@ -2012,7 +2012,7 @@ public final class HubState {
             any = true;
             sb.append("\n      #").append(port.slot()).append(" ").append(port.pos().toShortString()).append(" ")
                     .append(level.blockId(port.pos())).append("：")
-                    .append(level.storage().describeInsert(port.pos(), ANY_FACE, p.key, p.left));
+                    .append(AeIO.describeInsert(level, port.pos(), ANY_FACE, p.key, p.left));
         }
         return any ? sb.toString() : sb.append("沒有這個欄位號碼的艙口（綁了 ").append(ports.size()).append(" 個艙口）").toString();
     }
@@ -2122,15 +2122,15 @@ public final class HubState {
             // a GUI slot the pattern names: that slot, nowhere else (an ordered crafting table puts it by place; the machine's
             // own item slots would put it wherever they like)
             Direction face = faces.isEmpty() || faces.get(0) == null ? m.access.getMachineFace() : faces.get(0);
-            return level.actions().insertViaGui(pos, face, item, amount, guiSlot, (k, n) -> m.overflow.merge(k, n, Long::sum));
+            return AeIO.insertViaGui(level, pos, face, item, amount, guiSlot, (k, n) -> m.overflow.merge(k, n, Long::sum));
         }
-        long in = level.storage().insert(pos, faces, key, amount);
+        long in = AeIO.insert(level, pos, faces, key, amount);
         if (in == 0 && key instanceof AEItemKey item && !level.storage().hasItemStorage(pos)) {
             Direction face = faces.isEmpty() || faces.get(0) == null ? m.access.getMachineFace() : faces.get(0);
-            in = level.actions().rightClick(pos, face, item, amount, (k, n) -> m.overflow.merge(k, n, Long::sum));
+            in = AeIO.rightClick(level, pos, face, item, amount, (k, n) -> m.overflow.merge(k, n, Long::sum));
             if (in == 0)
                 // not a block that takes a hand-held item: one that keeps its items inside and shows them in a GUI
-                in = level.actions().insertViaGui(pos, face, item, amount, guiSlot, (k, n) -> m.overflow.merge(k, n, Long::sum));
+                in = AeIO.insertViaGui(level, pos, face, item, amount, guiSlot, (k, n) -> m.overflow.merge(k, n, Long::sum));
         }
         return in;
     }
@@ -2175,7 +2175,7 @@ public final class HubState {
         }
         boolean lying = false;
         for (BlockPos cell : m.frontCells)
-            lying |= level.actions().holdsAny(cell, inputs);
+            lying |= AeIO.actionsHoldsAny(level, cell, inputs);
         if (inMachine || lying) {
             m.access.onRunFed();
             m.pulsedAt = level.getGameTime();
@@ -2206,7 +2206,7 @@ public final class HubState {
         wanted.removeAll(inputs);
         Set<AEKey> wantedExact = wanted;
         for (BlockPos cell : m.frontCells)
-            level.actions().pickUp(cell, k -> wantedExact.contains(k) || (!inputs.contains(k) && productAs(m, k, env) != k),
+            AeIO.pickUp(level, cell, k -> wantedExact.contains(k) || (!inputs.contains(k) && productAs(m, k, env) != k),
                     (key, n) -> takeProduct(m, key, n, env));
     }
 
@@ -2319,11 +2319,11 @@ public final class HubState {
             Set<AEKey> keys = inputKeys(pat, env);
             keys.removeAll(m.access.getStockedKeys());
             for (BlockPos cell : m.frontCells)
-                if (level.actions().holdsAny(cell, keys))
+                if (AeIO.actionsHoldsAny(level, cell, keys))
                     return true;
             if (m.subs != null)
                 for (BlockPos sub : m.subs)
-                    if (level.isLoaded(sub) && level.storage().holdsAny(sub, keys))
+                    if (level.isLoaded(sub) && AeIO.storageHoldsAny(level, sub, keys))
                         return true;
         }
         return false;
@@ -2336,7 +2336,7 @@ public final class HubState {
             return false;
         Set<AEKey> keys = inputKeys(pat, env);
         keys.removeAll(m.access.getStockedKeys());
-        return level.storage().holdsAny(m.access.getMachinePos(), keys);
+        return AeIO.storageHoldsAny(level, m.access.getMachinePos(), keys);
     }
 
     /** Machine {@code m} still works on a run of {@code job}'s pattern {@code p}: being fed, or its materials still in. */

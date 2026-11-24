@@ -1,7 +1,6 @@
 package com.lumina.twinstar.port;
 
-import appeng.api.stacks.AEItemKey;
-import appeng.api.stacks.AEKey;
+import com.lumina.bridge.key.Key;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import org.jetbrains.annotations.Nullable;
@@ -17,29 +16,29 @@ import java.util.function.Predicate;
  * click gave back that was not asked for. One instance is for one world. Server thread only.
  */
 public interface WorldActions {
-    long rightClick(BlockPos pos, Direction face, AEItemKey key, long amount, BiConsumer<AEKey, Long> stray);
+    long rightClick(BlockPos pos, Direction face, Key key, long amount, BiConsumer<Key, Long> stray);
 
     /** Uses the tool on the machine; returns the tool as it is after (null if it is gone). */
-    @Nullable AEItemKey useTool(BlockPos pos, Direction face, AEItemKey tool, BiConsumer<AEKey, Long> stray);
+    @Nullable Key useTool(BlockPos pos, Direction face, Key tool, BiConsumer<Key, Long> stray);
 
-    void emptyClick(BlockPos pos, Direction face, BiConsumer<AEKey, Long> stray);
+    void emptyClick(BlockPos pos, Direction face, BiConsumer<Key, Long> stray);
 
-    long insertViaGui(BlockPos pos, Direction face, AEItemKey key, long amount, int onlySlot,
-                      BiConsumer<AEKey, Long> stray);
+    long insertViaGui(BlockPos pos, Direction face, Key key, long amount, int onlySlot,
+                      BiConsumer<Key, Long> stray);
 
-    long extractViaGui(BlockPos pos, Direction face, Map<AEKey, Integer> products, BiConsumer<AEKey, Long> taken,
-                       BiConsumer<AEKey, Long> stray);
+    long extractViaGui(BlockPos pos, Direction face, Map<Key, Integer> products, BiConsumer<Key, Long> taken,
+                       BiConsumer<Key, Long> stray);
 
     /** The position {@code distance} blocks in front of the interface's face. */
     BlockPos front(BlockPos pos, Direction interfaceFace, int distance);
 
-    long place(BlockPos cell, AEItemKey key);
+    long place(BlockPos cell, Key key);
 
-    long drop(BlockPos cell, AEItemKey key, long amount);
+    long drop(BlockPos cell, Key key, long amount);
 
-    boolean holdsAny(BlockPos cell, Set<AEKey> keys);
+    boolean holdsAny(BlockPos cell, Set<Key> keys);
 
-    void pickUp(BlockPos cell, Predicate<AEKey> wanted, BiConsumer<AEKey, Long> taken);
+    void pickUp(BlockPos cell, Predicate<Key> wanted, BiConsumer<Key, Long> taken);
 
     /** What the last click did, for the debug log. */
     String lastClick();
