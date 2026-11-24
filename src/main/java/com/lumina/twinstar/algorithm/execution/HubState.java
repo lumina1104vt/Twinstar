@@ -1,12 +1,8 @@
 package com.lumina.twinstar.algorithm.execution;
 
-import appeng.api.config.Actionable;
-import appeng.api.config.PowerMultiplier;
-import appeng.api.crafting.IPatternDetails;
-import appeng.api.networking.crafting.ICraftingProvider;
 import com.lumina.bridge.key.Key;
 import com.lumina.bridge.key.Keys;
-import appeng.api.stacks.KeyCounter;
+import com.lumina.twinstar.port.PatternSite;
 import com.lumina.twinstar.algorithm.ae2.PatternInputFaces;
 import com.lumina.twinstar.algorithm.ae2.PatternInputRoles;
 import com.lumina.twinstar.algorithm.ae2.PatternInputTargets;
@@ -22,7 +18,6 @@ import com.lumina.twinstar.algorithm.model.Rational;
 import com.lumina.twinstar.algorithm.planning.CycleContract;
 import com.lumina.twinstar.algorithm.planning.Plan;
 import com.lumina.twinstar.api.IMachineAccess;
-import it.unimi.dsi.fastutil.objects.Object2LongMap;
 import com.lumina.bridge.Pos;
 import com.lumina.bridge.Face;
 import com.lumina.bridge.Place;
@@ -94,7 +89,7 @@ public final class HubState {
         this.usage = usage;
     }
 
-    record WindowKey(ICraftingProvider provider, int pattern) {
+    record WindowKey(PatternSite provider, int pattern) {
     }
 
     // ───────────────────────────── memory and speed ─────────────────────────────
@@ -275,11 +270,9 @@ public final class HubState {
         Object source = pat.source();
         if (source == null)
             return true;
-        if (!(source instanceof IPatternDetails details))
-            return false;
         boolean hub = pat.where == PatternLocation.HUB_INTERNAL || pat.where == PatternLocation.HUB_MACHINE;
-        for (ICraftingProvider prov : env.providers().apply(details))
-            if (!hub || prov instanceof com.lumina.twinstar.host.ITwinStarHost)
+        for (PatternSite prov : env.providers().offering(source))
+            if (!hub || prov.isHub())
                 return true;
         return false;
     }
@@ -775,25 +768,26 @@ public final class HubState {
      * Returns the runs actually sent.
      */
     private Amount dispatchEven(Job job, Task t, Pattern pat, Amount n, ExecutionEnv env) {
-        if (!(pat.source() instanceof IPatternDetails details))
+        Object details = pat.source();
+        if (details == null)
             return Amount.ZERO;
         TreeListByPriority groups = new TreeListByPriority();
-        for (ICraftingProvider prov : env.providers().apply(details))
+        for (PatternSite prov : env.providers().offering(details))
             if (!prov.isBusy())
-                groups.add(prov.getPatternPriority(), prov);
+                groups.add(prov.priority(), prov);
         long want = n.saturatedLong();
         long sent = 0;
-        for (List<ICraftingProvider> group : groups.highestFirst()) {
-            List<ICraftingProvider> open = new ArrayList<>(group);
+        for (List<PatternSite> group : groups.highestFirst()) {
+            List<PatternSite> open = new ArrayList<>(group);
             while (sent < want && !open.isEmpty()) {
                 long left = want - sent;
                 int m = open.size();
                 long share = left / m;
                 long extra = left % m;
                 boolean progress = false;
-                List<ICraftingProvider> full = new ArrayList<>();
+                List<PatternSite> full = new ArrayList<>();
                 for (int i = 0; i < m; i++) {
-                    ICraftingProvider prov = open.get((i + rotate) % m);
+                    PatternSite prov = open.get((i + rotate) % m);
                     long k = share + (i < extra ? 1 : 0);
                     if (k <= 0)
                         continue;
@@ -803,12 +797,12 @@ public final class HubState {
                     long pushed = 0;
                     boolean outOfStock = false;
                     for (long c = 0; c < k; c++) {
-                        KeyCounter[] inputs = extractInputs(job, pat, env);
+                        List<@Nullable Map<Key, Long>> inputs = extractInputs(job, pat, env);
                         if (inputs == null) {
                             outOfStock = true;
                             break;
                         }
-                        if (!prov.pushPattern(details, inputs)) {
+                        if (!prov.push(details, inputs)) {
                             returnInputs(job, inputs, env);
                             break;
                         }
@@ -839,25 +833,27 @@ public final class HubState {
 
     /** Providers grouped by pattern priority. */
     private static final class TreeListByPriority {
-        private final java.util.TreeMap<Integer, List<ICraftingProvider>> map = new java.util.TreeMap<>(Collections.reverseOrder());
+        private final java.util.TreeMap<Integer, List<PatternSite>> map = new java.util.TreeMap<>(Collections.reverseOrder());
 
-        void add(int priority, ICraftingProvider p) {
+        void add(int priority, PatternSite p) {
             map.computeIfAbsent(priority, k -> new ArrayList<>()).add(p);
         }
 
-        Iterable<List<ICraftingProvider>> highestFirst() {
+        Iterable<List<PatternSite>> highestFirst() {
             return map.values();
         }
     }
 
     /** One run's inputs, slot by slot as AE2 expects; null (nothing taken) when the job lacks them. */
-    private KeyCounter @Nullable [] extractInputs(Job job, Pattern pat, ExecutionEnv env) {
+    private @Nullable List<@Nullable Map<Key, Long>> extractInputs(Job job, Pattern pat, ExecutionEnv env) {
         return extractInputs(job, pat, env, null);
     }
 
     /** {@code into}: the machine the run goes to; a kept catalyst it already holds for this batch is not taken again. */
-    private KeyCounter @Nullable [] extractInputs(Job job, Pattern pat, ExecutionEnv env, @Nullable MachineState into) {
-        KeyCounter[] out = new KeyCounter[pat.inputCount()];
+    private @Nullable List<@Nullable Map<Key, Long>> extractInputs(Job job, Pattern pat, ExecutionEnv env, @Nullable MachineState into) {
+        List<@Nullable Map<Key, Long>> out = new ArrayList<>(pat.inputCount());
+        for (int s = 0; s < pat.inputCount(); s++)
+            out.add(null);
         AmountMap taken = new AmountMap();
         for (int s = 0; s < pat.inputCount(); s++) {
             if (pat.inputAmount(s).isBig())
@@ -883,9 +879,10 @@ public final class HubState {
                 return rollback(job, taken);
             job.inventory.sub(item, amt);
             taken.add(item, amt);
-            out[s] = new KeyCounter();
+            Map<Key, Long> slot = new LinkedHashMap<>();
+            out.set(s, slot);
             if (!isVirtual(job, item))      // a mark is used up in the ledger and sent nowhere
-                out[s].add(Keys.toAe(key), amt.longValue());
+                slot.merge(key, amt.longValue(), Long::sum);
         }
         taken.forEach((id, a) -> {
             if (!isVirtual(job, id))
@@ -894,18 +891,18 @@ public final class HubState {
         return out;
     }
 
-    private static KeyCounter @Nullable [] rollback(Job job, AmountMap taken) {
+    private static @Nullable List<@Nullable Map<Key, Long>> rollback(Job job, AmountMap taken) {
         taken.forEach(job.inventory::add);
         return null;
     }
 
-    private void returnInputs(Job job, KeyCounter[] inputs, ExecutionEnv env) {
-        for (KeyCounter kc : inputs) {
+    private void returnInputs(Job job, List<@Nullable Map<Key, Long>> inputs, ExecutionEnv env) {
+        for (Map<Key, Long> kc : inputs) {
             if (kc == null)
                 continue;
-            for (Object2LongMap.Entry<appeng.api.stacks.AEKey> e : kc) {
+            for (Map.Entry<Key, Long> e : kc.entrySet()) {
                 int id = env.index().idOf(e.getKey());
-                Amount a = Amount.of(e.getLongValue());
+                Amount a = Amount.of(e.getValue());
                 job.inventory.add(id, a);
                 reoccupy(job, id, a);
             }
@@ -1199,7 +1196,7 @@ public final class HubState {
             return n;
         Rational fromHub = env.hubEnergy() == null ? Rational.ZERO : env.hubEnergy().extractEnergy(per.mul(Rational.of(n)), true);
         return EnergyCap.poweredRuns(per, n, fromHub,
-                rest -> env.energy().extractAEPower(rest, Actionable.SIMULATE, PowerMultiplier.CONFIG));
+                rest -> env.energy().extract(rest, true));
     }
 
     private void payEnergy(Pattern pat, Amount n, ExecutionEnv env) {
@@ -1210,7 +1207,7 @@ public final class HubState {
         if (env.hubEnergy() != null)
             cost = cost.sub(env.hubEnergy().extractEnergy(cost, false));
         if (cost.signum() > 0)
-            env.energy().extractAEPower(cost.toDoubleSaturated(), Actionable.MODULATE, PowerMultiplier.CONFIG);
+            env.energy().extract(cost.toDoubleSaturated(), false);
     }
 
     /**
@@ -2450,26 +2447,26 @@ public final class HubState {
 
     /** Takes one run's materials out of the job and starts feeding them to {@code m}. */
     private boolean startRun(Job job, Task t, Pattern pat, MachineState m, ExecutionEnv env) {
-        KeyCounter[] inputs = extractInputs(job, pat, env, m);
+        List<@Nullable Map<Key, Long>> inputs = extractInputs(job, pat, env, m);
         if (inputs == null)
             return false;
         Feed f = new Feed(job, t.pattern);
-        for (int s = 0; s < inputs.length; s++) {
-            if (inputs[s] == null)
+        for (int s = 0; s < inputs.size(); s++) {
+            if (inputs.get(s) == null)
                 continue;
             int role = pat.inputRole(s);
             List<@Nullable Face> faces = facesFor(m.access, pat.inputFaces(s));
-            for (Object2LongMap.Entry<appeng.api.stacks.AEKey> e : inputs[s]) {
+            for (Map.Entry<Key, Long> e : inputs.get(s).entrySet()) {
                 if (role == PatternInputRoles.TOOL) {
-                    f.tools.add(Keys.of(e.getKey()));
+                    f.tools.add(e.getKey());
                     continue;
                 }
-                f.parts.add(new Part(Keys.of(e.getKey()), e.getLongValue(), faces,
+                f.parts.add(new Part(e.getKey(), e.getValue(), faces,
                         PatternInputTargets.resolve(pat.inputTarget(s), pat.subMachineCount() > 0, s == 0), role, pat.inputGuiSlot(s)));
-                f.total += e.getLongValue();
+                f.total += e.getValue();
                 // a kept catalyst is expected back once, when its batch is done, not with every run
                 if (role == PatternInputRoles.CATALYST)
-                    expect(job, env.index().idOf(e.getKey()), Amount.of(e.getLongValue()), env.nowNanos());
+                    expect(job, env.index().idOf(e.getKey()), Amount.of(e.getValue()), env.nowNanos());
             }
         }
         m.feed = f;

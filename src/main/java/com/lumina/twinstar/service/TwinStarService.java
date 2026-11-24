@@ -991,8 +991,8 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
         CraftingService crafting = (CraftingService) grid.getCraftingService();
         BigInteger p = getParallelism();
         Amount parallelism = p == null ? null : Amount.of(p.max(BigInteger.ONE));
-        return new ExecutionEnv(index, store(), energy, host != null ? host.getHostEnergySource() : null,
-                crafting::getProviders, allAccess(), parallelism, System.nanoTime(), TICK_BUDGET_NANOS);
+        return new ExecutionEnv(index, store(), com.lumina.twinstar.algorithm.execution.Ae2Adapters.power(energy), host != null ? host.getHostEnergySource() : null,
+                com.lumina.twinstar.algorithm.execution.Ae2Adapters.sites(crafting::getProviders), allAccess(), parallelism, System.nanoTime(), TICK_BUDGET_NANOS);
     }
 
     /**

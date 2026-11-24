@@ -1,6 +1,15 @@
 package com.lumina.twinstar.algorithm.execution;
 
+import appeng.api.config.Actionable;
+import appeng.api.config.PowerMultiplier;
+import appeng.api.crafting.IPatternDetails;
+import appeng.api.networking.crafting.ICraftingProvider;
+import appeng.api.networking.energy.IEnergySource;
 import appeng.api.stacks.AEItemKey;
+import appeng.api.stacks.KeyCounter;
+import com.lumina.twinstar.port.PatternSite;
+import com.lumina.twinstar.port.PatternSites;
+import com.lumina.twinstar.port.Power;
 import appeng.api.stacks.AEKey;
 import com.lumina.bridge.key.Key;
 import com.lumina.bridge.key.Keys;
@@ -21,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
 /**
@@ -48,6 +58,52 @@ public final class Ae2Adapters {
 
     static WorldActions actions(ServerLevel level) {
         return new Actions(level);
+    }
+
+    /** The crafting providers AE2 offers a pattern to, as sites. */
+    public static PatternSites sites(Function<IPatternDetails, Iterable<ICraftingProvider>> providers) {
+        return pattern -> {
+            if (!(pattern instanceof IPatternDetails details))
+                return List.of();
+            List<PatternSite> out = new java.util.ArrayList<>();
+            for (ICraftingProvider p : providers.apply(details))
+                out.add(new Site(p));
+            return out;
+        };
+    }
+
+    public static Power power(IEnergySource source) {
+        return (amount, simulate) -> source.extractAEPower(amount, simulate ? Actionable.SIMULATE : Actionable.MODULATE,
+                PowerMultiplier.CONFIG);
+    }
+
+    /** Equal by provider, so the engine's per-site records find it again. */
+    private record Site(ICraftingProvider provider) implements PatternSite {
+        public int priority() {
+            return provider.getPatternPriority();
+        }
+
+        public boolean isBusy() {
+            return provider.isBusy();
+        }
+
+        public boolean isHub() {
+            return provider instanceof com.lumina.twinstar.host.ITwinStarHost;
+        }
+
+        public boolean push(Object pattern, List<Map<Key, Long>> inputs) {
+            KeyCounter[] counters = new KeyCounter[inputs.size()];
+            for (int i = 0; i < counters.length; i++) {
+                Map<Key, Long> slot = inputs.get(i);
+                if (slot == null)
+                    continue;
+                KeyCounter counter = new KeyCounter();
+                for (Map.Entry<Key, Long> e : slot.entrySet())
+                    counter.add(ae(e.getKey()), e.getValue());
+                counters[i] = counter;
+            }
+            return provider.pushPattern((IPatternDetails) pattern, counters);
+        }
     }
 
     // ---- Key <-> AE2 key ----
