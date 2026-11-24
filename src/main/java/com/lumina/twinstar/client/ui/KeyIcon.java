@@ -22,6 +22,15 @@ public class KeyIcon extends UIElement implements KeyHolder {
 
     @Override
     public void drawBackgroundAdditional(GUIContext context) {
+        // items are drawn raised by the game; fluids and chemicals are flat sprites at depth 0 and would sit
+        // under a slot background drawn before them, so they are lifted the same way
+        boolean flat = !(key instanceof appeng.api.stacks.AEItemKey);
+        if (flat) {
+            context.graphics.pose().pushPose();
+            context.graphics.pose().translate(0, 0, 100);
+        }
         AEKeyRendering.drawInGui(context.mc, context.graphics, (int) getPositionX(), (int) getPositionY(), key);
+        if (flat)
+            context.graphics.pose().popPose();
     }
 }
