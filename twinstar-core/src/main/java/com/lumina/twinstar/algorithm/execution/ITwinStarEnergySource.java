@@ -1,4 +1,4 @@
-package com.lumina.twinstar.host;
+package com.lumina.twinstar.algorithm.execution;
 
 import com.lumina.twinstar.algorithm.model.Rational;
 

@@ -28,6 +28,10 @@ repositories {
 }
 
 dependencies {
+    compileOnly project(':lumina-bridge')
+    compileOnly project(':twinstar-api')
+    testImplementation project(':lumina-bridge')
+    testImplementation project(':twinstar-api')
     compileOnly 'org.jetbrains:annotations:24.1.0'
 
     testImplementation platform('org.junit:junit-bom:5.10.3')

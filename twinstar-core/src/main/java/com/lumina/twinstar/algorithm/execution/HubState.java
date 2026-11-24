@@ -1,11 +1,7 @@
 package com.lumina.twinstar.algorithm.execution;
 
 import com.lumina.bridge.key.Key;
-import com.lumina.bridge.key.Keys;
 import com.lumina.twinstar.port.PatternSite;
-import com.lumina.twinstar.algorithm.ae2.PatternInputFaces;
-import com.lumina.twinstar.algorithm.ae2.PatternInputRoles;
-import com.lumina.twinstar.algorithm.ae2.PatternInputTargets;
 import com.lumina.twinstar.algorithm.cache.Snapshot;
 import com.lumina.twinstar.algorithm.model.Amount;
 import com.lumina.twinstar.algorithm.model.AmountMap;
@@ -17,7 +13,7 @@ import com.lumina.twinstar.algorithm.model.PatternLocation;
 import com.lumina.twinstar.algorithm.model.Rational;
 import com.lumina.twinstar.algorithm.planning.CycleContract;
 import com.lumina.twinstar.algorithm.planning.Plan;
-import com.lumina.twinstar.api.IMachineAccess;
+import com.lumina.twinstar.api.IMachine;
 import com.lumina.bridge.Pos;
 import com.lumina.bridge.Face;
 import com.lumina.bridge.Place;
@@ -52,9 +48,9 @@ public final class HubState {
     public static final long STUCK_MIN_NANOS = 10_000_000_000L;
     public static final long STUCK_DEFAULT_NANOS = 60_000_000_000L;
 
-    final List<Job> jobs = new ArrayList<>();
+    public final List<Job> jobs = new ArrayList<>();
     /** returns waiting inside the hub; other devices on the network cannot take them */
-    final AmountMap pool = new AmountMap();
+    public final AmountMap pool = new AmountMap();
     Amount used = Amount.ZERO;
     private final Map<WindowKey, Window> windows = new LinkedHashMap<>();
     private int rotate;
@@ -78,7 +74,7 @@ public final class HubState {
     /** Told what the hub puts into a machine for its runs (the list of what machines use up). */
     @FunctionalInterface
     public interface UsageSink {
-        void used(IMachineAccess machine, Key key, long amount);
+        void used(IMachine machine, Key key, long amount);
     }
 
     private @Nullable UsageSink usage;
@@ -278,7 +274,7 @@ public final class HubState {
     // ───────────────────────────── save / load ─────────────────────────────
 
     /** A job read back from a save ({@link JobStore}): it holds its capacity again and its tasks look for work. */
-    void restore(Job job, long nowNanos) {
+    public void restore(Job job, long nowNanos) {
         jobs.add(job);
         used = used.add(job.occupancy);
         nextJobId = Math.max(nextJobId, job.id + 1);
@@ -326,7 +322,7 @@ public final class HubState {
     }
 
     /** What a run being fed had not put in yet: it left its job and is not in the machine either. */
-    static void feedLeft(@Nullable Feed feed, Map<Key, Long> into) {
+    public static void feedLeft(@Nullable Feed feed, Map<Key, Long> into) {
         if (feed == null)
             return;
         for (Part p : feed.parts)
@@ -591,9 +587,9 @@ public final class HubState {
                     }
                 }
                 default -> {
-                    if (pat.where != PatternLocation.HUB_INTERNAL && pat.inputRole(s) == PatternInputRoles.CATALYST && keptHeld(job, t.pattern))
+                    if (pat.where != PatternLocation.HUB_INTERNAL && pat.inputRole(s) == InputRoles.CATALYST && keptHeld(job, t.pattern))
                         continue;   // already in a machine for this batch: the next runs need no copy
-                    if (pat.where != PatternLocation.HUB_INTERNAL && pat.inputRole(s) == PatternInputRoles.TOOL && envNow != null)
+                    if (pat.where != PatternLocation.HUB_INTERNAL && pat.inputRole(s) == InputRoles.TOOL && envNow != null)
                         have = have.add(wornTotal(job, pat.inputItem(s), envNow));
                     if (pat.where != PatternLocation.HUB_INTERNAL)
                         lim = have.div(pat.inputAmount(s));   // sent along and expected back
@@ -858,9 +854,9 @@ public final class HubState {
                 return rollback(job, taken);
             Amount amt = pat.inputAmount(s);
             int item = pat.inputItem(s);
-            if (into != null && pat.inputRole(s) == PatternInputRoles.CATALYST && holdsKept(into, job, pat, s, env))
+            if (into != null && pat.inputRole(s) == InputRoles.CATALYST && holdsKept(into, job, pat, s, env))
                 continue;
-            if (pat.inputRole(s) == PatternInputRoles.TOOL && job.inventory.get(item).compareTo(amt) < 0) {
+            if (pat.inputRole(s) == InputRoles.TOOL && job.inventory.get(item).compareTo(amt) < 0) {
                 int worn = wornCopy(job, item, amt, env);
                 if (worn >= 0)
                     item = worn;
@@ -920,7 +916,7 @@ public final class HubState {
         for (int s = 0; s < pat.inputCount(); s++)
             if ((pat.inputKind(s) == InputKind.CONTAINER || pat.inputKind(s) == InputKind.CATALYST)
                     // a tool goes back into the job by itself, a kept catalyst is expected once per batch (startRun)
-                    && pat.inputRole(s) != PatternInputRoles.TOOL && pat.inputRole(s) != PatternInputRoles.CATALYST)
+                    && pat.inputRole(s) != InputRoles.TOOL && pat.inputRole(s) != InputRoles.CATALYST)
                 expect(job, pat.inputItem(s), pat.inputAmount(s).mul(r), now);
         // a run whose products all count as made once it is fed has nothing coming back to show as in flight
         if (!pat.hasDispatchDone() || pat.hasWaitedOutput())
@@ -1315,64 +1311,64 @@ public final class HubState {
      * and the next run starts only when they are all in. Products are taken out of its output slots
      * by the hub every tick, whoever's they are.
      */
-    static final class MachineState {
-        final IMachineAccess access;
-        @Nullable Feed feed;
+    public static final class MachineState {
+        public final IMachine access;
+        public @Nullable Feed feed;
         /** the pattern fed last (blocking interfaces) */
-        int lastPattern = -1;
-        @Nullable Pattern lastPat;
+        public int lastPattern = -1;
+        public @Nullable Pattern lastPat;
         /** runs started here whose products are not all back, per job and pattern */
-        final Map<Flight, Amount> inFlight = new LinkedHashMap<>();
+        public final Map<Flight, Amount> inFlight = new LinkedHashMap<>();
         /** products taken out that neither the hub nor the network took yet */
-        final Map<Key, Long> overflow = new LinkedHashMap<>();
+        public final Map<Key, Long> overflow = new LinkedHashMap<>();
         /** where the machine is, kept for when the interface is gone (lost runs are kept by place) */
-        @Nullable Place place;
+        public @Nullable Place place;
         /** cells in front of it that materials were placed or dropped in: products are picked up there */
-        final Set<Pos> frontCells = new HashSet<>();
+        public final Set<Pos> frontCells = new HashSet<>();
         /** its sub-machines for {@link #subsFor}, found at {@link #subsAt} (game time) */
-        @Nullable List<Pos> subs;
-        @Nullable Pattern subsFor;
-        long subsAt;
+        public @Nullable List<Pos> subs;
+        public @Nullable Pattern subsFor;
+        public long subsAt;
         /** game time the GUI was last opened to look for products */
-        long guiPolledAt = Long.MIN_VALUE / 2;
+        public long guiPolledAt = Long.MIN_VALUE / 2;
         /** game time of the last redstone pulse asked for */
-        long pulsedAt = Long.MIN_VALUE / 2;
+        public long pulsedAt = Long.MIN_VALUE / 2;
         /**
          * sub-machines that took something by a right-click (no item slots: an altar's pedestal) and still hold it: a
          * second right-click would swap what is on it, so they are left alone until the machine has no run left
          */
-        final Set<Pos> filledSubs = new HashSet<>();
+        public final Set<Pos> filledSubs = new HashSet<>();
         /** catalysts (role CATALYST) put into the machine and not yet back out, per batch of runs */
-        final Map<Flight, Map<Key, Long>> held = new LinkedHashMap<>();
+        public final Map<Flight, Map<Key, Long>> held = new LinkedHashMap<>();
         /** catalysts to take out of the machine now: those of batches that are done */
-        final Map<Key, Long> due = new LinkedHashMap<>();
+        public final Map<Key, Long> due = new LinkedHashMap<>();
 
-        MachineState(IMachineAccess access) {
+        public MachineState(IMachine access) {
             this.access = access;
         }
     }
 
-    record Flight(Job job, int pattern) {
+    public record Flight(Job job, int pattern) {
     }
 
     /** The run being fed: per input slot what is still to go in, and through which faces. */
-    static final class Feed {
-        final Job job;
-        final int pattern;
-        final List<Part> parts = new ArrayList<>();
+    public static final class Feed {
+        public final Job job;
+        public final int pattern;
+        public final List<Part> parts = new ArrayList<>();
         /** tools to right-click the machine with once every material is in (role TOOL) */
-        final List<Key> tools = new ArrayList<>();
+        public final List<Key> tools = new ArrayList<>();
         /** game time the tools are used at, once every material is in (-1: not set yet) */
-        long toolAt = -1;
-        long total;
-        long fed;
+        public long toolAt = -1;
+        public long total;
+        public long fed;
 
-        Feed(Job job, int pattern) {
+        public Feed(Job job, int pattern) {
             this.job = job;
             this.pattern = pattern;
         }
 
-        boolean done() {
+        public boolean done() {
             for (Part p : parts)
                 if (p.left > 0)
                     return false;
@@ -1380,20 +1376,20 @@ public final class HubState {
         }
     }
 
-    static final class Part {
-        final Key key;
-        long left;
-        final List<@Nullable Face> faces;
-        /** where it goes ({@link PatternInputTargets}) */
-        final int target;
-        /** what it is besides used up ({@link PatternInputRoles}) */
-        final int role;
+    public static final class Part {
+        public final Key key;
+        public long left;
+        public final List<@Nullable Face> faces;
+        /** where it goes ({@link InputTargets}) */
+        public final int target;
+        /** what it is besides used up ({@link InputRoles}) */
+        public final int role;
         /** the slot of the machine's GUI it goes into, for machines that take items only there (0 = the first that takes it) */
-        final int guiSlot;
+        public final int guiSlot;
         /** the hatch (input bus, fluid input) it began going into when it has no slot number: it stays there, and no other material goes there */
-        @Nullable Pos hatchPort;
+        public @Nullable Pos hatchPort;
 
-        Part(Key key, long left, List<@Nullable Face> faces, int target, int role, int guiSlot) {
+        public Part(Key key, long left, List<@Nullable Face> faces, int target, int role, int guiSlot) {
             this.guiSlot = guiSlot;
             this.key = key;
             this.left = left;
@@ -1404,30 +1400,30 @@ public final class HubState {
     }
 
     /** Runs lost with a machine that went away, kept by the machine's place until an interface is back on it. */
-    final Map<Place, Map<Flight, Amount>> lostAt = new HashMap<>();
-    final Map<IMachineAccess, MachineState> machines = new LinkedHashMap<>();
+    public final Map<Place, Map<Flight, Amount>> lostAt = new HashMap<>();
+    public final Map<IMachine, MachineState> machines = new LinkedHashMap<>();
     /** products of interfaces taken off that the network had no room for yet */
-    final Map<Key, Long> orphans = new LinkedHashMap<>();
+    public final Map<Key, Long> orphans = new LinkedHashMap<>();
     /** machines as a save left them, by place, until their interface is on the grid again ({@link JobStore}) */
-    final Map<Place, RestoredMachine> restoring = new HashMap<>();
+    public final Map<Place, RestoredMachine> restoring = new HashMap<>();
 
     /** What a saved machine was doing: put back on the interface found at its place. */
-    record RestoredMachine(@Nullable Feed feed, int lastPattern, @Nullable Pattern lastPat, Map<Flight, Amount> inFlight,
+    public record RestoredMachine(@Nullable Feed feed, int lastPattern, @Nullable Pattern lastPat, Map<Flight, Amount> inFlight,
                            Map<Key, Long> overflow) {
     }
 
     /** Machine access interfaces added and gone since the last tick. */
     private void syncMachines(ExecutionEnv env) {
-        Set<IMachineAccess> now = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<IMachine> now = Collections.newSetFromMap(new IdentityHashMap<>());
         now.addAll(env.machines());
-        for (Iterator<Map.Entry<IMachineAccess, MachineState>> it = machines.entrySet().iterator(); it.hasNext(); ) {
+        for (Iterator<Map.Entry<IMachine, MachineState>> it = machines.entrySet().iterator(); it.hasNext(); ) {
             MachineState m = it.next().getValue();
             if (!now.contains(m.access)) {
                 it.remove();
                 machineGone(m, env);
             }
         }
-        for (IMachineAccess a : now)
+        for (IMachine a : now)
             if (!machines.containsKey(a)) {
                 MachineState m = new MachineState(a);
                 machines.put(a, m);
@@ -1435,7 +1431,7 @@ public final class HubState {
             }
     }
 
-    private static @Nullable Place placeOf(IMachineAccess a) {
+    private static @Nullable Place placeOf(IMachine a) {
         World level = a.getMachineWorld();
         return level == null ? null : level.place(a.getMachinePos());
     }
@@ -1536,8 +1532,8 @@ public final class HubState {
                 takeProduct(m, key, n, env);
             });
             // the output hatches bound to it
-            for (IMachineAccess.Port port : m.access.ports())
-                if (port.role() == IMachineAccess.PortRole.OUTPUT && level.isLoaded(port.pos()))
+            for (IMachine.Port port : m.access.ports())
+                if (port.role() == IMachine.PortRole.OUTPUT && level.isLoaded(port.pos()))
                     level.storage().extractOutputs(port.pos(), otherOutputs(m, env), materialsInside(m, env), (key, n) -> {
                         took[0] = true;
                         takeProduct(m, key, n, env);
@@ -1558,7 +1554,7 @@ public final class HubState {
                 note(outNotes, m, "[雙星] 機器產物 " + pos.toShortString() + "：等 " + runs + " 份的產物，這 tick 沒抽到東西；看到："
                         + level.storage().describe(pos));
             }
-            if (m.access.isAccessActive() && m.access.getInsertMode() != IMachineAccess.InsertMode.OUTPUT)
+            if (m.access.isAccessActive() && m.access.getInsertMode() != IMachine.InsertMode.OUTPUT)
                 feed(m, level, pos);
             pruneFlights(m, env);
         }
@@ -1609,7 +1605,7 @@ public final class HubState {
                     products.add(k);
             }
             for (int s = 0; s < pat.inputCount(); s++) {
-                if (pat.inputKind(s) != InputKind.CONSUME && pat.inputRole(s) != PatternInputRoles.CATALYST)
+                if (pat.inputKind(s) != InputKind.CONSUME && pat.inputRole(s) != InputRoles.CATALYST)
                     continue;
                 Key k = env.index().key(pat.inputItem(s));
                 if (k != null)
@@ -1635,7 +1631,7 @@ public final class HubState {
         return out;
     }
 
-    /** {@code m} and the interfaces of the same machine spread over several blocks ({@link IMachineAccess#getGroup}). */
+    /** {@code m} and the interfaces of the same machine spread over several blocks ({@link IMachine#getGroup}). */
     private List<MachineState> peers(MachineState m) {
         int group = m.access.getGroup();
         if (group <= 0)
@@ -1698,7 +1694,7 @@ public final class HubState {
                 for (int o = 0; o < pat.outputCount() && match == null; o++) {
                     int item = pat.outputItem(o);
                     Key out = env.index().key(item);
-                    if (out != null && pat.ignoresNbtOf(item) && com.lumina.twinstar.algorithm.ae2.PatternIgnoreNbt.sameIgnoringNbt(Keys.toAe(out), Keys.toAe(key)))
+                    if (out != null && pat.ignoresNbtOf(item) && out.sameIgnoringData(key))
                         match = out;
                 }
             }
@@ -1871,7 +1867,7 @@ public final class HubState {
             for (int s = 0; s < pat.inputCount(); s++) {
                 int role = pat.inputRole(s);
                 Key key = env.index().key(pat.inputItem(s));
-                if (key == null || role != PatternInputRoles.CATALYST)
+                if (key == null || role != InputRoles.CATALYST)
                     continue;
                 long inside = e.getValue().getOrDefault(key, 0L);
                 if (inside > 0)
@@ -1924,8 +1920,8 @@ public final class HubState {
         for (Part p : f.parts) {
             if (p.left <= 0)
                 continue;
-            long in = switch (PatternInputTargets.kind(p.target)) {
-                case PatternInputTargets.SUB -> {
+            long in = switch (InputTargets.kind(p.target)) {
+                case InputTargets.SUB -> {
                     long went = 0;
                     for (Pos sub : subsOf(m, pat, level, pos)) {
                         if (m.filledSubs.contains(sub))
@@ -1939,15 +1935,15 @@ public final class HubState {
                     }
                     yield went;
                 }
-                case PatternInputTargets.FRONT_BLOCK, PatternInputTargets.FRONT_DROP -> {
+                case InputTargets.FRONT_BLOCK, InputTargets.FRONT_DROP -> {
                     if (p.key.kind() != Key.Kind.ITEM)
                         yield 0;
                     Key item = p.key;
-                    Pos cell = level.actions().front(pos, m.access.getMachineFace(), PatternInputTargets.distance(p.target));
+                    Pos cell = level.actions().front(pos, m.access.getMachineFace(), InputTargets.distance(p.target));
                     m.frontCells.add(cell);
-                    long went = PatternInputTargets.kind(p.target) == PatternInputTargets.FRONT_BLOCK ? level.actions().place(cell, item) : 0;
+                    long went = InputTargets.kind(p.target) == InputTargets.FRONT_BLOCK ? level.actions().place(cell, item) : 0;
                     // not a block (or a block it may not place): dropped instead
-                    if (went == 0 && !(PatternInputTargets.kind(p.target) == PatternInputTargets.FRONT_BLOCK
+                    if (went == 0 && !(InputTargets.kind(p.target) == InputTargets.FRONT_BLOCK
                             && level.actions().isBlockItem(item)))
                         went = level.actions().drop(cell, item, p.left);
                     yield went;
@@ -1963,7 +1959,7 @@ public final class HubState {
             };
             p.left -= in;
             f.fed += in;
-            if (in > 0 && p.role != PatternInputRoles.NORMAL)
+            if (in > 0 && p.role != InputRoles.NORMAL)
                 m.held.computeIfAbsent(new Flight(f.job, f.pattern), k -> new LinkedHashMap<>()).merge(p.key, in, Long::sum);
             else if (in > 0 && usage != null)
                 usage.used(m.access, p.key, in);        // a material the machine uses up (a catalyst or a tool comes back: not counted)
@@ -2001,14 +1997,14 @@ public final class HubState {
 
     /** For the debug log: the hatch a material's slot number names, and what it does with it. */
     private String hatchNote(MachineState m, World level, Part p) {
-        List<IMachineAccess.Port> ports = m.access.ports();
+        List<IMachine.Port> ports = m.access.ports();
         if (ports.isEmpty())
             return "";
         boolean fluid = p.key.kind() == Key.Kind.FLUID;
-        IMachineAccess.PortRole role = fluid ? IMachineAccess.PortRole.FLUID_IN : IMachineAccess.PortRole.ITEM_IN;
+        IMachine.PortRole role = fluid ? IMachine.PortRole.FLUID_IN : IMachine.PortRole.ITEM_IN;
         StringBuilder sb = new StringBuilder("；艙口（" + (fluid ? "流體" : "物品") + "輸入，欄位 " + p.guiSlot + "）：");
         boolean any = false;
-        for (IMachineAccess.Port port : ports) {
+        for (IMachine.Port port : ports) {
             if (port.role() != role || (p.guiSlot > 0 && port.slot() != p.guiSlot))
                 continue;
             any = true;
@@ -2028,7 +2024,7 @@ public final class HubState {
     }
 
     /**
-     * Puts a material into the hatches bound to the machine ({@link IMachineAccess#ports}): one whose slot number is the material's
+     * Puts a material into the hatches bound to the machine ({@link IMachine#ports}): one whose slot number is the material's
      * slot (items into the item inputs, fluids into the fluid inputs, each numbered apart); a fluid with no slot into the first
      * fluid input that takes it. {@code only[0]} is set when a hatch is named for it, so it goes nowhere else even when that hatch
      * is full (the order of an assembly line matters). Returns how much went in.
@@ -2039,9 +2035,9 @@ public final class HubState {
             // which hatch took what, by ids: a material in the wrong hatch shows here (what the hatch holds is read after the insert)
             String id = p.key.kind() == Key.Kind.OTHER ? p.key.typeName() : p.key.id();
             StringBuilder sb = new StringBuilder("[雙星] 艙口放入 ").append(id).append(" ×").append(went).append("（樣板欄位 ").append(p.guiSlot).append("）→");
-            for (IMachineAccess.Port port : m.access.ports())
+            for (IMachine.Port port : m.access.ports())
                 if (port.pos().equals(p.hatchPort) || p.guiSlot > 0 && port.slot() == p.guiSlot
-                        && port.role() == (p.key.kind() == Key.Kind.FLUID ? IMachineAccess.PortRole.FLUID_IN : IMachineAccess.PortRole.ITEM_IN))
+                        && port.role() == (p.key.kind() == Key.Kind.FLUID ? IMachine.PortRole.FLUID_IN : IMachine.PortRole.ITEM_IN))
                     sb.append(" 艙口 #").append(port.slot()).append(" ").append(port.pos().toShortString()).append("，現有：")
                             .append(p.key.kind() == Key.Kind.ITEM ? level.storage().contentsAt(port.pos()) : "（流體）");
             debug.accept(sb.toString());
@@ -2050,16 +2046,16 @@ public final class HubState {
     }
 
     private long intoHatches0(MachineState m, World level, Part p, boolean[] only) {
-        List<IMachineAccess.Port> ports = m.access.ports();
+        List<IMachine.Port> ports = m.access.ports();
         if (ports.isEmpty())
             return 0;
         boolean fluid = p.key.kind() == Key.Kind.FLUID;
-        IMachineAccess.PortRole role = fluid ? IMachineAccess.PortRole.FLUID_IN : IMachineAccess.PortRole.ITEM_IN;
+        IMachine.PortRole role = fluid ? IMachine.PortRole.FLUID_IN : IMachine.PortRole.ITEM_IN;
         boolean noController = !fluid && controllerTakesNoItems(m, level);
         if (p.guiSlot > 0) {
             // the hatch with this slot number, and nowhere else
             boolean named = false;
-            for (IMachineAccess.Port port : ports) {
+            for (IMachine.Port port : ports) {
                 if (port.role() != role || port.slot() != p.guiSlot)
                     continue;
                 named = true;
@@ -2089,13 +2085,13 @@ public final class HubState {
                 if (other.hatchPort != null)
                     used.add(other.hatchPort);
             }
-        List<IMachineAccess.Port> order = new ArrayList<>();
-        for (IMachineAccess.Port port : ports)
+        List<IMachine.Port> order = new ArrayList<>();
+        for (IMachine.Port port : ports)
             if (port.role() == role && level.isLoaded(port.pos()))
                 order.add(port);
-        order.sort(java.util.Comparator.comparingInt(IMachineAccess.Port::slot));
+        order.sort(java.util.Comparator.comparingInt(IMachine.Port::slot));
         long went = 0;
-        for (IMachineAccess.Port port : order) {
+        for (IMachine.Port port : order) {
             if (p.hatchPort != null ? !port.pos().equals(p.hatchPort) : claimed.contains(port.slot()) || used.contains(port.pos()))
                 continue;
             long in = insertOrClick(m, level, port.pos(), ANY_FACE, p.key, p.left - went, 0);
@@ -2373,12 +2369,12 @@ public final class HubState {
                     return Amount.ZERO;     // the last batch is not all in yet
         List<MachineState> free = new ArrayList<>();
         for (MachineState m : all) {
-            if (m.feed != null || m.access.getInsertMode() == IMachineAccess.InsertMode.OUTPUT)
+            if (m.feed != null || m.access.getInsertMode() == IMachine.InsertMode.OUTPUT)
                 continue;
-            IMachineAccess.BlockMode block = m.access.getBlockMode();
-            if (block == IMachineAccess.BlockMode.FULL && stillHasMaterials(m, env, null))
+            IMachine.BlockMode block = m.access.getBlockMode();
+            if (block == IMachine.BlockMode.FULL && stillHasMaterials(m, env, null))
                 continue;   // full blocking: the last run's materials are not all used up yet
-            if (block == IMachineAccess.BlockMode.BLOCKING && m.lastPat != null && m.lastPattern != t.pattern
+            if (block == IMachine.BlockMode.BLOCKING && m.lastPat != null && m.lastPattern != t.pattern
                     && stillHasMaterials(m, env, m.lastPat))
                 continue;   // blocking: the previous pattern's materials are still there
             free.add(m);
@@ -2398,7 +2394,7 @@ public final class HubState {
         for (int i = 0; i < k && sent < want; i++) {
             MachineState m = free.get((i + rotate) % k);
             long runs = share + (i < extra ? 1 : 0);
-            if (m.access.getBlockMode() == IMachineAccess.BlockMode.FULL)
+            if (m.access.getBlockMode() == IMachine.BlockMode.FULL)
                 runs = Math.min(runs, 1);       // one run, then wait until it is used up
             for (long c = 0; c < runs; c++) {
                 if (!startRun(job, t, pat, m, env)) {
@@ -2455,15 +2451,15 @@ public final class HubState {
             int role = pat.inputRole(s);
             List<@Nullable Face> faces = facesFor(m.access, pat.inputFaces(s));
             for (Map.Entry<Key, Long> e : inputs.get(s).entrySet()) {
-                if (role == PatternInputRoles.TOOL) {
+                if (role == InputRoles.TOOL) {
                     f.tools.add(e.getKey());
                     continue;
                 }
                 f.parts.add(new Part(e.getKey(), e.getValue(), faces,
-                        PatternInputTargets.resolve(pat.inputTarget(s), pat.subMachineCount() > 0, s == 0), role, pat.inputGuiSlot(s)));
+                        InputTargets.resolve(pat.inputTarget(s), pat.subMachineCount() > 0, s == 0), role, pat.inputGuiSlot(s)));
                 f.total += e.getValue();
                 // a kept catalyst is expected back once, when its batch is done, not with every run
-                if (role == PatternInputRoles.CATALYST)
+                if (role == InputRoles.CATALYST)
                     expect(job, env.index().idOf(e.getKey()), Amount.of(e.getValue()), env.nowNanos());
             }
         }
@@ -2479,13 +2475,13 @@ public final class HubState {
      * The faces a material goes in through: the pattern's faces for it when it gives any (unless the interface lets
      * the machine choose), else the interface's own face, or no face for "any".
      */
-    private static List<@Nullable Face> facesFor(IMachineAccess a, int patternFaces) {
+    private static List<@Nullable Face> facesFor(IMachine a, int patternFaces) {
         List<@Nullable Face> out = new ArrayList<>();
-        if (a.getInsertMode() == IMachineAccess.InsertMode.ANY) {
+        if (a.getInsertMode() == IMachine.InsertMode.ANY) {
             out.add(null);
             return out;
         }
-        out.addAll(PatternInputFaces.faces(patternFaces));
+        out.addAll(InputFaces.faces(patternFaces));
         if (out.isEmpty())
             out.add(a.getMachineFace());
         return out;
@@ -2534,7 +2530,7 @@ public final class HubState {
     public record MachineStatus(Job job, int pattern, boolean feeding, long fed, long total, Amount runsIn) {
     }
 
-    public @Nullable MachineStatus machineStatus(IMachineAccess a) {
+    public @Nullable MachineStatus machineStatus(IMachine a) {
         MachineState m = machines.get(a);
         if (m == null)
             return null;

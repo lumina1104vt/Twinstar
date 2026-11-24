@@ -1,12 +1,9 @@
 package com.lumina.twinstar.algorithm.execution;
 
-import com.lumina.twinstar.algorithm.ae2.ItemIndex;
 import com.lumina.twinstar.port.PatternSites;
 import com.lumina.twinstar.port.Power;
-import com.lumina.twinstar.algorithm.ae2.NetworkStore;
 import com.lumina.twinstar.algorithm.model.Amount;
-import com.lumina.twinstar.api.IMachineAccess;
-import com.lumina.twinstar.host.ITwinStarEnergySource;
+import com.lumina.twinstar.api.IMachine;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
@@ -23,8 +20,8 @@ import java.util.function.Function;
  * @param parallelism     white hole: runs per tick each job may send in total, any size; null = unlimited
  * @param tickBudgetNanos compute budget for the whole hub tick
  */
-public record ExecutionEnv(ItemIndex index, NetworkStore store, Power energy,
+public record ExecutionEnv(KeyIndex index, Stock store, Power energy,
                            @Nullable ITwinStarEnergySource hubEnergy,
-                           PatternSites providers, List<IMachineAccess> machines,
+                           PatternSites providers, List<? extends IMachine> machines,
                            @Nullable Amount parallelism, long nowNanos, long tickBudgetNanos) {
 }

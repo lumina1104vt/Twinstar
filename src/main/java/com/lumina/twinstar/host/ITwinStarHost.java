@@ -2,6 +2,7 @@ package com.lumina.twinstar.host;
 
 import appeng.api.config.CpuSelectionMode;
 import appeng.api.networking.security.IActionHost;
+import com.lumina.twinstar.algorithm.execution.ITwinStarEnergySource;
 import net.minecraft.nbt.CompoundTag;
 import org.jetbrains.annotations.Nullable;
 

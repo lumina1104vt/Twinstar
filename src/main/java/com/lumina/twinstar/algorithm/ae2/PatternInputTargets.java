@@ -1,6 +1,7 @@
 package com.lumina.twinstar.algorithm.ae2;
 
 import appeng.api.stacks.AEKey;
+import com.lumina.twinstar.algorithm.execution.InputTargets;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -23,19 +24,19 @@ import java.util.List;
  */
 public record PatternInputTargets(List<Entry> entries) {
     /** not set: with sub-machines, {@link #MACHINE} for the first material and {@link #SUB} for the rest; else {@link #MACHINE} */
-    public static final int DEFAULT = 0;
+    public static final int DEFAULT = InputTargets.DEFAULT;
     /** into the machine: its capabilities, or a right-click when it has none */
-    public static final int MACHINE = 4;
+    public static final int MACHINE = InputTargets.MACHINE;
     /** into the sub-machines near it, in their order */
-    public static final int SUB = 1;
+    public static final int SUB = InputTargets.SUB;
     /** placed as a block in front of its opening */
-    public static final int FRONT_BLOCK = 2;
+    public static final int FRONT_BLOCK = InputTargets.FRONT_BLOCK;
     /** dropped as an item in front of its opening */
-    public static final int FRONT_DROP = 3;
-    public static final int KINDS = 5;
+    public static final int FRONT_DROP = InputTargets.FRONT_DROP;
+    public static final int KINDS = InputTargets.KINDS;
     /** The order a screen offers them in. */
     public static final int[] ORDER = {DEFAULT, MACHINE, SUB, FRONT_BLOCK, FRONT_DROP};
-    public static final int MAX_DISTANCE = 8;
+    public static final int MAX_DISTANCE = InputTargets.MAX_DISTANCE;
 
     public record Entry(AEKey key, int target) {
         static final Codec<Entry> CODEC = RecordCodecBuilder.create(i -> i.group(
@@ -64,7 +65,7 @@ public record PatternInputTargets(List<Entry> entries) {
 
     /** {@code target} with {@link #DEFAULT} made what it stands for; {@code first}: the pattern's first material. */
     public static int resolve(int target, boolean hasSubMachines, boolean first) {
-        return kind(target) == DEFAULT ? (hasSubMachines && !first ? SUB : MACHINE) : target;
+        return InputTargets.resolve(target, hasSubMachines, first);
     }
 
     /** The kind after {@code kind} in {@link #ORDER}. */
@@ -80,13 +81,12 @@ public record PatternInputTargets(List<Entry> entries) {
     }
 
     public static int kind(int target) {
-        int k = target & 0xF;
-        return k < KINDS ? k : DEFAULT;
+        return InputTargets.kind(target);
     }
 
     /** How far in front, for the front kinds (1 when not set). */
     public static int distance(int target) {
-        return clampDistance(target >> 4);
+        return InputTargets.distance(target);
     }
 
     public static boolean isFront(int target) {

@@ -1,6 +1,7 @@
 package com.lumina.twinstar.algorithm.ae2;
 
 import appeng.api.stacks.AEKey;
+import com.lumina.twinstar.algorithm.execution.InputRoles;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -21,7 +22,7 @@ import java.util.List;
  * not put in but right-clicks the machine once every material of a run is in.
  */
 public record PatternInputRoles(List<Entry> entries) {
-    public static final int NORMAL = 0, CATALYST = 1, TOOL = 2;
+    public static final int NORMAL = InputRoles.NORMAL, CATALYST = InputRoles.CATALYST, TOOL = InputRoles.TOOL;
     /** what a player can set: used up or catalyst */
     public static final int KINDS = 2;
 

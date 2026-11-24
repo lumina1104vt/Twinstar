@@ -8,12 +8,12 @@ public final class Task {
     public final int level;
     /** policy cycle this pattern belongs to, or −1 */
     public final int scc;
-    Amount remaining;
+    public Amount remaining;
     /** runs pushed to machines whose outputs have not come back yet (display only) */
-    Amount inFlight = Amount.ZERO;
-    boolean queued;
+    public Amount inFlight = Amount.ZERO;
+    public boolean queued;
 
-    Task(int pattern, int level, int scc, Amount remaining) {
+    public Task(int pattern, int level, int scc, Amount remaining) {
         this.pattern = pattern;
         this.level = level;
         this.scc = scc;

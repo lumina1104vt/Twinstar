@@ -32,7 +32,7 @@ import com.lumina.twinstar.algorithm.execution.ExecutionEnv;
 import com.lumina.twinstar.algorithm.execution.ExecutionSettings;
 import com.lumina.twinstar.algorithm.execution.HubState;
 import com.lumina.twinstar.algorithm.execution.Job;
-import com.lumina.twinstar.algorithm.execution.JobStore;
+import com.lumina.twinstar.platform.JobStore;
 import com.lumina.twinstar.algorithm.model.Amount;
 import com.lumina.twinstar.metrics.HubReport;
 import com.lumina.twinstar.metrics.PlanStats;
@@ -225,7 +225,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
                 Twinstar.LOGGER.info(line);
         });
         theory.setUnits(units);
-        hub.setUsage(com.lumina.twinstar.usage.UsageStore::recordHub);
+        hub.setUsage((machine, key, amount) -> com.lumina.twinstar.usage.UsageStore.recordHub((com.lumina.twinstar.api.IMachineAccess) machine, key, amount));
         hub.setOnDone(this::tellDone);
         LIVE.add(this);
     }
@@ -991,8 +991,8 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
         CraftingService crafting = (CraftingService) grid.getCraftingService();
         BigInteger p = getParallelism();
         Amount parallelism = p == null ? null : Amount.of(p.max(BigInteger.ONE));
-        return new ExecutionEnv(index, store(), com.lumina.twinstar.algorithm.execution.Ae2Adapters.power(energy), host != null ? host.getHostEnergySource() : null,
-                com.lumina.twinstar.algorithm.execution.Ae2Adapters.sites(crafting::getProviders), allAccess(), parallelism, System.nanoTime(), TICK_BUDGET_NANOS);
+        return new ExecutionEnv(index, store(), com.lumina.twinstar.platform.Ae2Adapters.power(energy), host != null ? host.getHostEnergySource() : null,
+                com.lumina.twinstar.platform.Ae2Adapters.sites(crafting::getProviders), allAccess(), parallelism, System.nanoTime(), TICK_BUDGET_NANOS);
     }
 
     /**
@@ -1109,7 +1109,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
             if (a != access && a.getMachineLevel() == level)
                 others.add(a.getMachinePos());
         List<com.lumina.bridge.Pos> found = com.lumina.twinstar.algorithm.execution.SubMachines.find(
-                com.lumina.twinstar.algorithm.execution.Ae2Adapters.world(level), access.getMachinePos(),
+                com.lumina.twinstar.platform.Ae2Adapters.world(level), access.getMachinePos(),
                 access.getSubRange(), kinds, others);
         subsByAccess.put(access, found);
         subsAtByAccess.put(access, now);

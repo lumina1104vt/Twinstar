@@ -45,15 +45,6 @@ public record PatternInputFaces(List<Entry> entries) {
         return 0;
     }
 
-    /** The same as {@link #directions}, neutral. */
-    public static List<Face> faces(int faces) {
-        List<Face> out = new ArrayList<>();
-        for (Face f : Face.values())
-            if ((faces & (1 << f.ordinal())) != 0)
-                out.add(f);
-        return out;
-    }
-
     /** The faces of a bit set, in {@link Direction} order (down, up, north, south, west, east). */
     public static List<Direction> directions(int faces) {
         List<Direction> out = new ArrayList<>();

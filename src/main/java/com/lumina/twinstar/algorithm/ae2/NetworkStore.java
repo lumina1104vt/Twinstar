@@ -4,6 +4,7 @@ import appeng.api.config.Actionable;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.stacks.AEKey;
 import com.lumina.bridge.key.Key;
+import com.lumina.twinstar.algorithm.execution.Stock;
 import com.lumina.bridge.key.Keys;
 import appeng.api.storage.MEStorage;
 import com.lumina.twinstar.algorithm.model.Amount;
@@ -19,7 +20,7 @@ import java.util.List;
  * The big storages are also mounted in AE2's storage (as long views), so the same contents can be
  * reached both ways; extraction drains them exactly first, so AE2 never sees them twice.
  */
-public final class NetworkStore {
+public final class NetworkStore implements Stock {
     /** AE2 storage takes longs: an astronomical amount without a big storage goes in over many ticks. */
     private static final int MAX_CHUNKS_PER_CALL = 16;
     private static final BigInteger LONG_MAX = BigInteger.valueOf(Long.MAX_VALUE);
@@ -53,14 +54,17 @@ public final class NetworkStore {
         return done;
     }
 
+    @Override
     public Amount insert(Key key, Amount amount) {
         return insert(Keys.toAe(key), amount);
     }
 
+    @Override
     public Amount extract(Key key, Amount amount) {
         return extract(Keys.toAe(key), amount);
     }
 
+    @Override
     public boolean isInfinite(Key key) {
         return isInfinite(Keys.toAe(key));
     }
