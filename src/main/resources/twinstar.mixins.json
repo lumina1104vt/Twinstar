@@ -11,7 +11,11 @@
     "ProviderStateMixin",
     "CraftingCPUMenuMixin",
     "CraftAmountMenuMixin",
-    "CraftingStatusEntryMixin"
+    "CraftingStatusEntryMixin",
+    "GenericStackInvMixin",
+    "InterfaceLogicMixin",
+    "PatternProviderLogicMixin",
+    "StorageExportStrategyMixin"
   ],
   "client": [
     "client.CraftingStatusTableRendererMixin",
