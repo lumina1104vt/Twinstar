@@ -1,6 +1,6 @@
 package com.lumina.twinstar.algorithm.ae2;
 
-import com.lumina.twinstar.util.AEKeyCodec;
+import com.lumina.twinstar.algorithm.ae2.AEKeyCodec;
 
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;

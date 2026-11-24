@@ -25,7 +25,7 @@ public final class Ae2SaveCodec implements SaveCodec {
 
     @Override
     public Data writeKey(Key key) {
-        return Nbt.fromNbt(Keys.toAe(key).toTagGeneric(regs));
+        return Nbt.fromNbt(Keys.toAe(key).toTagGeneric());
     }
 
     @Override
@@ -38,7 +38,7 @@ public final class Ae2SaveCodec implements SaveCodec {
     public @Nullable Data writeSource(@Nullable Object source) {
         AEItemKey definition = source instanceof IPatternDetails details ? details.getDefinition()
                 : source instanceof AEItemKey undecoded ? undecoded : null;
-        return definition == null ? null : Nbt.fromNbt(definition.toTagGeneric(regs));
+        return definition == null ? null : Nbt.fromNbt(definition.toTagGeneric());
     }
 
     @Override
@@ -56,7 +56,7 @@ public final class Ae2SaveCodec implements SaveCodec {
 
     private @Nullable AEKey readAe(Data data) {
         try {
-            return AEKey.fromTagGeneric(regs, Nbt.toNbt(data));
+            return AEKey.fromTagGeneric(Nbt.toNbt(data));
         } catch (RuntimeException e) {
             return null;        // its mod is gone
         }

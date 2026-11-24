@@ -2155,9 +2155,11 @@ public final class HubState {
             return m.subs;
         List<String> kinds = new ArrayList<>();
         if (envNow != null)
-            for (int i = 0; i < pat.subMachineCount(); i++)
-                if (envNow.index().key(pat.subMachine(i)) instanceof Key k && k.kind() == Key.Kind.ITEM)
+            for (int i = 0; i < pat.subMachineCount(); i++) {
+                Key k = envNow.index().key(pat.subMachine(i));
+                if (k != null && k.kind() == Key.Kind.ITEM)
                     kinds.add(k.id());
+            }
         List<Pos> others = new ArrayList<>();
         for (MachineState other : machines.values())
             if (other != m && level.equals(other.access.getMachineWorld()))

@@ -15,7 +15,7 @@ import com.lumina.twinstar.client.ui.UiKit.PixelButton;
 import com.lumina.twinstar.order.ItemMark;
 import com.lumina.twinstar.order.PlanMenu;
 import com.lumina.twinstar.order.PlanView;
-import com.lumina.twinstar.util.AmountParser;
+import com.lumina.corelib.util.AmountParser;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.ChatFormatting;

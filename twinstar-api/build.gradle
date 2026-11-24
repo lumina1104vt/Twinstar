@@ -3,7 +3,7 @@
 plugins {
     id 'java-library'
     id 'idea'
-    id 'net.neoforged.moddev'   // version from the root project
+    id 'net.neoforged.moddev.legacyforge'   // version from the root project
 }
 
 // version comes from the root gradle.properties (twinstar_api_mod_version); must be set before mod-common reads it
@@ -14,7 +14,7 @@ ext.mod_description = file('description.txt').getText('UTF-8')
 
 apply from: rootProject.file('gradle/mod-common.gradle')
 
-neoForge {
+legacyForge {
     mods {
         "${mod_id}" {
             sourceSet(sourceSets.main)
@@ -28,7 +28,7 @@ repositories {
 
 dependencies {
     // the interfaces speak AE2's keys and grid services; AE2 itself is provided by the player
-    compileOnly "maven.modrinth:ae2:${ae2_version}"
+    modCompileOnly "maven.modrinth:ae2:${ae2_version}"
     compileOnly project(':lumina-bridge')
     compileOnly 'org.jetbrains:annotations:24.1.0'
 

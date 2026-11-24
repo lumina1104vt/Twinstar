@@ -4,7 +4,7 @@ plugins {
     id 'java-library'
     id 'idea'
     id 'java-test-fixtures'
-    id 'net.neoforged.moddev'   // version from the root project
+    id 'net.neoforged.moddev.legacyforge'   // version from the root project
 }
 
 // version comes from the root gradle.properties (twinstar_core_mod_version); must be set before mod-common reads it
@@ -15,7 +15,7 @@ ext.mod_description = file('description.txt').getText('UTF-8')
 
 apply from: rootProject.file('gradle/mod-common.gradle')
 
-neoForge {
+legacyForge {
     mods {
         "${mod_id}" {
             sourceSet(sourceSets.main)

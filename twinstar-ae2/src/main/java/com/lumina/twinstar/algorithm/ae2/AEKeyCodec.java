@@ -1,4 +1,4 @@
-package com.lumina.twinstar.util;
+package com.lumina.twinstar.algorithm.ae2;
 
 import appeng.api.stacks.AEKey;
 import com.mojang.serialization.Codec;

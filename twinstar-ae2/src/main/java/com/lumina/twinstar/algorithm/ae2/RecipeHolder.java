@@ -1,4 +1,4 @@
-package com.lumina.twinstar.util;
+package com.lumina.twinstar.algorithm.ae2;
 
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.crafting.Recipe;

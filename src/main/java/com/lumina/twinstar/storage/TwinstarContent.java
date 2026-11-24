@@ -5,6 +5,7 @@ import appeng.blockentity.AEBaseBlockEntity;
 import appeng.menu.implementations.MenuTypeBuilder;
 import com.lumina.twinstar.Twinstar;
 import com.lumina.twinstar.algorithm.ae2.PatternChances;
+import com.lumina.twinstar.algorithm.ae2.PatternData;
 import com.lumina.twinstar.algorithm.ae2.PatternComponents;
 import com.lumina.twinstar.algorithm.ae2.PatternDispatchDone;
 import com.lumina.twinstar.algorithm.ae2.PatternInputFaces;
