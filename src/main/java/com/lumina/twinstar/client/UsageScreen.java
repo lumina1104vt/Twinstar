@@ -10,7 +10,7 @@ import com.lumina.twinstar.client.ui.PixelIcon;
 import com.lumina.twinstar.usage.UsagePackets;
 import com.lumina.twinstar.usage.UsageSnapshot;
 import com.lumina.twinstar.usage.UsageStore;
-import com.lumina.twinstar.util.BigAmountFormat;
+import com.lumina.corelib.util.BigAmountFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;

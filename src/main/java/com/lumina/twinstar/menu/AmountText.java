@@ -2,7 +2,7 @@ package com.lumina.twinstar.menu;
 
 import appeng.api.stacks.AEKey;
 import appeng.api.stacks.AmountFormat;
-import com.lumina.twinstar.util.BigAmountFormat;
+import com.lumina.corelib.util.BigAmountFormat;
 
 import java.math.BigInteger;
 

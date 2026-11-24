@@ -1,6 +1,6 @@
 package com.lumina.twinstar.menu;
 
-import com.lumina.twinstar.util.BigAmountFormat;
+import com.lumina.corelib.util.BigAmountFormat;
 import org.jetbrains.annotations.Nullable;
 
 import java.math.BigInteger;

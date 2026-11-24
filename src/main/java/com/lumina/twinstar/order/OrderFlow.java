@@ -7,7 +7,7 @@ import appeng.api.stacks.AEKey;
 import appeng.menu.locator.MenuHostLocator;
 import com.lumina.twinstar.api.ITwinStarService;
 import com.lumina.twinstar.service.TwinStarService;
-import com.lumina.twinstar.util.AmountParser;
+import com.lumina.corelib.util.AmountParser;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import org.jetbrains.annotations.Nullable;

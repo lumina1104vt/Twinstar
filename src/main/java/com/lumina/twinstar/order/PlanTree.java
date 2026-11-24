@@ -7,7 +7,7 @@ import com.lumina.twinstar.algorithm.cache.Snapshot;
 import com.lumina.twinstar.algorithm.model.Amount;
 import com.lumina.twinstar.algorithm.model.Pattern;
 import com.lumina.twinstar.algorithm.planning.Plan;
-import com.lumina.twinstar.util.BigAmountFormat;
+import com.lumina.corelib.util.BigAmountFormat;
 import org.jetbrains.annotations.Nullable;
 
 import java.math.BigInteger;

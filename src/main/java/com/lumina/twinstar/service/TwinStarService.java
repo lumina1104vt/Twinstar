@@ -811,7 +811,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
 
     /**
      * Stands for "unlimited" where an amount is needed: 2^(2^16) ≈ 10^19728, beyond any order
-     * (at most {@link com.lumina.twinstar.util.AmountParser#MAX_EXTERNAL}) times what its intermediates multiply it by.
+     * (at most {@link com.lumina.corelib.util.AmountParser#MAX_EXTERNAL}) times what its intermediates multiply it by.
      */
     private static final Amount UNLIMITED_CAPACITY = Amount.of(BigInteger.ONE.shiftLeft(1 << 16));
 
