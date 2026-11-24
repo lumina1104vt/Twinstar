@@ -156,8 +156,8 @@ public final class Ae2Adapters {
             return MachineIO.retrieve(level, mc(pos), aeItem(key), amount, wrap(taken));
         }
 
-        public void extractOutputs(Pos pos, Set<Key> wantOther, Set<Key> keep, BiConsumer<Key, Long> taken) {
-            MachineIO.extractOutputs(level, mc(pos), aeSet(wantOther), aeSet(keep), wrap(taken));
+        public void extractOutputs(Pos pos, Set<Key> wantOther, Set<Key> keep, Set<Key> products, BiConsumer<Key, Long> taken) {
+            MachineIO.extractOutputs(level, mc(pos), aeSet(wantOther), aeSet(keep), aeSet(products), wrap(taken));
         }
 
         public boolean holdsAny(Pos pos, Set<Key> keys) {

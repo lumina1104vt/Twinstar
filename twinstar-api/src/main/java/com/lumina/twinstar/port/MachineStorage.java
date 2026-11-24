@@ -25,7 +25,7 @@ public interface MachineStorage {
     long retrieve(Pos pos, Key key, long amount, BiConsumer<Key, Long> taken);
 
     /** Takes what the machine made: every output except {@code keep}; {@code wantOther} are also taken. */
-    void extractOutputs(Pos pos, Set<Key> wantOther, Set<Key> keep, BiConsumer<Key, Long> taken);
+    void extractOutputs(Pos pos, Set<Key> wantOther, Set<Key> keep, Set<Key> products, BiConsumer<Key, Long> taken);
 
     boolean holdsAny(Pos pos, Set<Key> keys);
 

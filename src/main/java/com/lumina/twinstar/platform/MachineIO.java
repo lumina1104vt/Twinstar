@@ -144,18 +144,23 @@ final class MachineIO {
      * each amount taken goes to {@code taken}. Items of {@code keep} (materials of the runs in the machine)
      * are left where they are.
      */
-    static void extractOutputs(ServerLevel level, BlockPos pos, Set<AEKey> wantOther, Set<AEKey> keep, BiConsumer<AEKey, Long> taken) {
+    static void extractOutputs(ServerLevel level, BlockPos pos, Set<AEKey> wantOther, Set<AEKey> keep, Set<AEKey> products, BiConsumer<AEKey, Long> taken) {
         for (IItemHandler h : itemHandlers(level, pos))
             for (int s = 0; s < h.getSlots(); s++) {
                 ItemStack in = h.getStackInSlot(s);
-                if (in.isEmpty() || !isOutput(h, s, in))
+                if (in.isEmpty())
                     continue;
+                AEItemKey inKey = AEItemKey.of(in);
                 // what a run's materials look like in a slot that refuses more (a single-item chamber) is not a product
-                if (!keep.isEmpty() && keep.contains(AEItemKey.of(in)))
+                if (!keep.isEmpty() && keep.contains(inKey))
+                    continue;
+                // a full stack that the slot would take more of looks like a material, but one of the products the runs
+                // in the machine are making is a product (a machine that makes a whole stack at once)
+                if (!isOutput(h, s, in) && !(products.contains(inKey) && h.isItemValid(s, in) && room(h, s, in) <= 0))
                     continue;
                 ItemStack got = h.extractItem(s, in.getCount(), false);
                 if (!got.isEmpty())
-                    taken.accept(AEItemKey.of(got), (long) got.getCount());
+                    taken.accept(inKey, (long) got.getCount());
             }
         for (IFluidHandler h : fluidHandlers(level, pos))
             for (int t = 0; t < h.getTanks(); t++) {

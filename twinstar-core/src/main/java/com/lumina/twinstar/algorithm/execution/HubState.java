@@ -1527,14 +1527,14 @@ public final class HubState {
                 m.filledSubs.clear();
             flushOverflow(m, env);
             boolean[] took = {false};
-            level.storage().extractOutputs(pos, otherOutputs(m, env), materialsInside(m, env), (key, n) -> {
+            level.storage().extractOutputs(pos, otherOutputs(m, env), materialsInside(m, env), productsInside(m, env), (key, n) -> {
                 took[0] = true;
                 takeProduct(m, key, n, env);
             });
             // the output hatches bound to it
             for (IMachine.Port port : m.access.ports())
                 if (port.role() == IMachine.PortRole.OUTPUT && level.isLoaded(port.pos()))
-                    level.storage().extractOutputs(port.pos(), otherOutputs(m, env), materialsInside(m, env), (key, n) -> {
+                    level.storage().extractOutputs(port.pos(), otherOutputs(m, env), materialsInside(m, env), productsInside(m, env), (key, n) -> {
                         took[0] = true;
                         takeProduct(m, key, n, env);
                     });
@@ -1614,6 +1614,22 @@ public final class HubState {
         }
         keep.removeAll(products);
         return keep;
+    }
+
+    /** Everything the runs in machine {@code m} (and its peers) make. */
+    private Set<Key> productsInside(MachineState m, ExecutionEnv env) {
+        Set<Key> out = new HashSet<>();
+        for (MachineState peer : peers(m))
+            for (Flight f : peer.inFlight.keySet()) {
+                Pattern pat = f.job().snap.pattern(f.pattern());
+                for (int o = 0; o < pat.outputCount(); o++) {
+                    Key k = env.index().key(pat.outputItem(o));
+                    if (k != null)
+                        out.add(k);
+                }
+            }
+        out.removeAll(m.access.getStockedKeys());
+        return out;
     }
 
     /** The outputs of the runs in machine {@code m} that are neither items nor fluids (chemicals). */
