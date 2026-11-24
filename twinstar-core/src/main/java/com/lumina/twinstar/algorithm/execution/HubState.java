@@ -2358,7 +2358,14 @@ public final class HubState {
             return false;
         Set<Key> keys = inputKeys(pat, env);
         keys.removeAll(m.access.getStockedKeys());
-        return level.storage().holdsAny(m.access.getMachinePos(), keys);
+        if (level.storage().holdsAny(m.access.getMachinePos(), keys))
+            return true;
+        // a multiblock's controller holds nothing: its materials sit in the hatches bound to it (an assembly line's buses)
+        for (IMachine.Port port : m.access.ports())
+            if ((port.role() == IMachine.PortRole.ITEM_IN || port.role() == IMachine.PortRole.FLUID_IN)
+                    && level.isLoaded(port.pos()) && level.storage().holdsAny(port.pos(), keys))
+                return true;
+        return false;
     }
 
     /** Machine {@code m} still works on a run of {@code job}'s pattern {@code p}: being fed, or its materials still in. */
