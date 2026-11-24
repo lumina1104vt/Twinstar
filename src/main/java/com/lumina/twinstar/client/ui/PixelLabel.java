@@ -39,4 +39,12 @@ public class PixelLabel extends Label {
         button.layout(l -> l.justifyContent(AlignContent.CENTER).alignItems(AlignItems.CENTER));
         return button;
     }
+
+    /** The caption {@link #button} made (found by its type: newer LDLib2 puts a text element of its own first). */
+    public static PixelLabel captionOf(Button button) {
+        for (var child : button.getChildren())
+            if (child instanceof PixelLabel label)
+                return label;
+        throw new IllegalStateException("button without a PixelLabel caption");
+    }
 }

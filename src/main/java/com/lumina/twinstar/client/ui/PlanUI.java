@@ -81,7 +81,7 @@ public class PlanUI {
     private final Button force = new Button();
     private final Player player;
     /** the start button's own caption, and the bookmark icon shown beside it while Shift turns it into "bookmark missing" */
-    private final Label startCaption = (Label) start.getChildren().get(0);
+    private final Label startCaption = PixelLabel.captionOf(start);
     private final PixelIcon startIcon = new PixelIcon(BOOKMARK_ICON, TEXT);
     /** what the start button looks like now (mode and whether something is missing); -1 before the first look */
     private int startLook = -1;
