@@ -3,6 +3,8 @@ package com.lumina.twinstar.algorithm.ae2;
 import appeng.api.config.Actionable;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.stacks.AEKey;
+import com.lumina.bridge.key.Key;
+import com.lumina.bridge.key.Keys;
 import appeng.api.storage.MEStorage;
 import com.lumina.twinstar.algorithm.model.Amount;
 import com.lumina.twinstar.api.IBigStorage;
@@ -49,6 +51,18 @@ public final class NetworkStore {
             done = done.add(Amount.of(s.insertBig(key, left.bigValue(), false)));
         }
         return done;
+    }
+
+    public Amount insert(Key key, Amount amount) {
+        return insert(Keys.toAe(key), amount);
+    }
+
+    public Amount extract(Key key, Amount amount) {
+        return extract(Keys.toAe(key), amount);
+    }
+
+    public boolean isInfinite(Key key) {
+        return isInfinite(Keys.toAe(key));
     }
 
     /** Takes up to {@code amount} out; returns what came out. */

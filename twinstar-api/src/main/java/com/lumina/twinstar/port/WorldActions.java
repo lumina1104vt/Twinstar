@@ -38,6 +38,9 @@ public interface WorldActions {
 
     boolean holdsAny(BlockPos cell, Set<Key> keys);
 
+    /** An item that is put down as a block (placed in front of the machine), not just dropped. */
+    boolean isBlockItem(Key key);
+
     void pickUp(BlockPos cell, Predicate<Key> wanted, BiConsumer<Key, Long> taken);
 
     /** What the last click did, for the debug log. */

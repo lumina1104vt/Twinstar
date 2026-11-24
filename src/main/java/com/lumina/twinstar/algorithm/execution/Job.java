@@ -1,6 +1,7 @@
 package com.lumina.twinstar.algorithm.execution;
 
 import appeng.api.stacks.AEKey;
+import com.lumina.bridge.key.Key;
 import com.lumina.twinstar.algorithm.cache.Scc;
 import com.lumina.twinstar.algorithm.cache.Snapshot;
 import com.lumina.twinstar.algorithm.model.Amount;
@@ -116,7 +117,7 @@ public final class Job {
     /** Takes up to {@code amount} of a finished product; returns how much it took. */
     @FunctionalInterface
     public interface FinalSink {
-        long insert(AEKey key, long amount);
+        long insert(Key key, long amount);
     }
 
     public void setFinalSink(@Nullable FinalSink sink) {

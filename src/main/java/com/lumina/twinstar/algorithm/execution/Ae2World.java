@@ -7,7 +7,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.item.Item;
 
 import java.util.Objects;
 
@@ -39,8 +38,8 @@ public final class Ae2World implements World {
         return level.getGameTime();
     }
 
-    public Item blockItemAt(BlockPos pos) {
-        return level.getBlockState(pos).getBlock().asItem();
+    public String blockItemId(BlockPos pos) {
+        return BuiltInRegistries.ITEM.getKey(level.getBlockState(pos).getBlock().asItem()).toString();
     }
 
     public String blockId(BlockPos pos) {

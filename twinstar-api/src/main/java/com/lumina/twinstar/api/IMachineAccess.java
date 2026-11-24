@@ -90,7 +90,7 @@ public interface IMachineAccess {
      * What the interface keeps in the machine on its own (a furnace's fuel, a catalyst): not a run's
      * material, so blocking does not wait for it to be used up.
      */
-    default java.util.Set<appeng.api.stacks.AEKey> getStockedKeys() {
+    default java.util.Set<com.lumina.bridge.key.Key> getStockedKeys() {
         return java.util.Set.of();
     }
 
@@ -98,7 +98,7 @@ public interface IMachineAccess {
      * Takes out what the machine pushed into the interface (machines that put their products out
      * themselves): each kind and amount to {@code taken}, which counts them as the machine's products.
      */
-    default void takeReceived(java.util.function.BiConsumer<appeng.api.stacks.AEKey, Long> taken) {
+    default void takeReceived(java.util.function.BiConsumer<com.lumina.bridge.key.Key, Long> taken) {
     }
 
     /**

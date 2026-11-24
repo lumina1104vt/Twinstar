@@ -19,20 +19,22 @@ import java.util.List;
 public final class SubMachines {
     public static final int MAX_RANGE = 8;
 
+    private static final String AIR = "minecraft:air";
+
     private SubMachines() {
     }
 
     /** {@code others}: where the other machines with an interface are (those of another kind are skipped). */
-    public static List<BlockPos> find(World level, BlockPos pos, int range, List<Item> kinds, Collection<BlockPos> others) {
+    public static List<BlockPos> find(World level, BlockPos pos, int range, List<String> kinds, Collection<BlockPos> others) {
         List<BlockPos> out = new ArrayList<>();
         if (kinds.isEmpty())
             return out;
         range = Math.max(1, Math.min(MAX_RANGE, range));
-        Item self = level.blockItemAt(pos);
+        String self = level.blockItemId(pos);
         List<BlockPos> rivals = new ArrayList<>();
         for (BlockPos op : others)
             if (!op.equals(pos) && op.distManhattan(pos) <= 4 * range + 2 && level.isLoaded(op)
-                    && level.blockItemAt(op) == self)
+                    && level.blockItemId(op).equals(self))
                 rivals.add(op);
         List<List<BlockPos>> byKind = new ArrayList<>();
         for (int i = 0; i < kinds.size(); i++)
@@ -40,8 +42,8 @@ public final class SubMachines {
         for (BlockPos at : BlockPos.betweenClosed(pos.offset(-range, -1, -range), pos.offset(range, 1, range))) {
             if (at.equals(pos) || !level.isLoaded(at))
                 continue;
-            Item item = level.blockItemAt(at);
-            if (item == Items.AIR)
+            String item = level.blockItemId(at);
+            if (item.equals(AIR))
                 continue;
             int kind = kinds.indexOf(item);
             if (kind < 0)

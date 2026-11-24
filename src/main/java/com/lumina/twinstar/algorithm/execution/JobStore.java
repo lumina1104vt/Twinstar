@@ -4,6 +4,8 @@ import appeng.api.crafting.IPatternDetails;
 import appeng.api.crafting.PatternDetailsHelper;
 import appeng.api.stacks.AEItemKey;
 import appeng.api.stacks.AEKey;
+import com.lumina.bridge.key.Key;
+import com.lumina.bridge.key.Keys;
 import com.lumina.twinstar.algorithm.ae2.ItemIndex;
 import com.lumina.twinstar.algorithm.cache.Snapshot;
 import com.lumina.twinstar.algorithm.model.Amount;
@@ -133,11 +135,11 @@ public final class JobStore {
             return keys.size() - 1;
         }
 
-        int key(AEKey k) {
+        int key(Key k) {
             return key(index.idOf(k));
         }
 
-        CompoundTag keyCount(AEKey k, long n) {
+        CompoundTag keyCount(Key k, long n) {
             CompoundTag t = new CompoundTag();
             t.putInt("k", key(k));
             t.putLong("n", n);
@@ -230,7 +232,7 @@ public final class JobStore {
         }
 
         CompoundTag machine(GlobalPos at, @Nullable HubState.Feed feed, int lastPattern, @Nullable Pattern lastPat,
-                            Map<HubState.Flight, Amount> inFlight, Map<AEKey, Long> overflow) {
+                            Map<HubState.Flight, Amount> inFlight, Map<Key, Long> overflow) {
             CompoundTag t = new CompoundTag();
             t.put("at", place(at));
             if (feed != null && feed.job.finished) {
@@ -259,7 +261,7 @@ public final class JobStore {
                 }
                 f.put("parts", parts);
                 ListTag tools = new ListTag();
-                for (AEKey tool : feed.tools) {
+                for (Key tool : feed.tools) {
                     CompoundTag tt = new CompoundTag();
                     tt.putInt("k", key(tool));
                     tools.add(tt);
@@ -445,7 +447,7 @@ public final class JobStore {
         }
         r.amounts(tag.getList("pool", Tag.TAG_COMPOUND), r::item, hub.pool, true);
         for (Tag t : tag.getList("orphans", Tag.TAG_COMPOUND)) {
-            AEKey k = r.key(((CompoundTag) t).getInt("k"));
+            Key k = r.key(((CompoundTag) t).getInt("k"));
             if (k != null)
                 hub.orphans.merge(k, ((CompoundTag) t).getLong("n"), Long::sum);
         }
@@ -462,7 +464,7 @@ public final class JobStore {
             if (at == null)
                 continue;
             HubState.Feed feed = null;
-            Map<AEKey, Long> overflow = new LinkedHashMap<>();
+            Map<Key, Long> overflow = new LinkedHashMap<>();
             if (mt.contains("feed")) {
                 CompoundTag ft = mt.getCompound("feed");
                 Job job = byId.get(ft.getLong("job"));
@@ -472,7 +474,7 @@ public final class JobStore {
                 feed.fed = ft.getLong("fed");
                 for (Tag pt : ft.getList("parts", Tag.TAG_COMPOUND)) {
                     CompoundTag ptt = (CompoundTag) pt;
-                    AEKey k = r.key(ptt.getInt("k"));
+                    Key k = r.key(ptt.getInt("k"));
                     if (k == null)
                         continue;
                     List<@Nullable Direction> faces = new ArrayList<>();
@@ -481,7 +483,7 @@ public final class JobStore {
                     feed.parts.add(new HubState.Part(k, ptt.getLong("left"), faces, ptt.getInt("target"), ptt.getInt("role"), ptt.getInt("guiSlot")));
                 }
                 for (Tag tt : ft.getList("tools", Tag.TAG_COMPOUND)) {
-                    AEKey k = r.key(((CompoundTag) tt).getInt("k"));
+                    Key k = r.key(((CompoundTag) tt).getInt("k"));
                     if (k != null)
                         feed.tools.add(k);
                 }
@@ -495,7 +497,7 @@ public final class JobStore {
             Pattern lastPat = last == null ? null : r.patterns[mt.getInt("last")];
             Map<HubState.Flight, Amount> inFlight = r.flights(mt.getList("inFlight", Tag.TAG_COMPOUND), byId);
             for (Tag ot : mt.getList("overflow", Tag.TAG_COMPOUND)) {
-                AEKey k = r.key(((CompoundTag) ot).getInt("k"));
+                Key k = r.key(((CompoundTag) ot).getInt("k"));
                 if (k != null)
                     overflow.merge(k, ((CompoundTag) ot).getLong("n"), Long::sum);
             }
@@ -509,7 +511,7 @@ public final class JobStore {
         final HolderLookup.Provider regs;
         final ItemIndex index;
         final Consumer<String> warn;
-        final AEKey[] keys;
+        final Key[] keys;
         final int[] items;
         final Pattern[] patterns;
         final Snapshot snap;
@@ -520,7 +522,7 @@ public final class JobStore {
             this.index = index;
             this.warn = warn;
             ListTag keyList = tag.getList("keys", Tag.TAG_COMPOUND);
-            keys = new AEKey[keyList.size()];
+            keys = new Key[keyList.size()];
             items = new int[keyList.size()];
             for (int i = 0; i < keys.length; i++) {
                 AEKey k = null;
@@ -529,7 +531,7 @@ public final class JobStore {
                 } catch (RuntimeException e) {
                     // its mod is gone
                 }
-                keys[i] = k;
+                keys[i] = k == null ? null : Keys.of(k);
                 items[i] = k == null ? -1 : index.idOf(k);
             }
             ListTag patList = tag.getList("patterns", Tag.TAG_COMPOUND);
@@ -550,7 +552,7 @@ public final class JobStore {
             snap = Snapshot.ofPatterns(byId, units);
         }
 
-        @Nullable AEKey key(int at) {
+        @Nullable Key key(int at) {
             return at >= 0 && at < keys.length ? keys[at] : null;
         }
 
@@ -647,10 +649,10 @@ public final class JobStore {
         }
 
         /** The inventory of a job that cannot go on: the items this server still knows. */
-        void salvage(CompoundTag job, Map<AEKey, Long> into) {
+        void salvage(CompoundTag job, Map<Key, Long> into) {
             for (Tag t : job.getList("inventory", Tag.TAG_COMPOUND)) {
                 CompoundTag s = (CompoundTag) t;
-                AEKey k = key(s.getInt("k"));
+                Key k = key(s.getInt("k"));
                 Amount a = amount(s.getString("a"));
                 if (k != null && a.signum() > 0)
                     into.merge(k, a.saturatedLong(), (x, y) -> Amount.of(x).add(Amount.of(y)).saturatedLong());

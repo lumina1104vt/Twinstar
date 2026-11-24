@@ -148,6 +148,10 @@ public final class Ae2Adapters {
             return WorldIO.holdsAny(level, cell, aeSet(keys));
         }
 
+        public boolean isBlockItem(Key key) {
+            return aeItem(key).getItem() instanceof net.minecraft.world.item.BlockItem;
+        }
+
         public void pickUp(BlockPos cell, Predicate<Key> wanted, BiConsumer<Key, Long> taken) {
             WorldIO.pickUp(level, cell, k -> wanted.test(Keys.of(k)), wrap(taken));
         }

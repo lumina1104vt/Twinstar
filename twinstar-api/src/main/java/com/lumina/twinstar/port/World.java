@@ -2,7 +2,6 @@ package com.lumina.twinstar.port;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
-import net.minecraft.world.item.Item;
 
 /**
  * One loaded world as the engine sees it: what it asks about blocks and time, and the two ways it works on machines in
@@ -20,8 +19,8 @@ public interface World {
 
     long getGameTime();
 
-    /** The item of the block at the position (air when there is none): what kind of machine stands there. */
-    Item blockItemAt(BlockPos pos);
+    /** The registry name of the item of the block at the position ("minecraft:air" when there is none): what kind of machine stands there. */
+    String blockItemId(BlockPos pos);
 
     /** The registry name of the block at the position, for the debug log. */
     String blockId(BlockPos pos);

@@ -51,7 +51,11 @@ public final class UsageStore {
     }
 
     /** The hub put {@code amount} of {@code key} into the machine {@code access} stands for. */
-    public static void recordHub(IMachineAccess access, AEKey key, long amount) {
+    public static void recordHub(IMachineAccess access, com.lumina.bridge.key.Key key, long amount) {
+        recordHubAe(access, com.lumina.bridge.key.Keys.toAe(key), amount);
+    }
+
+    private static void recordHubAe(IMachineAccess access, AEKey key, long amount) {
         ServerLevel level = access.getMachineLevel();
         if (level != null)
             record(level, access.getMachinePos(), access.interfacePlace(), access.interfaceSide(), key, amount, HUB);

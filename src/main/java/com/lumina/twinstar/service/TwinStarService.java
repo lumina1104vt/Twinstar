@@ -300,7 +300,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
                 cpu.setLink(link);
                 crafting.addLink(link);
                 if (!link.isStandalone())
-                    l.job().setFinalSink((key, amount) -> link.insert(key, amount, Actionable.MODULATE));
+                    l.job().setFinalSink((key, amount) -> link.insert(com.lumina.bridge.key.Keys.toAe(key), amount, Actionable.MODULATE));
             }
             workingCpus.add(cpu);
         }
@@ -338,9 +338,10 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
         if (saved != null && node.getLevel() != null)
             loadJobs(target, saved, node.getLevel());
         target.breakDown(env(), (key, amount) -> {
-            if (!(key instanceof appeng.api.stacks.AEItemKey item))
+            if (key.kind() != com.lumina.bridge.key.Key.Kind.ITEM)
                 return;
-            int max = Math.max(1, item.getMaxStackSize());
+            appeng.api.stacks.AEItemKey item = key.handle(appeng.api.stacks.AEItemKey.class);
+            int max = Math.max(1, key.stackLimit());
             BigInteger left = amount.bigValue();
             // an astronomical remainder cannot become item entities: at most this many stacks
             for (int i = 0; i < MAX_DROPPED_STACKS && left.signum() > 0; i++) {
@@ -911,7 +912,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
         if (requester == null)
             return CraftingSubmitResult.successful(null);
         // finished products go to the requester first, like AE2's own CPUs
-        job.setFinalSink((key, amount) -> link.insert(key, amount, Actionable.MODULATE));
+        job.setFinalSink((key, amount) -> link.insert(com.lumina.bridge.key.Keys.toAe(key), amount, Actionable.MODULATE));
         CraftingLink reqLink = new CraftingLink(CraftingCpuHelper.generateLinkData(craftId, false, true), requester);
         CraftingService service = (CraftingService) grid.getCraftingService();
         service.addLink(link);
@@ -1090,16 +1091,18 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
         if (at != null && now - at < 20)
             return subsByAccess.getOrDefault(access, List.of());
         net.minecraft.world.item.Item block = level.getBlockState(access.getMachinePos()).getBlock().asItem();
-        List<net.minecraft.world.item.Item> kinds = new ArrayList<>();
+        List<String> kinds = new ArrayList<>();
         compiled.forEach((details, c) -> {
             if (!c.hubInternal)
                 return;
             net.minecraft.world.item.Item m = com.lumina.twinstar.api.PatternMachines.of(details.getDefinition());
             if (m == null || (m != block && m != access.getMachine()))
                 return;
-            for (net.minecraft.world.item.Item sub : com.lumina.twinstar.api.PatternMachines.subMachinesOf(details.getDefinition()))
-                if (!kinds.contains(sub))
-                    kinds.add(sub);
+            for (net.minecraft.world.item.Item sub : com.lumina.twinstar.api.PatternMachines.subMachinesOf(details.getDefinition())) {
+                String id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(sub).toString();
+                if (!kinds.contains(id))
+                    kinds.add(id);
+            }
         });
         List<net.minecraft.core.BlockPos> others = new ArrayList<>();
         for (IMachineAccess a : allAccess())
