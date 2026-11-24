@@ -158,9 +158,16 @@ final class MachineIO {
                 // in the machine are making is a product (a machine that makes a whole stack at once)
                 if (!isOutput(h, s, in) && !(products.contains(inKey) && h.isItemValid(s, in) && room(h, s, in) <= 0))
                     continue;
-                ItemStack got = h.extractItem(s, in.getCount(), false);
-                if (!got.isEmpty())
+                // a slot may hold more than one stack's worth (a big buffer slot): one extract hands over at most one stack
+                for (int round = 0; round < 4096; round++) {
+                    ItemStack now = h.getStackInSlot(s);
+                    if (now.isEmpty() || !AEItemKey.of(now).equals(inKey))
+                        break;
+                    ItemStack got = h.extractItem(s, Math.max(now.getCount(), now.getMaxStackSize()), false);
+                    if (got.isEmpty())
+                        break;
                     taken.accept(inKey, (long) got.getCount());
+                }
             }
         for (IFluidHandler h : fluidHandlers(level, pos))
             for (int t = 0; t < h.getTanks(); t++) {
