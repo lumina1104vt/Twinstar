@@ -10,7 +10,7 @@ import com.lumina.twinstar.client.hover.KeyHits;
 import com.lumina.twinstar.theory.TheoryCache;
 import com.lumina.twinstar.theory.TheoryItem;
 import com.lumina.twinstar.theory.TheoryMap;
-import com.lumina.twinstar.util.BigAmountFormat;
+import com.lumina.corelib.util.BigAmountFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;

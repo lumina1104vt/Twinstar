@@ -33,6 +33,7 @@ import com.lumina.twinstar.algorithm.execution.ExecutionSettings;
 import com.lumina.twinstar.algorithm.execution.HubState;
 import com.lumina.twinstar.algorithm.execution.Job;
 import com.lumina.twinstar.algorithm.execution.JobStore;
+import com.lumina.twinstar.platform.Ae2SaveCodec;
 import com.lumina.twinstar.algorithm.model.Amount;
 import com.lumina.twinstar.metrics.HubReport;
 import com.lumina.twinstar.metrics.PlanStats;
@@ -189,8 +190,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
             var server = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
             if (server == null)
                 return false;
-            boolean ok = com.lumina.twinstar.algorithm.ae2.WorkstationRecipes.matches(machine, d,
-                    server.getRecipeManager(), server.registryAccess());
+            boolean ok = com.lumina.twinstar.algorithm.ae2.PatternJudging.accepts(machine, d, server.overworld());
             if (!ok)
                 Twinstar.LOGGER.info("Twin-star engine leaves out a pattern that is no recipe of {}: {} → {}",
                         machine, java.util.Arrays.toString(d.getInputs()), d.getOutputs());
@@ -225,7 +225,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
                 Twinstar.LOGGER.info(line);
         });
         theory.setUnits(units);
-        hub.setUsage(com.lumina.twinstar.usage.UsageStore::recordHub);
+        hub.setUsage((machine, key, amount) -> com.lumina.twinstar.usage.UsageStore.recordHub((com.lumina.twinstar.api.IMachineAccess) machine, key, amount));
         hub.setOnDone(this::tellDone);
         LIVE.add(this);
     }
@@ -263,7 +263,8 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
         if (!hub.holdsAnything() || node.getLevel() == null)
             return null;
         try {
-            return JobStore.save(hub, index, node.getLevel().registryAccess(), System.nanoTime(), job -> {
+            return com.lumina.bridge.data.Nbt.toNbt(JobStore.save(hub, index,
+                    new Ae2SaveCodec(node.getLevel().registryAccess(), node.getLevel()), System.nanoTime(), job -> {
                 CompoundTag extra = new CompoundTag();
                 for (TwinStarCpu cpu : workingCpus)
                     if (cpu.getJob() == job && cpu.getLink() != null) {
@@ -271,8 +272,8 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
                         cpu.getLink().writeToNBT(link);
                         extra.put("link", link);
                     }
-                return extra;
-            });
+                return com.lumina.bridge.data.Nbt.fromNbt(extra);
+            }));
         } catch (RuntimeException e) {
             Twinstar.LOGGER.error("Twin-star engine could not save its jobs", e);
             return null;
@@ -296,11 +297,11 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
         for (JobStore.Loaded l : loaded) {
             TwinStarCpu cpu = new TwinStarCpu(this, l.job(), null);
             if (l.extra().contains("link")) {
-                CraftingLink link = new CraftingLink(l.extra().getCompound("link"), cpu);
+                CraftingLink link = new CraftingLink(com.lumina.bridge.data.Nbt.toNbt(l.extra().getData("link")), cpu);
                 cpu.setLink(link);
                 crafting.addLink(link);
                 if (!link.isStandalone())
-                    l.job().setFinalSink((key, amount) -> link.insert(key, amount, Actionable.MODULATE));
+                    l.job().setFinalSink((key, amount) -> link.insert(com.lumina.bridge.key.Keys.toAe(key), amount, Actionable.MODULATE));
             }
             workingCpus.add(cpu);
         }
@@ -309,7 +310,8 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
     }
 
     private List<JobStore.Loaded> loadJobs(HubState into, CompoundTag tag, net.minecraft.server.level.ServerLevel level) {
-        return JobStore.load(into, tag, index, level.registryAccess(), level, compiler::newPatternId, units,
+        return JobStore.load(into, com.lumina.bridge.data.Nbt.fromNbt(tag), index,
+                new Ae2SaveCodec(level.registryAccess(), level), compiler::newPatternId, units,
                 System.nanoTime(), Twinstar.LOGGER::warn);
     }
 
@@ -338,9 +340,10 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
         if (saved != null && node.getLevel() != null)
             loadJobs(target, saved, node.getLevel());
         target.breakDown(env(), (key, amount) -> {
-            if (!(key instanceof appeng.api.stacks.AEItemKey item))
+            if (key.kind() != com.lumina.bridge.key.Key.Kind.ITEM)
                 return;
-            int max = Math.max(1, item.getMaxStackSize());
+            appeng.api.stacks.AEItemKey item = key.handle(appeng.api.stacks.AEItemKey.class);
+            int max = Math.max(1, key.stackLimit());
             BigInteger left = amount.bigValue();
             // an astronomical remainder cannot become item entities: at most this many stacks
             for (int i = 0; i < MAX_DROPPED_STACKS && left.signum() > 0; i++) {
@@ -811,7 +814,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
 
     /**
      * Stands for "unlimited" where an amount is needed: 2^(2^16) ≈ 10^19728, beyond any order
-     * (at most {@link com.lumina.twinstar.util.AmountParser#MAX_EXTERNAL}) times what its intermediates multiply it by.
+     * (at most {@link com.lumina.corelib.util.AmountParser#MAX_EXTERNAL}) times what its intermediates multiply it by.
      */
     private static final Amount UNLIMITED_CAPACITY = Amount.of(BigInteger.ONE.shiftLeft(1 << 16));
 
@@ -911,7 +914,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
         if (requester == null)
             return CraftingSubmitResult.successful(null);
         // finished products go to the requester first, like AE2's own CPUs
-        job.setFinalSink((key, amount) -> link.insert(key, amount, Actionable.MODULATE));
+        job.setFinalSink((key, amount) -> link.insert(com.lumina.bridge.key.Keys.toAe(key), amount, Actionable.MODULATE));
         CraftingLink reqLink = new CraftingLink(CraftingCpuHelper.generateLinkData(craftId, false, true), requester);
         CraftingService service = (CraftingService) grid.getCraftingService();
         service.addLink(link);
@@ -990,8 +993,8 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
         CraftingService crafting = (CraftingService) grid.getCraftingService();
         BigInteger p = getParallelism();
         Amount parallelism = p == null ? null : Amount.of(p.max(BigInteger.ONE));
-        return new ExecutionEnv(index, store(), energy, host != null ? host.getHostEnergySource() : null,
-                crafting::getProviders, allAccess(), parallelism, System.nanoTime(), TICK_BUDGET_NANOS);
+        return new ExecutionEnv(index, store(), com.lumina.twinstar.platform.Ae2Adapters.power(energy), host != null ? host.getHostEnergySource() : null,
+                com.lumina.twinstar.platform.Ae2Adapters.sites(crafting::getProviders), allAccess(), parallelism, System.nanoTime(), TICK_BUDGET_NANOS);
     }
 
     /**
@@ -1002,13 +1005,13 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
         Set<Integer> out = new HashSet<>();
         for (IMachineAccess a : allAccess()) {
             var level = a.getMachineLevel();
-            if (level == null || !a.isAccessActive() || !level.isLoaded(a.getMachinePos()))
+            if (level == null || !a.isAccessActive() || !level.isLoaded(com.lumina.bridge.Positions.toMc(a.getMachinePos())))
                 continue;
-            net.minecraft.world.item.Item block = level.getBlockState(a.getMachinePos()).getBlock().asItem();
+            net.minecraft.world.item.Item block = level.getBlockState(com.lumina.bridge.Positions.toMc(a.getMachinePos())).getBlock().asItem();
             if (block != net.minecraft.world.item.Items.AIR)
                 out.add(index.idOf(appeng.api.stacks.AEItemKey.of(block)));
             if (a.getMachine() != null)
-                out.add(index.idOf(appeng.api.stacks.AEItemKey.of(a.getMachine())));
+                out.add(index.idOf(a.getMachine()));
         }
         return out;
     }
@@ -1073,7 +1076,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
     private Set<net.minecraft.world.item.Item> patternMachines = Set.of();
 
     /** Per interface its sub-machines as last looked for, and when (game time). */
-    private final Map<IMachineAccess, List<net.minecraft.core.BlockPos>> subsByAccess = new java.util.WeakHashMap<>();
+    private final Map<IMachineAccess, List<com.lumina.bridge.Pos>> subsByAccess = new java.util.WeakHashMap<>();
     private final Map<IMachineAccess, Long> subsAtByAccess = new java.util.WeakHashMap<>();
 
     /**
@@ -1081,31 +1084,34 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
      * machine name, within its range ({@link com.lumina.twinstar.algorithm.execution.SubMachines}). For
      * the interface to power them. Looked for again once a second. Server thread.
      */
-    public List<net.minecraft.core.BlockPos> subMachinesOf(IMachineAccess access) {
+    public List<com.lumina.bridge.Pos> subMachinesOf(IMachineAccess access) {
         net.minecraft.server.level.ServerLevel level = access.getMachineLevel();
-        if (level == null || !level.isLoaded(access.getMachinePos()))
+        if (level == null || !level.isLoaded(com.lumina.bridge.Positions.toMc(access.getMachinePos())))
             return List.of();
         long now = level.getGameTime();
         Long at = subsAtByAccess.get(access);
         if (at != null && now - at < 20)
             return subsByAccess.getOrDefault(access, List.of());
-        net.minecraft.world.item.Item block = level.getBlockState(access.getMachinePos()).getBlock().asItem();
-        List<net.minecraft.world.item.Item> kinds = new ArrayList<>();
+        net.minecraft.world.item.Item block = level.getBlockState(com.lumina.bridge.Positions.toMc(access.getMachinePos())).getBlock().asItem();
+        List<String> kinds = new ArrayList<>();
         compiled.forEach((details, c) -> {
             if (!c.hubInternal)
                 return;
             net.minecraft.world.item.Item m = com.lumina.twinstar.api.PatternMachines.of(details.getDefinition());
-            if (m == null || (m != block && m != access.getMachine()))
+            if (m == null || (m != block && m != machineItem(access)))
                 return;
-            for (net.minecraft.world.item.Item sub : com.lumina.twinstar.api.PatternMachines.subMachinesOf(details.getDefinition()))
-                if (!kinds.contains(sub))
-                    kinds.add(sub);
+            for (net.minecraft.world.item.Item sub : com.lumina.twinstar.api.PatternMachines.subMachinesOf(details.getDefinition())) {
+                String id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(sub).toString();
+                if (!kinds.contains(id))
+                    kinds.add(id);
+            }
         });
-        List<net.minecraft.core.BlockPos> others = new ArrayList<>();
+        List<com.lumina.bridge.Pos> others = new ArrayList<>();
         for (IMachineAccess a : allAccess())
             if (a != access && a.getMachineLevel() == level)
                 others.add(a.getMachinePos());
-        List<net.minecraft.core.BlockPos> found = com.lumina.twinstar.algorithm.execution.SubMachines.find(level, access.getMachinePos(),
+        List<com.lumina.bridge.Pos> found = com.lumina.twinstar.algorithm.execution.SubMachines.find(
+                com.lumina.twinstar.platform.Ae2Adapters.world(level), access.getMachinePos(),
                 access.getSubRange(), kinds, others);
         subsByAccess.put(access, found);
         subsAtByAccess.put(access, now);
@@ -1133,6 +1139,13 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
                 s.runsIn().saturatedLong(), chance);
     }
 
+    /** The item of the machine set on an interface, or null. */
+    private static net.minecraft.world.item.@Nullable Item machineItem(IMachineAccess access) {
+        var key = access.getMachine();
+        var item = key == null ? null : key.handle(appeng.api.stacks.AEItemKey.class);
+        return item == null ? null : item.getItem();
+    }
+
     /** Some hub pattern on the grid is for the block {@code access} sits on or the machine set on it. */
     private boolean isPatternMachine(IMachineAccess access) {
         if (machinesReadFrom != compiled) {
@@ -1147,11 +1160,11 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
             patternMachines = items;
             machinesReadFrom = compiled;
         }
-        if (access.getMachine() != null && patternMachines.contains(access.getMachine()))
+        if (machineItem(access) != null && patternMachines.contains(machineItem(access)))
             return true;
         net.minecraft.server.level.ServerLevel level = access.getMachineLevel();
-        return level != null && level.isLoaded(access.getMachinePos())
-                && patternMachines.contains(level.getBlockState(access.getMachinePos()).getBlock().asItem());
+        return level != null && level.isLoaded(com.lumina.bridge.Positions.toMc(access.getMachinePos()))
+                && patternMachines.contains(level.getBlockState(com.lumina.bridge.Positions.toMc(access.getMachinePos())).getBlock().asItem());
     }
 
     private IActionSource actionSource() {

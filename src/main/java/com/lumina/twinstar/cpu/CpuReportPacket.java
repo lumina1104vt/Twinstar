@@ -1,7 +1,7 @@
 package com.lumina.twinstar.cpu;
 
 import com.lumina.twinstar.metrics.HubReport;
-import com.lumina.twinstar.metrics.ReportCodec;
+import com.lumina.twinstar.codec.ReportCodec;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraftforge.network.NetworkEvent;
 import org.jetbrains.annotations.Nullable;

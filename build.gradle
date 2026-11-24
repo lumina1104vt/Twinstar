@@ -30,6 +30,18 @@ dependencies {
     // the mixins use MixinExtras (the root project bundles it into the jar)
     compileOnly 'io.github.llamalad7:mixinextras-common:0.5.5'
     annotationProcessor 'io.github.llamalad7:mixinextras-common:0.5.5'
+    // the engine's pure logic and interfaces are their own projects, bundled by the root project's jarJar
+    compileOnly project(':lumina-bridge')
+    testImplementation project(':lumina-bridge')
+    compileOnly project(':lumina-corelib')
+    testImplementation project(':lumina-corelib')
+    compileOnly project(':twinstar-core')
+    compileOnly project(':twinstar-api')
+    compileOnly project(':twinstar-ae2')
+    testImplementation project(':twinstar-core')
+    testImplementation testFixtures(project(':twinstar-core'))
+    testImplementation project(':twinstar-api')
+    testImplementation project(':twinstar-ae2')
     // the engine hooks AE2's crafting service; AE2 itself is provided by the player
     modCompileOnly "maven.modrinth:ae2:${ae2_version}"
     // gen_patterns / dump_recipes read recipes (amounts, fluids, all outputs) from the player's JEI

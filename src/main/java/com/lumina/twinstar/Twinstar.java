@@ -24,6 +24,7 @@ public class Twinstar {
 
     public Twinstar() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+        com.lumina.twinstar.crafting.RecipeJudges.register(new com.lumina.twinstar.algorithm.ae2.VanillaRecipeJudge());
         GridServices.register(ITwinStarService.class, TwinStarService.class);
         modEventBus.addListener(Twinstar::commonSetup);
         TwinstarContent.register(modEventBus);

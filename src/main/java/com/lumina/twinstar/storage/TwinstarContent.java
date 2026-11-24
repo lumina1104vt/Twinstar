@@ -5,6 +5,7 @@ import appeng.blockentity.AEBaseBlockEntity;
 import appeng.menu.implementations.MenuTypeBuilder;
 import com.lumina.twinstar.Twinstar;
 import com.lumina.twinstar.algorithm.ae2.PatternChances;
+import com.lumina.twinstar.algorithm.ae2.PatternComponents;
 import com.lumina.twinstar.algorithm.ae2.PatternDispatchDone;
 import com.lumina.twinstar.algorithm.ae2.PatternInputFaces;
 import com.lumina.twinstar.algorithm.ae2.PatternInputGuiSlots;
@@ -40,21 +41,21 @@ public final class TwinstarContent {
     private static final DeferredRegister<MenuType<?>> MENUS = DeferredRegister.create(ForgeRegistries.MENU_TYPES, Twinstar.MODID);
 
     /** On an encoded pattern: outputs that only come with some probability (written by gen_patterns). */
-    public static final PatternData<PatternChances> PATTERN_CHANCES = new PatternData<>("pattern_chances", PatternChances.CODEC);
+    public static final PatternData<PatternChances> PATTERN_CHANCES = PatternComponents.PATTERN_CHANCES;
     /** On a hub pattern: the machine faces each material goes in through ("specified" interfaces). */
-    public static final PatternData<PatternInputFaces> PATTERN_INPUT_FACES = new PatternData<>("pattern_input_faces", PatternInputFaces.CODEC);
+    public static final PatternData<PatternInputFaces> PATTERN_INPUT_FACES = PatternComponents.PATTERN_INPUT_FACES;
     /** The materials and products of a hub pattern whose NBT does not matter. */
-    public static final PatternData<PatternIgnoreNbt> PATTERN_IGNORE_NBT = new PatternData<>("pattern_ignore_nbt", PatternIgnoreNbt.CODEC);
+    public static final PatternData<PatternIgnoreNbt> PATTERN_IGNORE_NBT = PatternComponents.PATTERN_IGNORE_NBT;
     /** Where each material of a hub pattern goes when not into the machine: its sub-machines, or in front of it. */
-    public static final PatternData<PatternInputTargets> PATTERN_INPUT_TARGETS = new PatternData<>("pattern_input_targets", PatternInputTargets.CODEC);
+    public static final PatternData<PatternInputTargets> PATTERN_INPUT_TARGETS = PatternComponents.PATTERN_INPUT_TARGETS;
     /** The slot each material of a hub pattern goes into (a hatch's number, or the machine's GUI slot). */
-    public static final PatternData<PatternInputGuiSlots> PATTERN_INPUT_GUI_SLOTS = new PatternData<>("pattern_input_gui_slots", PatternInputGuiSlots.CODEC);
+    public static final PatternData<PatternInputGuiSlots> PATTERN_INPUT_GUI_SLOTS = PatternComponents.PATTERN_INPUT_GUI_SLOTS;
     /** The GUI slot each product of a hub pattern is taken out of, for machines that give them only in a GUI. */
-    public static final PatternData<PatternOutputGuiSlots> PATTERN_OUTPUT_GUI_SLOTS = new PatternData<>("pattern_output_gui_slots", PatternOutputGuiSlots.CODEC);
+    public static final PatternData<PatternOutputGuiSlots> PATTERN_OUTPUT_GUI_SLOTS = PatternComponents.PATTERN_OUTPUT_GUI_SLOTS;
     /** The products of a hub pattern that count as made once the run's materials are all in the machine. */
-    public static final PatternData<PatternDispatchDone> PATTERN_DISPATCH_DONE = new PatternData<>("pattern_dispatch_done", PatternDispatchDone.CODEC);
+    public static final PatternData<PatternDispatchDone> PATTERN_DISPATCH_DONE = PatternComponents.PATTERN_DISPATCH_DONE;
     /** What each material of a hub pattern is besides used up: catalyst, catalyst kept for the batch, tool to right-click with. */
-    public static final PatternData<PatternInputRoles> PATTERN_INPUT_ROLES = new PatternData<>("pattern_input_roles", PatternInputRoles.CODEC);
+    public static final PatternData<PatternInputRoles> PATTERN_INPUT_ROLES = PatternComponents.PATTERN_INPUT_ROLES;
 
     /** The twin-star order screen (replaces AE2's amount screen on grids with a hub). */
     public static final RegistryObject<MenuType<OrderMenu>> ORDER_MENU = MENUS.register("order",

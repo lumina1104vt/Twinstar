@@ -13,7 +13,7 @@ import com.lumina.twinstar.algorithm.model.LogMath;
 import com.lumina.twinstar.algorithm.model.OrderMode;
 import com.lumina.twinstar.algorithm.model.Pattern;
 import com.lumina.twinstar.algorithm.planning.Plan;
-import com.lumina.twinstar.util.BigAmountFormat;
+import com.lumina.corelib.util.BigAmountFormat;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 
 import java.text.NumberFormat;

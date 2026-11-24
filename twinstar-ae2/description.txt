@@ -1,0 +1,3 @@
+The AE2 side of the TwinStar crafting engine: encoded patterns and their extra data, the network's storage and plans as AE2 sees them.
+
+TwinStar 合成引擎的 AE2 部分：編碼樣板與其額外資料、AE2 的網路儲存與合成計畫。
