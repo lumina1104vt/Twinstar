@@ -166,6 +166,10 @@ public final class TwinStarCpu implements ICraftingCPU {
                 remaining = remaining.add(a);
             }
         }
+        // what machines are still making is not done either: the estimate (AE2 works it out from remaining / done) read
+        // "00:00:00" as soon as every run was dispatched, long before the products came back
+        for (int id : active.keys())
+            remaining = remaining.add(active.get(id));
         Amount start = Amount.ZERO;
         for (var e : job.plan.patternTimes.entries()) {
             Pattern p = snap.pattern(e.getKey());
@@ -201,6 +205,8 @@ public final class TwinStarCpu implements ICraftingCPU {
                     job.wasUnloaded() && active.get(id).signum() > 0, lacking.get(id).bigValue()));
             entries.add(entry);
         }
+        if (remaining.compareTo(start) > 0)
+            remaining = start;
         return new CraftingStatus(true, System.nanoTime() - job.startNanos(), remaining.saturatedLong(),
                 start.saturatedLong(), entries, job.isSuspended());
     }
