@@ -24,7 +24,7 @@ public final class UsageStore {
     /** The monitor's entry ({@link com.lumina.twinstar.monitor.Transfers}): a block sent {@code amount} of {@code key} on. */
     public static void transfer(com.lumina.bridge.Place from, @Nullable com.lumina.bridge.Place to, com.lumina.bridge.key.Key key,
                                 long amount, int kind) {
-        MinecraftServer server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
+        MinecraftServer server = net.minecraftforge.server.ServerLifecycleHooks.getCurrentServer();
         AEKey ae = com.lumina.bridge.key.Keys.toAe(key);
         if (server == null || ae == null || amount <= 0)
             return;

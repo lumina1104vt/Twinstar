@@ -4,11 +4,11 @@ import appeng.api.behaviors.StackTransferContext;
 import appeng.api.networking.security.IActionHost;
 import appeng.api.stacks.AEKey;
 import appeng.parts.automation.StorageExportStrategy;
+import appeng.util.BlockApiCache;
 import com.lumina.bridge.Place;
 import com.lumina.twinstar.monitor.Transfers;
 import com.lumina.twinstar.usage.TransferSites;
 import net.minecraft.core.Direction;
-import net.neoforged.neoforge.capabilities.BlockCapabilityCache;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -21,7 +21,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class StorageExportStrategyMixin {
     @Shadow
     @Final
-    private BlockCapabilityCache<?, Direction> cache;
+    private BlockApiCache<?> apiCache;
+    @Shadow
+    @Final
+    private Direction fromSide;
 
     @Inject(method = "transfer", at = @At("RETURN"))
     private void twinstar$moved(StackTransferContext context, AEKey what, long amount, CallbackInfoReturnable<Long> cir) {
@@ -31,7 +34,8 @@ public abstract class StorageExportStrategyMixin {
         IActionHost host = context.getActionSource().machine().orElse(null);
         if (host == null || host.getActionableNode() == null)
             return;
-        Place to = TransferSites.placeOf(cache.level(), cache.pos());
+        BlockApiCacheAccessor cache = (BlockApiCacheAccessor) apiCache;
+        Place to = TransferSites.placeOf(cache.twinstar$level(), cache.twinstar$fromPos().relative(fromSide));
         TransferSites.sent(TransferSites.blockOf(host.getActionableNode().getOwner()), to, what, moved, Transfers.EXPORT_BUS);
     }
 }

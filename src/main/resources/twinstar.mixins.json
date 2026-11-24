@@ -15,7 +15,8 @@
     "GenericStackInvMixin",
     "InterfaceLogicMixin",
     "PatternProviderLogicMixin",
-    "StorageExportStrategyMixin"
+    "StorageExportStrategyMixin",
+    "BlockApiCacheAccessor"
   ],
   "client": [
     "client.CraftingStatusTableRendererMixin",
