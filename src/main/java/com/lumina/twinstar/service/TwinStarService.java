@@ -32,7 +32,8 @@ import com.lumina.twinstar.algorithm.execution.ExecutionEnv;
 import com.lumina.twinstar.algorithm.execution.ExecutionSettings;
 import com.lumina.twinstar.algorithm.execution.HubState;
 import com.lumina.twinstar.algorithm.execution.Job;
-import com.lumina.twinstar.platform.JobStore;
+import com.lumina.twinstar.algorithm.execution.JobStore;
+import com.lumina.twinstar.platform.Ae2SaveCodec;
 import com.lumina.twinstar.algorithm.model.Amount;
 import com.lumina.twinstar.metrics.HubReport;
 import com.lumina.twinstar.metrics.PlanStats;
@@ -263,7 +264,8 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
         if (!hub.holdsAnything() || node.getLevel() == null)
             return null;
         try {
-            return JobStore.save(hub, index, node.getLevel().registryAccess(), System.nanoTime(), job -> {
+            return com.lumina.bridge.data.Nbt.toNbt(JobStore.save(hub, index,
+                    new Ae2SaveCodec(node.getLevel().registryAccess(), node.getLevel()), System.nanoTime(), job -> {
                 CompoundTag extra = new CompoundTag();
                 for (TwinStarCpu cpu : workingCpus)
                     if (cpu.getJob() == job && cpu.getLink() != null) {
@@ -271,8 +273,8 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
                         cpu.getLink().writeToNBT(link);
                         extra.put("link", link);
                     }
-                return extra;
-            });
+                return com.lumina.bridge.data.Nbt.fromNbt(extra);
+            }));
         } catch (RuntimeException e) {
             Twinstar.LOGGER.error("Twin-star engine could not save its jobs", e);
             return null;
@@ -296,7 +298,7 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
         for (JobStore.Loaded l : loaded) {
             TwinStarCpu cpu = new TwinStarCpu(this, l.job(), null);
             if (l.extra().contains("link")) {
-                CraftingLink link = new CraftingLink(l.extra().getCompound("link"), cpu);
+                CraftingLink link = new CraftingLink(com.lumina.bridge.data.Nbt.toNbt(l.extra().getData("link")), cpu);
                 cpu.setLink(link);
                 crafting.addLink(link);
                 if (!link.isStandalone())
@@ -309,7 +311,8 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
     }
 
     private List<JobStore.Loaded> loadJobs(HubState into, CompoundTag tag, net.minecraft.server.level.ServerLevel level) {
-        return JobStore.load(into, tag, index, level.registryAccess(), level, compiler::newPatternId, units,
+        return JobStore.load(into, com.lumina.bridge.data.Nbt.fromNbt(tag), index,
+                new Ae2SaveCodec(level.registryAccess(), level), compiler::newPatternId, units,
                 System.nanoTime(), Twinstar.LOGGER::warn);
     }
 

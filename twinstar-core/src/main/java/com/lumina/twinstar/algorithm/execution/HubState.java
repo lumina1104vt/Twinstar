@@ -48,9 +48,9 @@ public final class HubState {
     public static final long STUCK_MIN_NANOS = 10_000_000_000L;
     public static final long STUCK_DEFAULT_NANOS = 60_000_000_000L;
 
-    public final List<Job> jobs = new ArrayList<>();
+    final List<Job> jobs = new ArrayList<>();
     /** returns waiting inside the hub; other devices on the network cannot take them */
-    public final AmountMap pool = new AmountMap();
+    final AmountMap pool = new AmountMap();
     Amount used = Amount.ZERO;
     private final Map<WindowKey, Window> windows = new LinkedHashMap<>();
     private int rotate;
@@ -274,7 +274,7 @@ public final class HubState {
     // ───────────────────────────── save / load ─────────────────────────────
 
     /** A job read back from a save ({@link JobStore}): it holds its capacity again and its tasks look for work. */
-    public void restore(Job job, long nowNanos) {
+    void restore(Job job, long nowNanos) {
         jobs.add(job);
         used = used.add(job.occupancy);
         nextJobId = Math.max(nextJobId, job.id + 1);
@@ -322,7 +322,7 @@ public final class HubState {
     }
 
     /** What a run being fed had not put in yet: it left its job and is not in the machine either. */
-    public static void feedLeft(@Nullable Feed feed, Map<Key, Long> into) {
+    static void feedLeft(@Nullable Feed feed, Map<Key, Long> into) {
         if (feed == null)
             return;
         for (Part p : feed.parts)
@@ -1311,64 +1311,64 @@ public final class HubState {
      * and the next run starts only when they are all in. Products are taken out of its output slots
      * by the hub every tick, whoever's they are.
      */
-    public static final class MachineState {
+    static final class MachineState {
         public final IMachine access;
-        public @Nullable Feed feed;
+        @Nullable Feed feed;
         /** the pattern fed last (blocking interfaces) */
-        public int lastPattern = -1;
-        public @Nullable Pattern lastPat;
+        int lastPattern = -1;
+        @Nullable Pattern lastPat;
         /** runs started here whose products are not all back, per job and pattern */
-        public final Map<Flight, Amount> inFlight = new LinkedHashMap<>();
+        final Map<Flight, Amount> inFlight = new LinkedHashMap<>();
         /** products taken out that neither the hub nor the network took yet */
-        public final Map<Key, Long> overflow = new LinkedHashMap<>();
+        final Map<Key, Long> overflow = new LinkedHashMap<>();
         /** where the machine is, kept for when the interface is gone (lost runs are kept by place) */
-        public @Nullable Place place;
+        @Nullable Place place;
         /** cells in front of it that materials were placed or dropped in: products are picked up there */
-        public final Set<Pos> frontCells = new HashSet<>();
+        final Set<Pos> frontCells = new HashSet<>();
         /** its sub-machines for {@link #subsFor}, found at {@link #subsAt} (game time) */
-        public @Nullable List<Pos> subs;
-        public @Nullable Pattern subsFor;
-        public long subsAt;
+        @Nullable List<Pos> subs;
+        @Nullable Pattern subsFor;
+        long subsAt;
         /** game time the GUI was last opened to look for products */
-        public long guiPolledAt = Long.MIN_VALUE / 2;
+        long guiPolledAt = Long.MIN_VALUE / 2;
         /** game time of the last redstone pulse asked for */
-        public long pulsedAt = Long.MIN_VALUE / 2;
+        long pulsedAt = Long.MIN_VALUE / 2;
         /**
          * sub-machines that took something by a right-click (no item slots: an altar's pedestal) and still hold it: a
          * second right-click would swap what is on it, so they are left alone until the machine has no run left
          */
-        public final Set<Pos> filledSubs = new HashSet<>();
+        final Set<Pos> filledSubs = new HashSet<>();
         /** catalysts (role CATALYST) put into the machine and not yet back out, per batch of runs */
-        public final Map<Flight, Map<Key, Long>> held = new LinkedHashMap<>();
+        final Map<Flight, Map<Key, Long>> held = new LinkedHashMap<>();
         /** catalysts to take out of the machine now: those of batches that are done */
-        public final Map<Key, Long> due = new LinkedHashMap<>();
+        final Map<Key, Long> due = new LinkedHashMap<>();
 
         public MachineState(IMachine access) {
             this.access = access;
         }
     }
 
-    public record Flight(Job job, int pattern) {
+    record Flight(Job job, int pattern) {
     }
 
     /** The run being fed: per input slot what is still to go in, and through which faces. */
-    public static final class Feed {
-        public final Job job;
-        public final int pattern;
-        public final List<Part> parts = new ArrayList<>();
+    static final class Feed {
+        final Job job;
+        final int pattern;
+        final List<Part> parts = new ArrayList<>();
         /** tools to right-click the machine with once every material is in (role TOOL) */
-        public final List<Key> tools = new ArrayList<>();
+        final List<Key> tools = new ArrayList<>();
         /** game time the tools are used at, once every material is in (-1: not set yet) */
-        public long toolAt = -1;
-        public long total;
-        public long fed;
+        long toolAt = -1;
+        long total;
+        long fed;
 
-        public Feed(Job job, int pattern) {
+        Feed(Job job, int pattern) {
             this.job = job;
             this.pattern = pattern;
         }
 
-        public boolean done() {
+        boolean done() {
             for (Part p : parts)
                 if (p.left > 0)
                     return false;
@@ -1376,20 +1376,20 @@ public final class HubState {
         }
     }
 
-    public static final class Part {
-        public final Key key;
-        public long left;
-        public final List<@Nullable Face> faces;
+    static final class Part {
+        final Key key;
+        long left;
+        final List<@Nullable Face> faces;
         /** where it goes ({@link InputTargets}) */
-        public final int target;
+        final int target;
         /** what it is besides used up ({@link InputRoles}) */
-        public final int role;
+        final int role;
         /** the slot of the machine's GUI it goes into, for machines that take items only there (0 = the first that takes it) */
-        public final int guiSlot;
+        final int guiSlot;
         /** the hatch (input bus, fluid input) it began going into when it has no slot number: it stays there, and no other material goes there */
-        public @Nullable Pos hatchPort;
+        @Nullable Pos hatchPort;
 
-        public Part(Key key, long left, List<@Nullable Face> faces, int target, int role, int guiSlot) {
+        Part(Key key, long left, List<@Nullable Face> faces, int target, int role, int guiSlot) {
             this.guiSlot = guiSlot;
             this.key = key;
             this.left = left;
@@ -1400,15 +1400,15 @@ public final class HubState {
     }
 
     /** Runs lost with a machine that went away, kept by the machine's place until an interface is back on it. */
-    public final Map<Place, Map<Flight, Amount>> lostAt = new HashMap<>();
+    final Map<Place, Map<Flight, Amount>> lostAt = new HashMap<>();
     public final Map<IMachine, MachineState> machines = new LinkedHashMap<>();
     /** products of interfaces taken off that the network had no room for yet */
-    public final Map<Key, Long> orphans = new LinkedHashMap<>();
+    final Map<Key, Long> orphans = new LinkedHashMap<>();
     /** machines as a save left them, by place, until their interface is on the grid again ({@link JobStore}) */
-    public final Map<Place, RestoredMachine> restoring = new HashMap<>();
+    final Map<Place, RestoredMachine> restoring = new HashMap<>();
 
     /** What a saved machine was doing: put back on the interface found at its place. */
-    public record RestoredMachine(@Nullable Feed feed, int lastPattern, @Nullable Pattern lastPat, Map<Flight, Amount> inFlight,
+    record RestoredMachine(@Nullable Feed feed, int lastPattern, @Nullable Pattern lastPat, Map<Flight, Amount> inFlight,
                            Map<Key, Long> overflow) {
     }
 

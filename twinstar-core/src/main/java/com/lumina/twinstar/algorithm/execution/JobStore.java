@@ -1,14 +1,9 @@
-package com.lumina.twinstar.platform;
+package com.lumina.twinstar.algorithm.execution;
 
-import com.lumina.twinstar.algorithm.execution.*;
 import com.lumina.bridge.Face;
-import appeng.api.crafting.IPatternDetails;
-import appeng.api.crafting.PatternDetailsHelper;
-import appeng.api.stacks.AEItemKey;
-import appeng.api.stacks.AEKey;
 import com.lumina.bridge.key.Key;
-import com.lumina.bridge.key.Keys;
-import com.lumina.twinstar.algorithm.ae2.ItemIndex;
+import com.lumina.bridge.data.Data;
+import com.lumina.bridge.data.DataList;
 import com.lumina.twinstar.algorithm.cache.Snapshot;
 import com.lumina.twinstar.algorithm.model.Amount;
 import com.lumina.twinstar.algorithm.model.AmountMap;
@@ -19,17 +14,7 @@ import com.lumina.twinstar.algorithm.model.PatternLocation;
 import com.lumina.twinstar.algorithm.model.Rational;
 import com.lumina.twinstar.algorithm.planning.CycleContract;
 import com.lumina.twinstar.algorithm.planning.Plan;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import com.lumina.bridge.Place;
-import net.minecraft.core.HolderLookup;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
-import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.Nullable;
 
 import java.math.BigInteger;
@@ -60,7 +45,7 @@ public final class JobStore {
     }
 
     /** A job read back, with what the caller saved beside it (its crafting link). */
-    public record Loaded(Job job, CompoundTag extra) {
+    public record Loaded(Job job, Data extra) {
     }
 
     /** An item or pattern the save refers to that this server no longer knows. */
@@ -76,28 +61,28 @@ public final class JobStore {
      * Everything the hub's jobs need to go on after a restart. {@code extra} adds what the caller
      * keeps per job (its crafting link).
      */
-    public static CompoundTag save(HubState hub, ItemIndex index, HolderLookup.Provider regs, long nowNanos,
-                                   Function<Job, CompoundTag> extra) {
-        Writer w = new Writer(index, regs);
-        ListTag jobs = new ListTag();
+    public static Data save(HubState hub, KeyIndex index, SaveCodec codec, long nowNanos,
+                                   Function<Job, Data> extra) {
+        Writer w = new Writer(index, codec);
+        DataList jobs = new DataList();
         for (Job job : hub.jobs)
             if (!job.finished)
                 jobs.add(w.job(job, nowNanos, extra.apply(job)));
-        CompoundTag out = new CompoundTag();
+        Data out = new Data();
         out.put("jobs", jobs);
         out.put("pool", w.amounts(hub.pool, w::key));
-        ListTag orphans = new ListTag();
+        DataList orphans = new DataList();
         hub.orphans.forEach((k, n) -> orphans.add(w.keyCount(k, n)));
         out.put("orphans", orphans);
-        ListTag lost = new ListTag();
+        DataList lost = new DataList();
         hub.lostAt.forEach((at, flights) -> {
-            CompoundTag t = new CompoundTag();
+            Data t = new Data();
             t.put("at", place(at));
             t.put("flights", w.flights(flights));
             lost.add(t);
         });
         out.put("lostAt", lost);
-        ListTag machines = new ListTag();
+        DataList machines = new DataList();
         for (HubState.MachineState m : hub.machines.values()) {
             Place at = m.place;
             if (at == null)
@@ -113,26 +98,26 @@ public final class JobStore {
     }
 
     private static final class Writer {
-        final ItemIndex index;
-        final HolderLookup.Provider regs;
+        final KeyIndex index;
+        final SaveCodec codec;
         final Map<Integer, Integer> keyAt = new HashMap<>();
-        final ListTag keys = new ListTag();
+        final DataList keys = new DataList();
         final Map<Pattern, Integer> patternAt = new IdentityHashMap<>();
-        final ListTag patterns = new ListTag();
+        final DataList patterns = new DataList();
 
-        Writer(ItemIndex index, HolderLookup.Provider regs) {
+        Writer(KeyIndex index, SaveCodec codec) {
             this.index = index;
-            this.regs = regs;
+            this.codec = codec;
         }
 
         int key(int item) {
             Integer at = keyAt.get(item);
             if (at != null)
                 return at;
-            AEKey k = index.keyOf(item);
+            Key k = index.key(item);
             if (k == null)
                 throw new IllegalStateException("no key for item id " + item);
-            keys.add(k.toTagGeneric(regs));
+            keys.add(codec.writeKey(k));
             keyAt.put(item, keys.size() - 1);
             return keys.size() - 1;
         }
@@ -141,8 +126,8 @@ public final class JobStore {
             return key(index.idOf(k));
         }
 
-        CompoundTag keyCount(Key k, long n) {
-            CompoundTag t = new CompoundTag();
+        Data keyCount(Key k, long n) {
+            Data t = new Data();
             t.putInt("k", key(k));
             t.putLong("n", n);
             return t;
@@ -152,10 +137,10 @@ public final class JobStore {
             Integer at = patternAt.get(p);
             if (at != null)
                 return at;
-            CompoundTag t = new CompoundTag();
-            ListTag in = new ListTag();
+            Data t = new Data();
+            DataList in = new DataList();
             for (int i = 0; i < p.inputCount(); i++) {
-                CompoundTag s = new CompoundTag();
+                Data s = new Data();
                 s.putInt("k", key(p.inputItem(i)));
                 s.putString("a", amount(p.inputAmount(i)));
                 s.putString("kind", p.inputKind(i).name());
@@ -171,9 +156,9 @@ public final class JobStore {
                 in.add(s);
             }
             t.put("in", in);
-            ListTag out = new ListTag();
+            DataList out = new DataList();
             for (int o = 0; o < p.outputCount(); o++) {
-                CompoundTag s = new CompoundTag();
+                Data s = new Data();
                 s.putInt("k", key(p.outputItem(o)));
                 s.putString("a", amount(p.outputAmount(o)));
                 s.putBoolean("by", p.isByproduct(o));
@@ -198,9 +183,9 @@ public final class JobStore {
             t.putBoolean("subst", p.allowSubst);
             t.putString("energyNum", p.energyPerRun.num.toString());
             t.putString("energyDen", p.energyPerRun.den.toString());
-            AEItemKey definition = definitionOf(p);
+            Data definition = codec.writeSource(p.source());
             if (definition != null)
-                t.put("definition", definition.toTagGeneric(regs));
+                t.put("definition", definition);
             patterns.add(t);
             patternAt.put(p, patterns.size() - 1);
             return patterns.size() - 1;
@@ -210,10 +195,10 @@ public final class JobStore {
             return pattern(job.snap.pattern(p));
         }
 
-        ListTag amounts(AmountMap m, IntUnaryOperator id) {
-            ListTag l = new ListTag();
+        DataList amounts(AmountMap m, IntUnaryOperator id) {
+            DataList l = new DataList();
             m.forEach((k, a) -> {
-                CompoundTag t = new CompoundTag();
+                Data t = new Data();
                 t.putInt("k", id.applyAsInt(k));
                 t.putString("a", amount(a));
                 l.add(t);
@@ -221,10 +206,10 @@ public final class JobStore {
             return l;
         }
 
-        ListTag flights(Map<HubState.Flight, Amount> flights) {
-            ListTag l = new ListTag();
+        DataList flights(Map<HubState.Flight, Amount> flights) {
+            DataList l = new DataList();
             flights.forEach((f, runs) -> {
-                CompoundTag t = new CompoundTag();
+                Data t = new Data();
                 t.putLong("job", f.job().id);
                 t.putInt("p", pattern(f.job(), f.pattern()));
                 t.putString("runs", amount(runs));
@@ -233,23 +218,23 @@ public final class JobStore {
             return l;
         }
 
-        CompoundTag machine(Place at, @Nullable HubState.Feed feed, int lastPattern, @Nullable Pattern lastPat,
+        Data machine(Place at, @Nullable HubState.Feed feed, int lastPattern, @Nullable Pattern lastPat,
                             Map<HubState.Flight, Amount> inFlight, Map<Key, Long> overflow) {
-            CompoundTag t = new CompoundTag();
+            Data t = new Data();
             t.put("at", place(at));
             if (feed != null && feed.job.finished) {
                 // its job is not saved: what had not gone in yet is kept as loose products
                 overflow = new LinkedHashMap<>(overflow);
                 HubState.feedLeft(feed, overflow);
             } else if (feed != null) {
-                CompoundTag f = new CompoundTag();
+                Data f = new Data();
                 f.putLong("job", feed.job.id);
                 f.putInt("p", pattern(feed.job, feed.pattern));
                 f.putLong("total", feed.total);
                 f.putLong("fed", feed.fed);
-                ListTag parts = new ListTag();
+                DataList parts = new DataList();
                 for (HubState.Part part : feed.parts) {
-                    CompoundTag pt = new CompoundTag();
+                    Data pt = new Data();
                     pt.putInt("k", key(part.key));
                     pt.putLong("left", part.left);
                     int[] faces = new int[part.faces.size()];
@@ -262,9 +247,9 @@ public final class JobStore {
                     parts.add(pt);
                 }
                 f.put("parts", parts);
-                ListTag tools = new ListTag();
+                DataList tools = new DataList();
                 for (Key tool : feed.tools) {
-                    CompoundTag tt = new CompoundTag();
+                    Data tt = new Data();
                     tt.putInt("k", key(tool));
                     tools.add(tt);
                 }
@@ -278,23 +263,23 @@ public final class JobStore {
                     live.put(f, r);
             });
             t.put("inFlight", flights(live));
-            ListTag over = new ListTag();
+            DataList over = new DataList();
             overflow.forEach((k, n) -> over.add(keyCount(k, n)));
             t.put("overflow", over);
             return t;
         }
 
-        CompoundTag job(Job job, long nowNanos, CompoundTag extra) {
-            CompoundTag t = new CompoundTag();
+        Data job(Job job, long nowNanos, Data extra) {
+            Data t = new Data();
             t.putLong("id", job.id);
             if (job.player != null)
                 t.putUUID("player", job.player);
             t.putLong("elapsed", Math.max(0, nowNanos - job.startNanos));
             t.put("plan", plan(job));
             t.put("inventory", amounts(job.inventory, this::key));
-            ListTag tasks = new ListTag();
+            DataList tasks = new DataList();
             for (Task task : job.tasks) {
-                CompoundTag s = new CompoundTag();
+                Data s = new Data();
                 s.putInt("p", pattern(job, task.pattern));
                 s.putInt("level", task.level);
                 s.putInt("scc", task.scc);
@@ -309,9 +294,9 @@ public final class JobStore {
             t.put("releasedBytes", amounts(job.releasedBytes, this::key));
             t.putString("delivered", amount(job.delivered));
             t.put("protectedSeeds", amounts(job.protectedSeeds, this::key));
-            ListTag sccSeeds = new ListTag();
+            DataList sccSeeds = new DataList();
             job.sccSeeds.forEach((scc, seeds) -> {
-                CompoundTag s = new CompoundTag();
+                Data s = new Data();
                 s.putInt("scc", scc);
                 s.put("seeds", amounts(seeds, this::key));
                 sccSeeds.add(s);
@@ -321,9 +306,9 @@ public final class JobStore {
             for (int i = 0; i < guards.length; i++)
                 guards[i] = job.plan.recycles.indexOf(job.recycleGuards.get(i));
             t.putIntArray("recycleGuards", guards);
-            ListTag contracts = new ListTag();
+            DataList contracts = new DataList();
             job.contractStep.forEach((scc, step) -> {
-                CompoundTag s = new CompoundTag();
+                Data s = new Data();
                 s.putInt("scc", scc);
                 s.putInt("step", step);
                 Amount left = job.contractLeft.get(scc);
@@ -334,9 +319,9 @@ public final class JobStore {
             t.put("contracts", contracts);
             t.put("toolUses", amounts(job.toolUses, this::key));
             t.put("drawLater", amounts(job.drawLater, this::key));
-            ListTag chances = new ListTag();
+            DataList chances = new DataList();
             job.chances.forEach((p, c) -> {
-                CompoundTag s = new CompoundTag();
+                Data s = new Data();
                 s.putInt("p", pattern(job, p));
                 s.putString("runsDone", amount(c.runsDone));
                 s.put("got", amounts(c.got, this::key));
@@ -356,9 +341,9 @@ public final class JobStore {
             return t;
         }
 
-        private CompoundTag plan(Job job) {
+        private Data plan(Job job) {
             Plan plan = job.plan;
-            CompoundTag t = new CompoundTag();
+            Data t = new Data();
             t.putInt("target", key(plan.target));
             t.putString("amount", amount(plan.amount));
             t.put("patternTimes", amounts(plan.patternTimes, p -> pattern(job, p)));
@@ -366,32 +351,32 @@ public final class JobStore {
             t.put("drawLater", amounts(plan.drawLater, this::key));
             t.put("leftover", amounts(plan.leftover, this::key));
             t.putString("usage", amount(plan.usage));
-            ListTag contracts = new ListTag();
+            DataList contracts = new DataList();
             plan.contracts.forEach((scc, c) -> {
-                CompoundTag s = new CompoundTag();
+                Data s = new Data();
                 s.putInt("scc", scc);
                 int[] pats = new int[c.patterns().length];
                 for (int i = 0; i < pats.length; i++)
                     pats[i] = pattern(job, c.patterns()[i]);
                 s.putIntArray("patterns", pats);
-                ListTag batches = new ListTag();
+                DataList batches = new DataList();
                 for (Amount b : c.batches())
-                    batches.add(net.minecraft.nbt.StringTag.valueOf(amount(b)));
+                    batches.addString(amount(b));
                 s.put("batches", batches);
                 contracts.add(s);
             });
             t.put("contracts", contracts);
-            ListTag loopSeeds = new ListTag();
+            DataList loopSeeds = new DataList();
             plan.loopSeeds.forEach((scc, seeds) -> {
-                CompoundTag s = new CompoundTag();
+                Data s = new Data();
                 s.putInt("scc", scc);
                 s.put("seeds", amounts(seeds, this::key));
                 loopSeeds.add(s);
             });
             t.put("loopSeeds", loopSeeds);
-            ListTag recycles = new ListTag();
+            DataList recycles = new DataList();
             for (Plan.Recycle r : plan.recycles) {
-                CompoundTag s = new CompoundTag();
+                Data s = new Data();
                 s.putInt("k", key(r.item()));
                 s.putString("seed", amount(r.seed()));
                 int[] pats = new int[r.patterns().length];
@@ -401,9 +386,9 @@ public final class JobStore {
                 recycles.add(s);
             }
             t.put("recycles", recycles);
-            ListTag chanceNeeds = new ListTag();
+            DataList chanceNeeds = new DataList();
             plan.chanceNeeds.forEach((p, need) -> {
-                CompoundTag s = new CompoundTag();
+                Data s = new Data();
                 s.putInt("p", pattern(job, p));
                 s.put("items", amounts(need.items(), this::key));
                 s.putString("sureRuns", amount(need.sureRuns()));
@@ -414,15 +399,6 @@ public final class JobStore {
         }
     }
 
-    /** The encoded pattern a pattern came from: AE2's pattern, or the key a save could not decode again. */
-    static @Nullable AEItemKey definitionOf(Pattern p) {
-        if (p.source() instanceof IPatternDetails details)
-            return details.getDefinition();
-        if (p.source() instanceof AEItemKey undecoded)
-            return undecoded;
-        return null;
-    }
-
     // ───────────────────────────── load ─────────────────────────────
 
     /**
@@ -430,52 +406,48 @@ public final class JobStore {
      * what the caller saved beside each. A job that refers to an item this server no longer knows
      * (its mod is gone) cannot go on: it is left out and reported to {@code warn}.
      */
-    public static List<Loaded> load(HubState hub, CompoundTag tag, ItemIndex index, HolderLookup.Provider regs, Level level,
+    public static List<Loaded> load(HubState hub, Data tag, KeyIndex index, SaveCodec codec,
                                     IntSupplier newPatternId, ByteUnits units, long nowNanos, Consumer<String> warn) {
-        Reader r = new Reader(tag, index, regs, level, newPatternId, units, warn);
+        Reader r = new Reader(tag, index, codec, newPatternId, units, warn);
         List<Loaded> out = new ArrayList<>();
         Map<Long, Job> byId = new HashMap<>();
-        for (Tag t : tag.getList("jobs", Tag.TAG_COMPOUND)) {
-            CompoundTag jt = (CompoundTag) t;
+        for (Data jt : tag.getList("jobs")) {
             try {
                 Job job = r.job(jt, nowNanos);
                 hub.restore(job, nowNanos);
                 byId.put(job.id, job);
-                out.add(new Loaded(job, jt.getCompound("extra")));
+                out.add(new Loaded(job, jt.getData("extra")));
             } catch (RuntimeException e) {
                 warn.accept("雙星：存檔裡的工作 #" + jt.getLong("id") + " 無法還原（" + e.getMessage() + "），已略過");
                 r.salvage(jt, hub.orphans);     // what it held and this server still knows goes to network storage
             }
         }
-        r.amounts(tag.getList("pool", Tag.TAG_COMPOUND), r::item, hub.pool, true);
-        for (Tag t : tag.getList("orphans", Tag.TAG_COMPOUND)) {
-            Key k = r.key(((CompoundTag) t).getInt("k"));
+        r.amounts(tag.getList("pool"), r::item, hub.pool, true);
+        for (Data t : tag.getList("orphans")) {
+            Key k = r.key(t.getInt("k"));
             if (k != null)
-                hub.orphans.merge(k, ((CompoundTag) t).getLong("n"), Long::sum);
+                hub.orphans.merge(k, t.getLong("n"), Long::sum);
         }
-        for (Tag t : tag.getList("lostAt", Tag.TAG_COMPOUND)) {
-            CompoundTag lt = (CompoundTag) t;
-            Place at = place(lt.getCompound("at"));
-            Map<HubState.Flight, Amount> flights = r.flights(lt.getList("flights", Tag.TAG_COMPOUND), byId);
+        for (Data lt : tag.getList("lostAt")) {
+            Place at = place(lt.getData("at"));
+            Map<HubState.Flight, Amount> flights = r.flights(lt.getList("flights"), byId);
             if (at != null && !flights.isEmpty())
                 hub.lostAt.put(at, flights);
         }
-        for (Tag t : tag.getList("machines", Tag.TAG_COMPOUND)) {
-            CompoundTag mt = (CompoundTag) t;
-            Place at = place(mt.getCompound("at"));
+        for (Data mt : tag.getList("machines")) {
+            Place at = place(mt.getData("at"));
             if (at == null)
                 continue;
             HubState.Feed feed = null;
             Map<Key, Long> overflow = new LinkedHashMap<>();
             if (mt.contains("feed")) {
-                CompoundTag ft = mt.getCompound("feed");
+                Data ft = mt.getData("feed");
                 Job job = byId.get(ft.getLong("job"));
                 Integer p = r.patternOrNull(ft.getInt("p"));
                 feed = new HubState.Feed(job, p == null ? -1 : p);
                 feed.total = ft.getLong("total");
                 feed.fed = ft.getLong("fed");
-                for (Tag pt : ft.getList("parts", Tag.TAG_COMPOUND)) {
-                    CompoundTag ptt = (CompoundTag) pt;
+                for (Data ptt : ft.getList("parts")) {
                     Key k = r.key(ptt.getInt("k"));
                     if (k == null)
                         continue;
@@ -484,8 +456,8 @@ public final class JobStore {
                         faces.add(f < 0 ? null : Face.values()[f]);
                     feed.parts.add(new HubState.Part(k, ptt.getLong("left"), faces, ptt.getInt("target"), ptt.getInt("role"), ptt.getInt("guiSlot")));
                 }
-                for (Tag tt : ft.getList("tools", Tag.TAG_COMPOUND)) {
-                    Key k = r.key(((CompoundTag) tt).getInt("k"));
+                for (Data tt : ft.getList("tools")) {
+                    Key k = r.key(tt.getInt("k"));
                     if (k != null)
                         feed.tools.add(k);
                 }
@@ -497,11 +469,11 @@ public final class JobStore {
             }
             Integer last = r.patternOrNull(mt.getInt("last"));
             Pattern lastPat = last == null ? null : r.patterns[mt.getInt("last")];
-            Map<HubState.Flight, Amount> inFlight = r.flights(mt.getList("inFlight", Tag.TAG_COMPOUND), byId);
-            for (Tag ot : mt.getList("overflow", Tag.TAG_COMPOUND)) {
-                Key k = r.key(((CompoundTag) ot).getInt("k"));
+            Map<HubState.Flight, Amount> inFlight = r.flights(mt.getList("inFlight"), byId);
+            for (Data ot : mt.getList("overflow")) {
+                Key k = r.key(ot.getInt("k"));
                 if (k != null)
-                    overflow.merge(k, ((CompoundTag) ot).getLong("n"), Long::sum);
+                    overflow.merge(k, ot.getLong("n"), Long::sum);
             }
             hub.restoring.put(at, new HubState.RestoredMachine(feed, last == null ? -1 : last, lastPat, inFlight, overflow));
         }
@@ -510,38 +482,33 @@ public final class JobStore {
     }
 
     private static final class Reader {
-        final HolderLookup.Provider regs;
-        final ItemIndex index;
+        final SaveCodec codec;
+        final KeyIndex index;
         final Consumer<String> warn;
         final Key[] keys;
         final int[] items;
         final Pattern[] patterns;
         final Snapshot snap;
 
-        Reader(CompoundTag tag, ItemIndex index, HolderLookup.Provider regs, Level level, IntSupplier newPatternId,
+        Reader(Data tag, KeyIndex index, SaveCodec codec, IntSupplier newPatternId,
                ByteUnits units, Consumer<String> warn) {
-            this.regs = regs;
+            this.codec = codec;
             this.index = index;
             this.warn = warn;
-            ListTag keyList = tag.getList("keys", Tag.TAG_COMPOUND);
+            DataList keyList = tag.getList("keys");
             keys = new Key[keyList.size()];
             items = new int[keyList.size()];
             for (int i = 0; i < keys.length; i++) {
-                AEKey k = null;
-                try {
-                    k = AEKey.fromTagGeneric(regs, keyList.getCompound(i));
-                } catch (RuntimeException e) {
-                    // its mod is gone
-                }
-                keys[i] = k == null ? null : Keys.of(k);
+                Key k = codec.readKey(keyList.getData(i));      // null when its mod is gone
+                keys[i] = k;
                 items[i] = k == null ? -1 : index.idOf(k);
             }
-            ListTag patList = tag.getList("patterns", Tag.TAG_COMPOUND);
+            DataList patList = tag.getList("patterns");
             patterns = new Pattern[patList.size()];
             int maxId = -1;
             for (int i = 0; i < patterns.length; i++) {
                 try {
-                    patterns[i] = pattern(patList.getCompound(i), newPatternId.getAsInt(), level);
+                    patterns[i] = pattern(patList.getData(i), newPatternId.getAsInt());
                     maxId = Math.max(maxId, patterns[i].id);
                 } catch (RuntimeException e) {
                     patterns[i] = null;     // a job that uses it is left out
@@ -574,7 +541,7 @@ public final class JobStore {
             return at >= 0 && at < patterns.length && patterns[at] != null ? patterns[at].id : null;
         }
 
-        private Pattern pattern(CompoundTag t, int id, Level level) {
+        private Pattern pattern(Data t, int id) {
             Pattern.Builder b = new Pattern.Builder();
             PatternLocation where = PatternLocation.valueOf(t.getString("where"));
             b.where(where);
@@ -586,8 +553,7 @@ public final class JobStore {
                 for (int free : t.getIntArray("nbtFree"))
                     b.ignoreNbtOf(item(free));
             }
-            for (Tag it : t.getList("in", Tag.TAG_COMPOUND)) {
-                CompoundTag s = (CompoundTag) it;
+            for (Data s : t.getList("in")) {
                 int[] alts = s.getIntArray("alt");
                 int[] altIds = new int[alts.length];
                 for (int j = 0; j < alts.length; j++)
@@ -602,39 +568,20 @@ public final class JobStore {
                 if (s.getInt("guiSlot") != 0)
                     b.guiSlot(s.getInt("guiSlot"));
             }
-            for (Tag ot : t.getList("out", Tag.TAG_COMPOUND)) {
-                CompoundTag s = (CompoundTag) ot;
+            for (Data s : t.getList("out")) {
                 b.output(item(s.getInt("k")), amount(s.getString("a")), s.getBoolean("by"), s.getDouble("chance"));
                 if (s.getInt("guiSlot") > 0)
                     b.outputGuiSlot(item(s.getInt("k")), s.getInt("guiSlot"));
             }
             b.priority(t.getInt("priority")).allowSubst(t.getBoolean("subst"))
                     .energyPerRun(Rational.of(new BigInteger(t.getString("energyNum")), new BigInteger(t.getString("energyDen"))));
-            if (t.contains("definition")) {
-                Object source = null;
-                AEKey def = null;
-                try {
-                    def = AEKey.fromTagGeneric(regs, t.getCompound("definition"));
-                } catch (RuntimeException e) {
-                    // the pattern item's mod is gone: nobody can offer it again
-                }
-                if (def instanceof AEItemKey item) {
-                    IPatternDetails details = null;
-                    try {
-                        details = PatternDetailsHelper.decodePattern(item, level);
-                    } catch (RuntimeException e) {
-                        // undecodable now: kept as the key, so the save keeps it and it waits
-                    }
-                    source = details != null ? details : item;
-                }
-                b.source(source);
-            }
+            if (t.contains("definition"))
+                b.source(codec.readSource(t.getData("definition")));
             return b.build(id);
         }
 
-        void amounts(ListTag l, IntUnaryOperator id, AmountMap into, boolean skipMissing) {
-            for (Tag t : l) {
-                CompoundTag s = (CompoundTag) t;
+        void amounts(DataList l, IntUnaryOperator id, AmountMap into, boolean skipMissing) {
+            for (Data s : l) {
                 try {
                     into.add(id.applyAsInt(s.getInt("k")), amount(s.getString("a")));
                 } catch (Missing e) {
@@ -644,16 +591,15 @@ public final class JobStore {
             }
         }
 
-        AmountMap amounts(ListTag l, IntUnaryOperator id) {
+        AmountMap amounts(DataList l, IntUnaryOperator id) {
             AmountMap m = new AmountMap();
             amounts(l, id, m, false);
             return m;
         }
 
         /** The inventory of a job that cannot go on: the items this server still knows. */
-        void salvage(CompoundTag job, Map<Key, Long> into) {
-            for (Tag t : job.getList("inventory", Tag.TAG_COMPOUND)) {
-                CompoundTag s = (CompoundTag) t;
+        void salvage(Data job, Map<Key, Long> into) {
+            for (Data s : job.getList("inventory")) {
                 Key k = key(s.getInt("k"));
                 Amount a = amount(s.getString("a"));
                 if (k != null && a.signum() > 0)
@@ -661,10 +607,9 @@ public final class JobStore {
             }
         }
 
-        Map<HubState.Flight, Amount> flights(ListTag l, Map<Long, Job> byId) {
+        Map<HubState.Flight, Amount> flights(DataList l, Map<Long, Job> byId) {
             Map<HubState.Flight, Amount> out = new LinkedHashMap<>();
-            for (Tag t : l) {
-                CompoundTag s = (CompoundTag) t;
+            for (Data s : l) {
                 Job job = byId.get(s.getLong("job"));
                 Integer p = patternOrNull(s.getInt("p"));
                 if (job != null && p != null)
@@ -673,83 +618,76 @@ public final class JobStore {
             return out;
         }
 
-        Job job(CompoundTag t, long nowNanos) {
-            Plan plan = plan(t.getCompound("plan"));
+        Job job(Data t, long nowNanos) {
+            Plan plan = plan(t.getData("plan"));
             Job job = new Job(t.getLong("id"), plan, snap, nowNanos - t.getLong("elapsed"), amount(t.getString("occupancy")));
-            if (t.hasUUID("player"))
+            if (t.getUUID("player") != null)
                 job.player = t.getUUID("player");
-            amounts(t.getList("inventory", Tag.TAG_COMPOUND), this::item, job.inventory, false);
-            for (Tag tt : t.getList("tasks", Tag.TAG_COMPOUND)) {
-                CompoundTag s = (CompoundTag) tt;
+            amounts(t.getList("inventory"), this::item, job.inventory, false);
+            for (Data s : t.getList("tasks")) {
                 Task task = new Task(pattern(s.getInt("p")), s.getInt("level"), s.getInt("scc"), amount(s.getString("left")));
                 task.inFlight = amount(s.getString("inFlight"));
                 job.tasks.add(task);
             }
-            amounts(t.getList("outstanding", Tag.TAG_COMPOUND), this::item, job.outstanding, false);
-            amounts(t.getList("releasedUnits", Tag.TAG_COMPOUND), this::item, job.releasedUnits, false);
-            amounts(t.getList("releasedBytes", Tag.TAG_COMPOUND), this::item, job.releasedBytes, false);
+            amounts(t.getList("outstanding"), this::item, job.outstanding, false);
+            amounts(t.getList("releasedUnits"), this::item, job.releasedUnits, false);
+            amounts(t.getList("releasedBytes"), this::item, job.releasedBytes, false);
             job.delivered = amount(t.getString("delivered"));
-            amounts(t.getList("protectedSeeds", Tag.TAG_COMPOUND), this::item, job.protectedSeeds, false);
-            for (Tag st : t.getList("sccSeeds", Tag.TAG_COMPOUND)) {
-                CompoundTag s = (CompoundTag) st;
-                job.sccSeeds.put(s.getInt("scc"), amounts(s.getList("seeds", Tag.TAG_COMPOUND), this::item));
+            amounts(t.getList("protectedSeeds"), this::item, job.protectedSeeds, false);
+            for (Data s : t.getList("sccSeeds")) {
+                job.sccSeeds.put(s.getInt("scc"), amounts(s.getList("seeds"), this::item));
             }
             for (int g : t.getIntArray("recycleGuards"))
                 if (g >= 0 && g < plan.recycles.size())
                     job.recycleGuards.add(plan.recycles.get(g));
-            for (Tag ct : t.getList("contracts", Tag.TAG_COMPOUND)) {
-                CompoundTag s = (CompoundTag) ct;
+            for (Data s : t.getList("contracts")) {
                 job.contractStep.put(s.getInt("scc"), s.getInt("step"));
                 if (s.contains("left"))
                     job.contractLeft.put(s.getInt("scc"), amount(s.getString("left")));
             }
-            amounts(t.getList("toolUses", Tag.TAG_COMPOUND), this::item, job.toolUses, false);
-            amounts(t.getList("drawLater", Tag.TAG_COMPOUND), this::item, job.drawLater, false);
-            for (Tag ct : t.getList("chances", Tag.TAG_COMPOUND)) {
-                CompoundTag s = (CompoundTag) ct;
+            amounts(t.getList("toolUses"), this::item, job.toolUses, false);
+            amounts(t.getList("drawLater"), this::item, job.drawLater, false);
+            for (Data s : t.getList("chances")) {
                 int p = pattern(s.getInt("p"));
                 Plan.ChanceNeed need = plan.chanceNeeds.get(p);
                 if (need == null)
                     continue;
                 ChanceProgress c = new ChanceProgress(need);
                 c.runsDone = amount(s.getString("runsDone"));
-                amounts(s.getList("got", Tag.TAG_COMPOUND), this::item, c.got, false);
+                amounts(s.getList("got"), this::item, c.got, false);
                 c.expected = s.getBoolean("expected");
                 c.marked = s.getBoolean("marked");
                 job.chances.put(p, c);
             }
-            amounts(t.getList("chanceShort", Tag.TAG_COMPOUND), this::item, job.chanceShort, false);
-            amounts(t.getList("shortage", Tag.TAG_COMPOUND), this::item, job.shortage, false);
+            amounts(t.getList("chanceShort"), this::item, job.chanceShort, false);
+            amounts(t.getList("shortage"), this::item, job.shortage, false);
             job.forced = t.getBoolean("forced");
-            amounts(t.getList("machineLost", Tag.TAG_COMPOUND), this::pattern, job.machineLost, false);
+            amounts(t.getList("machineLost"), this::pattern, job.machineLost, false);
             job.suspended = t.getBoolean("suspended");
             job.unloaded = t.getBoolean("unloaded");
             job.cancelled = t.getBoolean("cancelled");
             return job;
         }
 
-        private Plan plan(CompoundTag t) {
+        private Plan plan(Data t) {
             Map<Integer, CycleContract> contracts = new HashMap<>();
-            for (Tag ct : t.getList("contracts", Tag.TAG_COMPOUND)) {
-                CompoundTag s = (CompoundTag) ct;
+            for (Data s : t.getList("contracts")) {
                 int[] pats = s.getIntArray("patterns");
                 int[] ids = new int[pats.length];
                 for (int i = 0; i < pats.length; i++)
                     ids[i] = pattern(pats[i]);
-                ListTag bl = s.getList("batches", Tag.TAG_STRING);
+                DataList bl = s.getList("batches");
                 Amount[] batches = new Amount[bl.size()];
                 for (int i = 0; i < batches.length; i++)
                     batches[i] = amount(bl.getString(i));
                 contracts.put(s.getInt("scc"), new CycleContract(s.getInt("scc"), ids, batches));
             }
             Map<Integer, AmountMap> loopSeeds = new HashMap<>();
-            for (Tag st : t.getList("loopSeeds", Tag.TAG_COMPOUND)) {
-                CompoundTag s = (CompoundTag) st;
-                loopSeeds.put(s.getInt("scc"), amounts(s.getList("seeds", Tag.TAG_COMPOUND), this::item));
+            for (Data s : t.getList("loopSeeds")) {
+                loopSeeds.put(s.getInt("scc"), amounts(s.getList("seeds"), this::item));
             }
             List<Plan.Recycle> recycles = new ArrayList<>();
-            for (Tag rt : t.getList("recycles", Tag.TAG_COMPOUND)) {
-                CompoundTag s = (CompoundTag) rt;
+            for (Data s : t.getList("recycles")) {
                 int[] pats = s.getIntArray("patterns");
                 int[] ids = new int[pats.length];
                 for (int i = 0; i < pats.length; i++)
@@ -757,16 +695,15 @@ public final class JobStore {
                 recycles.add(new Plan.Recycle(item(s.getInt("k")), amount(s.getString("seed")), ids));
             }
             Map<Integer, Plan.ChanceNeed> chanceNeeds = new HashMap<>();
-            for (Tag nt : t.getList("chanceNeeds", Tag.TAG_COMPOUND)) {
-                CompoundTag s = (CompoundTag) nt;
-                chanceNeeds.put(pattern(s.getInt("p")), new Plan.ChanceNeed(amounts(s.getList("items", Tag.TAG_COMPOUND), this::item),
+            for (Data s : t.getList("chanceNeeds")) {
+                chanceNeeds.put(pattern(s.getInt("p")), new Plan.ChanceNeed(amounts(s.getList("items"), this::item),
                         amount(s.getString("sureRuns"))));
             }
             return Plan.restore(item(t.getInt("target")), amount(t.getString("amount")),
-                    amounts(t.getList("patternTimes", Tag.TAG_COMPOUND), this::pattern),
-                    amounts(t.getList("pulled", Tag.TAG_COMPOUND), this::item),
-                    amounts(t.getList("drawLater", Tag.TAG_COMPOUND), this::item),
-                    amounts(t.getList("leftover", Tag.TAG_COMPOUND), this::item),
+                    amounts(t.getList("patternTimes"), this::pattern),
+                    amounts(t.getList("pulled"), this::item),
+                    amounts(t.getList("drawLater"), this::item),
+                    amounts(t.getList("leftover"), this::item),
                     amount(t.getString("usage")), contracts, loopSeeds, recycles, chanceNeeds);
         }
     }
@@ -781,15 +718,15 @@ public final class JobStore {
         return s.isEmpty() ? Amount.ZERO : Amount.of(new BigInteger(s));
     }
 
-    private static CompoundTag place(Place at) {
-        CompoundTag t = new CompoundTag();
+    private static Data place(Place at) {
+        Data t = new Data();
         t.putString("dim", at.dimension());
         t.putLong("pos", at.pos().packed());
         return t;
     }
 
-    private static @Nullable Place place(CompoundTag t) {
-        if (ResourceLocation.tryParse(t.getString("dim")) == null)
+    private static @Nullable Place place(Data t) {
+        if (t.getString("dim").isBlank())
             return null;
         return new Place(t.getString("dim"), new com.lumina.bridge.Pos(t.getLong("pos")));
     }

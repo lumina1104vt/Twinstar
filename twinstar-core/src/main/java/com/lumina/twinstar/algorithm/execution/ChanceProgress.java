@@ -21,21 +21,21 @@ public final class ChanceProgress {
                 + runsDone.memoryBytes() + got.memoryBytes();
     }
 
-    public final AmountMap need;
-    public final Amount sureRuns;
-    public Amount runsDone = Amount.ZERO;
-    public final AmountMap got = new AmountMap();
+    final AmountMap need;
+    final Amount sureRuns;
+    Amount runsDone = Amount.ZERO;
+    final AmountMap got = new AmountMap();
     /** machine runs: what it waits for is expected as a return (from the first batch on) */
-    public boolean expected;
+    boolean expected;
     /** 機率產物不足 shown */
-    public boolean marked;
+    boolean marked;
 
-    public ChanceProgress(Plan.ChanceNeed n) {
+    ChanceProgress(Plan.ChanceNeed n) {
         this.need = n.items().copy();
         this.sureRuns = n.sureRuns();
     }
 
-    public boolean satisfied() {
+    boolean satisfied() {
         if (runsDone.compareTo(sureRuns) < 0)
             return false;
         for (int item : need.keys())
@@ -71,7 +71,7 @@ public final class ChanceProgress {
     }
 
     /** What is still missing of each output it waits for. */
-    public AmountMap shortfall() {
+    AmountMap shortfall() {
         AmountMap out = new AmountMap();
         for (int item : need.keys()) {
             Amount missing = need.get(item).sub(got.get(item));

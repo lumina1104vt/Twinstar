@@ -28,69 +28,69 @@ import java.util.TreeMap;
 public final class Job {
     public final long id;
     public final Plan plan;
-    public final Snapshot snap;
-    public final long startNanos;
+    final Snapshot snap;
+    final long startNanos;
 
-    public final AmountMap inventory = new AmountMap();
-    public final List<Task> tasks = new ArrayList<>();
+    final AmountMap inventory = new AmountMap();
+    final List<Task> tasks = new ArrayList<>();
     /** ready tasks, low level first so hub-internal chains finish within one tick */
-    public final PriorityQueue<Task> ready = new PriorityQueue<>(
+    final PriorityQueue<Task> ready = new PriorityQueue<>(
             Comparator.<Task>comparingInt(t -> t.level).thenComparingInt(t -> t.pattern));
-    public final Map<Integer, List<Task>> waitingOn = new HashMap<>();
+    final Map<Integer, List<Task>> waitingOn = new HashMap<>();
     /** tasks with materials but no free machine (or no power): tried again next tick */
-    public final List<Task> retry = new ArrayList<>();
+    final List<Task> retry = new ArrayList<>();
     /** expected returns: pushed to machines, not yet taken from the return pool */
-    public final AmountMap outstanding = new AmountMap();
+    final AmountMap outstanding = new AmountMap();
     /** last time each expected item decreased (or was first expected): stuck detection */
-    public final Map<Integer, Long> outstandingSince = new HashMap<>();
-    public final Map<Integer, StuckMark> stuck = new TreeMap<>();
+    final Map<Integer, Long> outstandingSince = new HashMap<>();
+    final Map<Integer, StuckMark> stuck = new TreeMap<>();
     /** black-hole capacity still held (AE2's bytes); released as items leave the job and runs are done */
-    public Amount occupancy;
+    Amount occupancy;
     /** keys counted in fractions of a byte (fluids): amounts released so far and the whole bytes they made */
-    public final AmountMap releasedUnits = new AmountMap();
-    public final AmountMap releasedBytes = new AmountMap();
-    public Amount delivered = Amount.ZERO;
+    final AmountMap releasedUnits = new AmountMap();
+    final AmountMap releasedBytes = new AmountMap();
+    Amount delivered = Amount.ZERO;
 
     /** seeds of loops still running: other tasks may not eat them */
-    public final AmountMap protectedSeeds = new AmountMap();
-    public final Map<Integer, AmountMap> sccSeeds = new HashMap<>();
+    final AmountMap protectedSeeds = new AmountMap();
+    final Map<Integer, AmountMap> sccSeeds = new HashMap<>();
     /** seeds of items the plan uses again through a loop (Plan.recycles), still held for their loop */
-    public final List<Plan.Recycle> recycleGuards = new ArrayList<>();
-    public final Map<Integer, Integer> contractStep = new HashMap<>();
-    public final Map<Integer, Amount> contractLeft = new HashMap<>();
+    final List<Plan.Recycle> recycleGuards = new ArrayList<>();
+    final Map<Integer, Integer> contractStep = new HashMap<>();
+    final Map<Integer, Amount> contractLeft = new HashMap<>();
     /** durability tools: runs used so far per tool item */
-    public final AmountMap toolUses = new AmountMap();
+    final AmountMap toolUses = new AmountMap();
     /** infinite-source items still to be drawn from the network as the job needs them */
-    public final AmountMap drawLater = new AmountMap();
+    final AmountMap drawLater = new AmountMap();
     /** patterns run for outputs that come with a probability (Plan.chanceNeeds); key = pattern */
-    public final Map<Integer, ChanceProgress> chances = new HashMap<>();
+    final Map<Integer, ChanceProgress> chances = new HashMap<>();
     /**
      * what such patterns did not give after all their planned runs: the job waits for it (expected
      * like a machine's return, so a late arrival, a player's insertion or "pull from network" fills it)
      */
-    public final AmountMap chanceShort = new AmountMap();
+    final AmountMap chanceShort = new AmountMap();
     /** runs per pattern lost with a machine that was taken away (its products are no longer waited for) */
-    public final AmountMap machineLost = new AmountMap();
+    final AmountMap machineLost = new AmountMap();
     /** patterns that had work but nobody offered them at the last try (等樣板) */
-    public final java.util.Set<Integer> waitingPatterns = new java.util.HashSet<>();
+    final java.util.Set<Integer> waitingPatterns = new java.util.HashSet<>();
 
     /**
      * A forced order (started although the plan lacked materials): what the job still lacks from the network. It is taken
      * from network storage as it appears; the job is not done while any is lacking.
      */
-    public final AmountMap shortage = new AmountMap();
+    final AmountMap shortage = new AmountMap();
     /** started as a forced order */
-    public boolean forced;
+    boolean forced;
     /** cancelled because a forced order waited too long for its materials */
-    public boolean timedOut;
+    boolean timedOut;
     /** last time (nanos) the job made progress: ran a task, got a return or a material; for the forced order's time limit */
-    public long lastProgress;
+    long lastProgress;
     /** last time a forced order looked in network storage for what it lacks */
-    public long lastTopUp;
+    long lastTopUp;
     private java.util.Set<Integer> virtualItems;
 
     /** Items of this job's patterns that are only marks (see {@link Pattern#isVirtualOutput}). */
-    public java.util.Set<Integer> virtualItems() {
+    java.util.Set<Integer> virtualItems() {
         if (virtualItems == null) {
             java.util.Set<Integer> set = new java.util.HashSet<>();
             for (Task t : tasks) {
@@ -104,12 +104,12 @@ public final class Job {
         return virtualItems;
     }
 
-    public boolean suspended;
-    public boolean unloaded;
-    public boolean cancelled;
-    public boolean finished;
+    boolean suspended;
+    boolean unloaded;
+    boolean cancelled;
+    boolean finished;
     /** Where finished products go first (the requester behind AE2's crafting link); the rest goes to storage. */
-    public @Nullable FinalSink sink;
+    @Nullable FinalSink sink;
     /** The player who ordered it, told when it is done; null when nobody did (an automated request). */
     public @Nullable java.util.UUID player;
 
@@ -123,7 +123,7 @@ public final class Job {
         this.sink = sink;
     }
 
-    public Job(long id, Plan plan, Snapshot snap, long nowNanos) {
+    Job(long id, Plan plan, Snapshot snap, long nowNanos) {
         this.id = id;
         this.plan = plan;
         this.snap = snap;
@@ -169,7 +169,7 @@ public final class Job {
     }
 
     /** A job read back from a save: everything but the plan is filled in by {@link JobStore}. */
-    public Job(long id, Plan plan, Snapshot snap, long startNanos, Amount occupancy) {
+    Job(long id, Plan plan, Snapshot snap, long startNanos, Amount occupancy) {
         this.id = id;
         this.plan = plan;
         this.snap = snap;
