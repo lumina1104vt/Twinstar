@@ -25,7 +25,7 @@ import com.lumina.twinstar.api.IMachineAccess;
 import it.unimi.dsi.fastutil.objects.Object2LongMap;
 import com.lumina.bridge.Pos;
 import com.lumina.bridge.Face;
-import net.minecraft.core.GlobalPos;
+import com.lumina.bridge.Place;
 import com.lumina.twinstar.port.World;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
@@ -1331,7 +1331,7 @@ public final class HubState {
         /** products taken out that neither the hub nor the network took yet */
         final Map<Key, Long> overflow = new LinkedHashMap<>();
         /** where the machine is, kept for when the interface is gone (lost runs are kept by place) */
-        @Nullable GlobalPos place;
+        @Nullable Place place;
         /** cells in front of it that materials were placed or dropped in: products are picked up there */
         final Set<Pos> frontCells = new HashSet<>();
         /** its sub-machines for {@link #subsFor}, found at {@link #subsAt} (game time) */
@@ -1409,12 +1409,12 @@ public final class HubState {
     }
 
     /** Runs lost with a machine that went away, kept by the machine's place until an interface is back on it. */
-    final Map<GlobalPos, Map<Flight, Amount>> lostAt = new HashMap<>();
+    final Map<Place, Map<Flight, Amount>> lostAt = new HashMap<>();
     final Map<IMachineAccess, MachineState> machines = new LinkedHashMap<>();
     /** products of interfaces taken off that the network had no room for yet */
     final Map<Key, Long> orphans = new LinkedHashMap<>();
     /** machines as a save left them, by place, until their interface is on the grid again ({@link JobStore}) */
-    final Map<GlobalPos, RestoredMachine> restoring = new HashMap<>();
+    final Map<Place, RestoredMachine> restoring = new HashMap<>();
 
     /** What a saved machine was doing: put back on the interface found at its place. */
     record RestoredMachine(@Nullable Feed feed, int lastPattern, @Nullable Pattern lastPat, Map<Flight, Amount> inFlight,
@@ -1440,9 +1440,9 @@ public final class HubState {
             }
     }
 
-    private static @Nullable GlobalPos placeOf(IMachineAccess a) {
+    private static @Nullable Place placeOf(IMachineAccess a) {
         World level = a.getMachineWorld();
-        return level == null ? null : level.globalPos(a.getMachinePos());
+        return level == null ? null : level.place(a.getMachinePos());
     }
 
     /**
@@ -1468,7 +1468,7 @@ public final class HubState {
         // products held back while the network was full: kept by the hub until it takes them
         m.overflow.forEach((k, v) -> orphans.merge(k, v, Long::sum));
         m.overflow.clear();
-        GlobalPos at = m.place;
+        Place at = m.place;
         for (Map.Entry<Flight, Amount> e : m.inFlight.entrySet()) {
             Job job = e.getKey().job();
             if (job.finished || job.cancelled)
@@ -1488,7 +1488,7 @@ public final class HubState {
 
     /** An interface on a machine whose runs were lost: they are tracked again, late products are taken. */
     private void machineBack(MachineState m, ExecutionEnv env) {
-        GlobalPos at = m.place = placeOf(m.access);
+        Place at = m.place = placeOf(m.access);
         RestoredMachine saved = at == null ? null : restoring.remove(at);
         if (saved != null) {
             m.feed = saved.feed();
@@ -1530,7 +1530,7 @@ public final class HubState {
             if (level == null || !level.isLoaded(pos))
                 continue;
             if (m.place == null)
-                m.place = level.globalPos(pos);
+                m.place = level.place(pos);
             dropFeedOfEndedJob(m, env);
             if (m.feed == null && m.inFlight.isEmpty())
                 m.filledSubs.clear();

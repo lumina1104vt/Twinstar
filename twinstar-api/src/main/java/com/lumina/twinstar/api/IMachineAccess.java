@@ -145,7 +145,7 @@ public interface IMachineAccess {
      * Where this interface itself is (the block it stands in: a cable part gives the cable's block), for the list of what
      * machines use up; null when it does not say.
      */
-    default @Nullable net.minecraft.core.GlobalPos interfacePlace() {
+    default @Nullable com.lumina.bridge.Place interfacePlace() {
         return null;
     }
 
@@ -158,7 +158,7 @@ public interface IMachineAccess {
      * Where the machines this interface works on are (the list of what machines use up shows each of them, also one that used
      * nothing); empty when it does not say.
      */
-    default java.util.List<net.minecraft.core.GlobalPos> machinePlaces() {
+    default java.util.List<com.lumina.bridge.Place> machinePlaces() {
         return java.util.List.of();
     }
 

@@ -42,12 +42,12 @@ public final class UsageQueries {
         Map<IfaceKey, IMachineAccess> byIface = new HashMap<>();
         for (IMachineAccess a : interfaces)
             if (a.interfacePlace() != null)
-                byIface.put(new IfaceKey(a.interfacePlace(), a.interfaceSide()), a);
+                byIface.put(new IfaceKey(com.lumina.bridge.Positions.toMc(a.interfacePlace()), a.interfaceSide()), a);
         // every machine of every interface of the network: the ones that used something, and the ones that did not
         Map<UsageStore.Source, IMachineAccess> sources = new LinkedHashMap<>();
         for (IMachineAccess a : byIface.values())
-            for (GlobalPos machine : a.machinePlaces())
-                sources.putIfAbsent(new UsageStore.Source(machine, a.interfacePlace(), a.interfaceSide()), a);
+            for (com.lumina.bridge.Place place : a.machinePlaces())
+                sources.putIfAbsent(new UsageStore.Source(com.lumina.bridge.Positions.toMc(place), com.lumina.bridge.Positions.toMc(a.interfacePlace()), a.interfaceSide()), a);
         for (UsageStore.Source s : ledger.sources())
             if (s.iface() != null) {
                 IMachineAccess a = byIface.get(new IfaceKey(s.iface(), s.side()));

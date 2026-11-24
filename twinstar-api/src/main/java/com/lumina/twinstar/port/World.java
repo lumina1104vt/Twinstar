@@ -1,7 +1,7 @@
 package com.lumina.twinstar.port;
 
 import com.lumina.bridge.Pos;
-import net.minecraft.core.GlobalPos;
+import com.lumina.bridge.Place;
 
 /**
  * One loaded world as the engine sees it: what it asks about blocks and time, and the two ways it works on machines in
@@ -26,5 +26,5 @@ public interface World {
     String blockId(Pos pos);
 
     /** The position together with this world, to keep for later. */
-    GlobalPos globalPos(Pos pos);
+    Place place(Pos pos);
 }

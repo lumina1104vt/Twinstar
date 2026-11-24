@@ -3,6 +3,7 @@ package com.lumina.twinstar.algorithm.execution;
 import com.lumina.twinstar.port.MachineStorage;
 import com.lumina.twinstar.port.World;
 import com.lumina.twinstar.port.WorldActions;
+import com.lumina.bridge.Place;
 import com.lumina.bridge.Pos;
 import com.lumina.bridge.Positions;
 import net.minecraft.core.BlockPos;
@@ -48,8 +49,8 @@ public final class Ae2World implements World {
         return BuiltInRegistries.BLOCK.getKey(level.getBlockState(Positions.toMc(pos)).getBlock()).toString();
     }
 
-    public GlobalPos globalPos(Pos pos) {
-        return GlobalPos.of(level.dimension(), Positions.toMc(pos));
+    public Place place(Pos pos) {
+        return Positions.of(GlobalPos.of(level.dimension(), Positions.toMc(pos)));
     }
 
     @Override

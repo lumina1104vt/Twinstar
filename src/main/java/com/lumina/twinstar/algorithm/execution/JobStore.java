@@ -20,7 +20,7 @@ import com.lumina.twinstar.algorithm.planning.CycleContract;
 import com.lumina.twinstar.algorithm.planning.Plan;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.GlobalPos;
+import com.lumina.bridge.Place;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
@@ -98,7 +98,7 @@ public final class JobStore {
         out.put("lostAt", lost);
         ListTag machines = new ListTag();
         for (HubState.MachineState m : hub.machines.values()) {
-            GlobalPos at = m.place;
+            Place at = m.place;
             if (at == null)
                 continue;
             machines.add(w.machine(at, m.feed, m.lastPattern, m.lastPat, m.inFlight, m.overflow));
@@ -232,7 +232,7 @@ public final class JobStore {
             return l;
         }
 
-        CompoundTag machine(GlobalPos at, @Nullable HubState.Feed feed, int lastPattern, @Nullable Pattern lastPat,
+        CompoundTag machine(Place at, @Nullable HubState.Feed feed, int lastPattern, @Nullable Pattern lastPat,
                             Map<HubState.Flight, Amount> inFlight, Map<Key, Long> overflow) {
             CompoundTag t = new CompoundTag();
             t.put("at", place(at));
@@ -454,14 +454,14 @@ public final class JobStore {
         }
         for (Tag t : tag.getList("lostAt", Tag.TAG_COMPOUND)) {
             CompoundTag lt = (CompoundTag) t;
-            GlobalPos at = place(lt.getCompound("at"));
+            Place at = place(lt.getCompound("at"));
             Map<HubState.Flight, Amount> flights = r.flights(lt.getList("flights", Tag.TAG_COMPOUND), byId);
             if (at != null && !flights.isEmpty())
                 hub.lostAt.put(at, flights);
         }
         for (Tag t : tag.getList("machines", Tag.TAG_COMPOUND)) {
             CompoundTag mt = (CompoundTag) t;
-            GlobalPos at = place(mt.getCompound("at"));
+            Place at = place(mt.getCompound("at"));
             if (at == null)
                 continue;
             HubState.Feed feed = null;
@@ -780,17 +780,16 @@ public final class JobStore {
         return s.isEmpty() ? Amount.ZERO : Amount.of(new BigInteger(s));
     }
 
-    private static CompoundTag place(GlobalPos at) {
+    private static CompoundTag place(Place at) {
         CompoundTag t = new CompoundTag();
-        t.putString("dim", at.dimension().location().toString());
-        t.putLong("pos", at.pos().asLong());
+        t.putString("dim", at.dimension());
+        t.putLong("pos", at.pos().packed());
         return t;
     }
 
-    private static @Nullable GlobalPos place(CompoundTag t) {
-        ResourceLocation dim = ResourceLocation.tryParse(t.getString("dim"));
-        if (dim == null)
+    private static @Nullable Place place(CompoundTag t) {
+        if (ResourceLocation.tryParse(t.getString("dim")) == null)
             return null;
-        return GlobalPos.of(ResourceKey.create(Registries.DIMENSION, dim), BlockPos.of(t.getLong("pos")));
+        return new Place(t.getString("dim"), new com.lumina.bridge.Pos(t.getLong("pos")));
     }
 }

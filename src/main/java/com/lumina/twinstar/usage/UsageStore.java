@@ -58,7 +58,7 @@ public final class UsageStore {
     private static void recordHubAe(IMachineAccess access, AEKey key, long amount) {
         ServerLevel level = access.getMachineLevel();
         if (level != null)
-            record(level, com.lumina.bridge.Positions.toMc(access.getMachinePos()), access.interfacePlace(), access.interfaceSide(), key, amount, HUB);
+            record(level, com.lumina.bridge.Positions.toMc(access.getMachinePos()), com.lumina.bridge.Positions.toMc(access.interfacePlace()), access.interfaceSide(), key, amount, HUB);
     }
 
     /** {@code amount} of {@code key} went into the machine at {@code machine} (in {@code level}) for the interface at {@code iface}. */
