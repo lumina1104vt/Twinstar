@@ -1441,7 +1441,7 @@ public final class HubState {
     }
 
     private static @Nullable GlobalPos placeOf(IMachineAccess a) {
-        World level = Ae2Adapters.world(a.getMachineLevel());
+        World level = a.getMachineWorld();
         return level == null ? null : level.globalPos(a.getMachinePos());
     }
 
@@ -1451,7 +1451,7 @@ public final class HubState {
      * for, and the job shows why it stopped. Nothing is made again on its own.
      */
     private void machineGone(MachineState m, ExecutionEnv env) {
-        World gone = Ae2Adapters.world(m.access.getMachineLevel());
+        World gone = m.access.getMachineWorld();
         if (gone != null)
             gone.storage().forget(m.access.getMachinePos());
         if (m.feed != null) {
@@ -1525,7 +1525,7 @@ public final class HubState {
                 e.setValue(e.getValue() - went);
         }
         for (MachineState m : machines.values()) {
-            World level = Ae2Adapters.world(m.access.getMachineLevel());
+            World level = m.access.getMachineWorld();
             BlockPos pos = m.access.getMachinePos();
             if (level == null || !level.isLoaded(pos))
                 continue;
@@ -1647,7 +1647,7 @@ public final class HubState {
             return List.of(m);
         List<MachineState> out = new ArrayList<>();
         for (MachineState other : machines.values())
-            if (other.access.getGroup() == group && other.access.getMachineLevel() == m.access.getMachineLevel()
+            if (other.access.getGroup() == group && java.util.Objects.equals(other.access.getMachineWorld(), m.access.getMachineWorld())
                     && java.util.Objects.equals(other.access.getMachine(), m.access.getMachine()))
                 out.add(other);
         return out;
@@ -2147,7 +2147,7 @@ public final class HubState {
                     kinds.add(k.getItem());
         List<BlockPos> others = new ArrayList<>();
         for (MachineState other : machines.values())
-            if (other != m && level.equals(Ae2Adapters.world(other.access.getMachineLevel())))
+            if (other != m && level.equals(other.access.getMachineWorld()))
                 others.add(other.access.getMachinePos());
         m.subs = SubMachines.find(level, pos, m.access.getSubRange(), kinds, others);
         m.subsFor = pat;
@@ -2266,7 +2266,7 @@ public final class HubState {
     private List<MachineState> machinesFor(Pattern pat, ExecutionEnv env) {
         List<MachineState> out = new ArrayList<>();
         for (MachineState m : machines.values()) {
-            World level = Ae2Adapters.world(m.access.getMachineLevel());
+            World level = m.access.getMachineWorld();
             BlockPos pos = m.access.getMachinePos();
             if (level == null || !m.access.isAccessActive() || !level.isLoaded(pos))
                 continue;
@@ -2301,7 +2301,7 @@ public final class HubState {
      * still in it, on its sub-machines or lying in front of it: a blocking interface waits for them to go.
      */
     private boolean stillHasMaterials(MachineState m, ExecutionEnv env, @Nullable Pattern only) {
-        World level = Ae2Adapters.world(m.access.getMachineLevel());
+        World level = m.access.getMachineWorld();
         if (level == null)
             return false;
         List<Pattern> pats = new ArrayList<>();
@@ -2331,7 +2331,7 @@ public final class HubState {
 
     /** Some input slot of the machine holds a material of {@code pat} (not one its interface keeps stocked). */
     private static boolean holds(MachineState m, Pattern pat, ExecutionEnv env) {
-        World level = Ae2Adapters.world(m.access.getMachineLevel());
+        World level = m.access.getMachineWorld();
         if (level == null || !level.isLoaded(m.access.getMachinePos()))
             return false;
         Set<AEKey> keys = inputKeys(pat, env);
@@ -2400,7 +2400,7 @@ public final class HubState {
                 sent++;
                 if (chance != null)
                     chance.ran(Amount.ONE);
-                World level = Ae2Adapters.world(m.access.getMachineLevel());
+                World level = m.access.getMachineWorld();
                 if (level != null)
                     feed(m, level, m.access.getMachinePos());
                 if (m.feed != null) {

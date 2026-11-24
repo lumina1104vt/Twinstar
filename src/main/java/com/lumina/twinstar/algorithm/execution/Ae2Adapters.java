@@ -21,12 +21,18 @@ import java.util.function.Predicate;
  * {@link WorldIO} for one world. The engine gets them only through the interfaces.
  */
 public final class Ae2Adapters {
+    private static final java.util.Map<ServerLevel, Ae2World> WORLDS = new java.util.WeakHashMap<>();
+
     private Ae2Adapters() {
     }
 
     /** The world of a level (null for none). */
     public static @Nullable World world(@Nullable ServerLevel level) {
-        return level == null ? null : new Ae2World(level);
+        if (level == null)
+            return null;
+        synchronized (WORLDS) {
+            return WORLDS.computeIfAbsent(level, Ae2World::new);
+        }
     }
 
     static MachineStorage storage(ServerLevel level) {

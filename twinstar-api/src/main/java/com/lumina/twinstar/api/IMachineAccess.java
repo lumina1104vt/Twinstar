@@ -1,5 +1,6 @@
 package com.lumina.twinstar.api;
 
+import com.lumina.twinstar.port.World;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -52,6 +53,9 @@ public interface IMachineAccess {
 
     /** Null while unloaded. */
     @Nullable ServerLevel getMachineLevel();
+
+    /** The same world as {@link #getMachineLevel()}, as the engine sees it; null when there is none. */
+    @Nullable World getMachineWorld();
 
     BlockPos getMachinePos();
 
