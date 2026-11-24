@@ -1317,8 +1317,6 @@ public final class HubState {
         /** the pattern fed last (blocking interfaces) */
         int lastPattern = -1;
         @Nullable Pattern lastPat;
-        /** the game tick the last run was fed completely (a hatch holding its materials only counts for a little while after) */
-        long fedAtTick = Long.MIN_VALUE;
         /** runs started here whose products are not all back, per job and pattern */
         final Map<Flight, Amount> inFlight = new LinkedHashMap<>();
         /** products taken out that neither the hub nor the network took yet */
@@ -2000,7 +1998,6 @@ public final class HubState {
                     return;
             }
             m.feed = null;
-            m.fedAtTick = level.getGameTime();
             useTools(m, f, level, pos);
             creditDispatched(f.job, pat, Amount.ONE);
             // runs fed together in one tick (dropped in front all at once) get one pulse, not one each
@@ -2352,8 +2349,6 @@ public final class HubState {
         return false;
     }
 
-    private static final long HATCH_HOLD_TICKS = 100;
-
     /** Some input slot of the machine holds a material of {@code pat} (not one its interface keeps stocked). */
     private static boolean holds(MachineState m, Pattern pat, ExecutionEnv env) {
         World level = m.access.getMachineWorld();
@@ -2364,10 +2359,6 @@ public final class HubState {
         if (level.storage().holdsAny(m.access.getMachinePos(), keys))
             return true;
         // a multiblock's controller holds nothing: its materials sit in the hatches bound to it (an assembly line's buses)
-        // only for a moment after the feed: the machine takes a tick or two to start on what it was given. A hatch that keeps
-        // holding something longer (a fluid hatch filled by hand, a run that never started) must not block the machine for good
-        if (level.getGameTime() - m.fedAtTick > HATCH_HOLD_TICKS)
-            return false;
         for (IMachine.Port port : m.access.ports())
             if ((port.role() == IMachine.PortRole.ITEM_IN || port.role() == IMachine.PortRole.FLUID_IN)
                     && level.isLoaded(port.pos()) && level.storage().holdsAny(port.pos(), keys))
