@@ -6,6 +6,7 @@ import appeng.api.stacks.AmountFormat;
 import com.lumina.twinstar.client.hover.KeyHit;
 import com.lumina.twinstar.client.hover.KeyHits;
 import com.lumina.twinstar.client.hover.KeyHover;
+import com.lumina.twinstar.client.ui.PanelPlacement;
 import com.lumina.twinstar.client.ui.PixelIcon;
 import com.lumina.twinstar.client.ui.UiKit;
 import com.lumina.twinstar.usage.UsagePackets;
@@ -127,7 +128,7 @@ public class UsageScreen extends Screen implements KeyHover {
 
     @Override
     public @Nullable KeyHit keyAt(double mouseX, double mouseY) {
-        return hits.at(mouseX, mouseY);
+        return hits.at(mouseX - ox, mouseY - oy);
     }
 
     @Override
@@ -157,8 +158,7 @@ public class UsageScreen extends Screen implements KeyHover {
         g.fill(0, 0, width, height, BG);
     }
 
-    @Override
-    public void render(GuiGraphics g, int mx, int my, float partialTick) {
+    private void renderPanel(GuiGraphics g, int mx, int my, float partialTick) {
         renderBackground(g);
         if (dirty)
             rebuild();
@@ -178,6 +178,16 @@ public class UsageScreen extends Screen implements KeyHover {
         search.render(g, mx, my, partialTick);
         if (search.getValue().isEmpty() && !search.isFocused())
             g.drawString(font, Component.translatable("gui.twinstar.usage.search"), sx + 4, 8, 0xFF5C5878, false);
+
+        // the button that turns the panel into a window (or back into the whole screen)
+        int tx = sx - 18;
+        boolean tOver = mx >= tx && mx < tx + 14 && my >= 4 && my < 18;
+        g.fill(tx, 4, tx + 14, 18, tOver ? BUTTON_HOT : BUTTON_LINE);
+        g.fill(tx + 1, 5, tx + 13, 17, BUTTON);
+        PixelIcon.draw(g, windowed ? FULL_ICON : WINDOW_ICON, tx + 3, 7, TEXT);
+        clicks.add(new Click(tx, 4, 14, 14, this::toggleWindow));
+        if (tOver)
+            tooltip = List.of(Component.translatable(windowed ? "gui.twinstar.usage.mode.full" : "gui.twinstar.usage.mode.window"));
 
         // controls: window, grouping, sorting (a row of their own; they wrap when the window is narrow)
         ctlX = 8;
@@ -336,7 +346,7 @@ public class UsageScreen extends Screen implements KeyHover {
                 total += MACHINE_H;
         listHeight = total;
         listBar.offset = Math.max(0, Math.min(listBar.offset, total - listH));
-        g.enableScissor(listX, listY, listX + listW, listY + listH);
+        scissor(g, listX, listY, listX + listW, listY + listH);
         List<Component> tip = null;
         int y = listY - listBar.offset;
         folded = false;
@@ -471,7 +481,7 @@ public class UsageScreen extends Screen implements KeyHover {
             return null;
         UsageSnapshot.Machine mc = e.machine();
         List<Component> tip = null;
-        g.enableScissor(detailX, detailY, detailX + detailW, detailY + detailH);
+        scissor(g, detailX, detailY, detailX + detailW, detailY + detailH);
         int x = detailX + 6, y = detailY + 6 - detailBar.offset, w = detailW - 12;
         int y0 = y;
         g.drawString(font, font.plainSubstrByWidth(mc.name().getString(), w - 12), x, y, TEXT, false);
@@ -602,10 +612,156 @@ public class UsageScreen extends Screen implements KeyHover {
         return lines;
     }
 
-    // ───────────────────────────── input ─────────────────────────────
+    // ───────────────────────────── window mode ─────────────────────────────
+
+    private static final String[] WINDOW_ICON = {"........", ".######.", ".#....#.", ".#....#.", ".#....#.", ".#....#.", ".######.", "........"};
+    private static final String[] FULL_ICON = {"########", "#......#", "#.####.#", "#.#..#.#", "#.#..#.#", "#.####.#", "#......#", "########"};
+    private static final int MIN_W = 380, MIN_H = 240, GRIP = 10, HEAD_H = 19;
+    private static final String KEY_ON = "usage.window", KEY_POS = "usage.window.pos", KEY_SIZE = "usage.window.size";
+
+    // as a window: where it is and how big (kept in the panels file, like the other small panels)
+    private static boolean windowed, windowLoaded;
+    private static int winX, winY, winW, winH;
+    /** where the panel top left corner is on the real screen: (0, 0) as the whole screen */
+    private int ox, oy;
+
+    private enum Drag { NONE, MOVE, SIZE }
+
+    private Drag drag = Drag.NONE;
+
+    private static void loadWindow() {
+        if (windowLoaded)
+            return;
+        windowLoaded = true;
+        PanelPlacement p = PanelPlacement.shared();
+        windowed = p.get(KEY_ON)[0] == 1;
+        int[] pos = p.get(KEY_POS), size = p.get(KEY_SIZE);
+        winX = pos[0];
+        winY = pos[1];
+        winW = size[0];
+        winH = size[1];
+    }
+
+    private static void saveWindow() {
+        PanelPlacement p = PanelPlacement.shared();
+        p.set(KEY_ON, windowed ? 1 : 0, windowed ? 1 : 0);
+        p.set(KEY_POS, winX, winY);
+        p.set(KEY_SIZE, winW, winH);
+    }
+
+    /** Keeps the window on the screen (and gives it a first size and place: the middle, three fifths). */
+    private static void fitWindow(int realW, int realH) {
+        if (winW <= 0 || winH <= 0) {
+            winW = realW * 3 / 5;
+            winH = realH * 3 / 5;
+            winX = (realW - Math.max(MIN_W, winW)) / 2;
+            winY = (realH - Math.max(MIN_H, winH)) / 2;
+        }
+        winW = Math.min(realW, Math.max(MIN_W, winW));
+        winH = Math.min(realH, Math.max(MIN_H, winH));
+        winX = Math.max(0, Math.min(winX, realW - winW));
+        winY = Math.max(0, Math.min(winY, realH - winH));
+    }
+
+    private void toggleWindow() {
+        windowed = !windowed;
+        drag = Drag.NONE;
+        saveWindow();
+    }
+
+    /** A scissor in the panel own coordinates (the scissor of the screen does not follow the pose). */
+    private void scissor(GuiGraphics g, int x1, int y1, int x2, int y2) {
+        g.enableScissor(x1 + ox, y1 + oy, x2 + ox, y2 + oy);
+    }
+
+    @Override
+    public void render(GuiGraphics g, int mx, int my, float partialTick) {
+        loadWindow();
+        if (!windowed) {
+            ox = 0;
+            oy = 0;
+            renderPanel(g, mx, my, partialTick);
+            return;
+        }
+        int realW = width, realH = height;
+        fitWindow(realW, realH);
+        g.fill(0, 0, realW, realH, 0x80000000);       // what is behind stays to be seen, dimmed
+        g.fill(winX - 1, winY - 1, winX + winW + 1, winY + winH + 1, PANEL_LINE);
+        ox = winX;
+        oy = winY;
+        g.pose().pushPose();
+        g.pose().translate(winX, winY, 0);
+        width = winW;
+        height = winH;
+        try {
+            renderPanel(g, mx - winX, my - winY, partialTick);
+            // the corner that resizes it
+            boolean hot = drag == Drag.SIZE || (mx >= winX + winW - GRIP && mx < winX + winW && my >= winY + winH - GRIP && my < winY + winH);
+            for (int i = 0; i < 3; i++)
+                g.fill(winW - 3 - i * 3, winH - 2, winW - 2 - i * 3, winH - 1, hot ? TEXT : DIM);
+            for (int i = 0; i < 3; i++)
+                g.fill(winW - 2, winH - 3 - i * 3, winW - 1, winH - 2 - i * 3, hot ? TEXT : DIM);
+        } finally {
+            width = realW;
+            height = realH;
+            g.pose().popPose();
+        }
+    }
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
+        if (!windowed)
+            return clickedInner(mx, my, button);
+        double vx = mx - winX, vy = my - winY;
+        if (vx < 0 || vy < 0 || vx >= winW || vy >= winH)
+            return true;                                // outside the window: nothing (and the world behind is not clicked)
+        if (button == 0 && vx >= winW - GRIP && vy >= winH - GRIP) {
+            drag = Drag.SIZE;
+            return true;
+        }
+        boolean handled = clickedInner(vx, vy, button);
+        if (!handled && button == 0 && vy < HEAD_H)
+            drag = Drag.MOVE;
+        return true;
+    }
+
+    @Override
+    public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+        if (!windowed)
+            return draggedInner(mx, my, button, dx, dy);
+        if (drag == Drag.MOVE) {
+            winX += (int) Math.round(dx);
+            winY += (int) Math.round(dy);
+            return true;
+        }
+        if (drag == Drag.SIZE) {
+            winW += (int) Math.round(dx);
+            winH += (int) Math.round(dy);
+            return true;
+        }
+        return draggedInner(mx - winX, my - winY, button, dx, dy);
+    }
+
+    @Override
+    public boolean mouseReleased(double mx, double my, int button) {
+        if (!windowed)
+            return releasedInner(mx, my, button);
+        if (drag != Drag.NONE) {
+            drag = Drag.NONE;
+            saveWindow();
+            return true;
+        }
+        return releasedInner(mx - winX, my - winY, button);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mx, double my, double delta) {
+        return windowed ? scrolledInner(mx - winX, my - winY, delta) : scrolledInner(mx, my, delta);
+    }
+
+    // ───────────────────────────── input ─────────────────────────────
+
+    private boolean clickedInner(double mx, double my, int button) {
         boolean inSearch = search.isMouseOver(mx, my) || (mx >= search.getX() - 4 && mx < search.getX() + search.getWidth() + 4 && my >= 4 && my < 19);
         search.setFocused(inSearch);
         if (inSearch)
@@ -621,21 +777,18 @@ public class UsageScreen extends Screen implements KeyHover {
         return super.mouseClicked(mx, my, button);
     }
 
-    @Override
-    public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+    private boolean draggedInner(double mx, double my, int button, double dx, double dy) {
         if (button == 0 && (listBar.drag(my) || detailBar.drag(my)))
             return true;
         return super.mouseDragged(mx, my, button, dx, dy);
     }
 
-    @Override
-    public boolean mouseReleased(double mx, double my, int button) {
+    private boolean releasedInner(double mx, double my, int button) {
         boolean held = listBar.release() | detailBar.release();
         return held || super.mouseReleased(mx, my, button);
     }
 
-    @Override
-    public boolean mouseScrolled(double mx, double my, double delta) {
+    private boolean scrolledInner(double mx, double my, double delta) {
         int step = (int) Math.round(-delta * 16);
         if (mx >= detailX && mx < detailX + detailW && my >= detailY && my < detailY + detailH)
             detailBar.offset = Math.max(0, Math.min(detailBar.offset + step, Math.max(0, detailHeight - detailH)));

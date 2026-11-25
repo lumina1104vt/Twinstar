@@ -134,6 +134,8 @@
   "gui.twinstar.usage.idle_show": "Show idle (%1$s)",
   "gui.twinstar.usage.idle_hide": "Hide idle",
   "gui.twinstar.usage.all_idle": "Nothing was used in this time window. Use "Show idle" to list the machines anyway.",
+  "gui.twinstar.usage.mode.window": "Small window (drag the title bar to move, the corner to resize)",
+  "gui.twinstar.usage.mode.full": "Whole screen",
   "gui.twinstar.usage.senders_head": "Senders (%1$s): what they sent on",
   "gui.twinstar.usage.idle_sent": "Nothing sent in 30 minutes",
   "gui.twinstar.usage.idle": "Nothing used in 30 minutes",
