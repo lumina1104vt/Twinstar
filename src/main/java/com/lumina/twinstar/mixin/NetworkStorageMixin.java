@@ -1,7 +1,6 @@
 package com.lumina.twinstar.mixin;
 
 import appeng.api.config.Actionable;
-import appeng.api.networking.security.IActionHost;
 import appeng.api.networking.security.IActionSource;
 import appeng.api.stacks.AEKey;
 import appeng.me.storage.NetworkStorage;
@@ -30,7 +29,7 @@ public abstract class NetworkStorageMixin {
         long put = cir.getReturnValueJ();
         if (put <= 0 || mode != Actionable.MODULATE || source.player().isPresent())
             return;
-        IActionHost host = source.machine().orElse(null);
+        Object host = HostPlaces.realHost(source.machine().orElse(null));
         if (host == null || HostPlaces.isBlockEntityHost(host) || HostPlaces.isInputSide(host))
             return;
         TransferSites.sentFrom(HostPlaces.placeOf(host), null, what, put, Transfers.IMPORT_BUS);
@@ -41,7 +40,7 @@ public abstract class NetworkStorageMixin {
         long taken = cir.getReturnValueJ();
         if (taken <= 0 || mode != Actionable.MODULATE || source.player().isPresent())
             return;
-        IActionHost host = source.machine().orElse(null);
+        Object host = HostPlaces.realHost(source.machine().orElse(null));
         if (host == null || HostPlaces.isBlockEntityHost(host))
             return;
         TransferSites.sentFrom(HostPlaces.placeOf(host), null, what, taken, Transfers.OTHER);

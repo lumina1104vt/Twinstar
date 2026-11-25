@@ -29,6 +29,30 @@ public final class HostPlaces {
         return host instanceof BlockEntity || host instanceof appeng.parts.AEBasePart;
     }
 
+    /**
+     * What an action source's host really is: they are often a lambda that only hands out the grid node, so it is the node's owner
+     * (a trait of a machine is asked for its machine once more). Null when there is no host.
+     */
+    public static @Nullable Object realHost(@Nullable appeng.api.networking.security.IActionHost host) {
+        if (host == null)
+            return null;
+        Object who = host;
+        try {
+            var node = host.getActionableNode();
+            if (node != null && node.getOwner() != null)
+                who = node.getOwner();
+            Getters g = CACHE.computeIfAbsent(who.getClass(), HostPlaces::lookup);
+            if (g.machine() != null && !isBlockEntityHost(who)) {
+                Object machine = g.machine().invoke(who);
+                if (machine != null)
+                    who = machine;
+            }
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            // keep what we have
+        }
+        return who;
+    }
+
     /** A machine that takes material from the network (by its class names: input, stocking, a pattern buffer). */
     public static boolean isInputSide(Object host) {
         for (Class<?> c = host.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
@@ -42,7 +66,7 @@ public final class HostPlaces {
     public static @Nullable Place placeOf(@Nullable Object host) {
         Place place = placeOf(host, 0);
         // once for each kind of host: what the monitor could and could not place (so a block that does not show can be told why)
-        if (host != null && !isBlockEntityHost(host) && SEEN.add(host.getClass().getName() + (place == null ? "!" : "")))
+        if (host != null && !isBlockEntityHost(host) && !host.getClass().getName().contains("$$Lambda") && SEEN.add(host.getClass().getName() + (place == null ? "!" : "")))
             LOGGER.info("[monitor] {} of {}: {}", place == null ? "cannot place" : "places", host.getClass().getName(),
                     place == null ? "no getPos/getLevel/getMachine that answers" : place.pos());
         return place;
