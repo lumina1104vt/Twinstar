@@ -164,11 +164,11 @@ public class PlanUI {
     private UIElement footer() {
         Button back = PixelLabel.button(Component.translatable("gui.twinstar.plan.back"));
         back.setOnClick(e -> menu.back());
-        back.layout(l -> l.width(64).height(20));
+        back.layout(l -> l.width(56).height(20));
         replan.setOnClick(e -> menu.replan());
-        replan.layout(l -> l.width(74).height(20));
+        replan.layout(l -> l.width(66).height(20));
         start.setOnClick(e -> pressStart());
-        start.layout(l -> l.width(90).height(20));
+        start.layout(l -> l.width(84).height(20));
         // the bookmark icon sits before the caption; it only shows while Shift turns the button into "bookmark missing"
         startIcon.layout(l -> l.marginRight(3));
         startIcon.setDisplay(false);
