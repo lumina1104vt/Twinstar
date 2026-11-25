@@ -132,6 +132,8 @@
   "gui.twinstar.usage.idle_show": "顯示閒置（%1$s）",
   "gui.twinstar.usage.idle_hide": "隱藏閒置",
   "gui.twinstar.usage.all_idle": "這個時間窗內沒有東西被用掉。按「顯示閒置」可以列出全部機器。",
+  "gui.twinstar.usage.mode.window": "縮成小視窗（拖標題列移動，拖右下角改大小）",
+  "gui.twinstar.usage.mode.full": "回到全螢幕",
   "gui.twinstar.usage.senders_head": "送出方（%1$s 個）：它們送出去的東西",
   "gui.twinstar.usage.idle_sent": "30 分鐘內沒送出東西",
   "gui.twinstar.usage.idle": "30 分鐘內沒用掉東西",
