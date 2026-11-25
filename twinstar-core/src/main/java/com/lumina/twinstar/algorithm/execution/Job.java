@@ -33,9 +33,9 @@ public final class Job {
 
     final AmountMap inventory = new AmountMap();
     final List<Task> tasks = new ArrayList<>();
-    /** ready tasks, low level first so hub-internal chains finish within one tick */
+    /** ready tasks, low level first so hub-internal chains finish within one tick; one that ate the last tick's budget goes last */
     final PriorityQueue<Task> ready = new PriorityQueue<>(
-            Comparator.<Task>comparingInt(t -> t.level).thenComparingInt(t -> t.pattern));
+            Comparator.<Task>comparingInt(t -> t.heavy ? 1 : 0).thenComparingInt(t -> t.level).thenComparingInt(t -> t.pattern));
     final Map<Integer, List<Task>> waitingOn = new HashMap<>();
     /** tasks with materials but no free machine (or no power): tried again next tick */
     final List<Task> retry = new ArrayList<>();

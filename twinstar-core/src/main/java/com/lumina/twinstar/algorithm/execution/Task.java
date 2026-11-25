@@ -12,6 +12,8 @@ public final class Task {
     /** runs pushed to machines whose outputs have not come back yet (display only) */
     Amount inFlight = Amount.ZERO;
     boolean queued;
+    /** its last dispatch to machines took longer than the tick's whole budget: it goes after the others next time */
+    boolean heavy;
 
     Task(int pattern, int level, int scc, Amount remaining) {
         this.pattern = pattern;
