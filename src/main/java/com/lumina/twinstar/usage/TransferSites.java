@@ -38,6 +38,17 @@ public final class TransferSites {
         return Positions.of(GlobalPos.of(level.dimension(), pos.immutable()));
     }
 
+    /** Same, for a sender that is already a place (a block of another mod, found by {@link HostPlaces}). */
+    public static void sentFrom(@Nullable Place at, @Nullable Place to, appeng.api.stacks.AEKey what, long amount, int kind) {
+        if (at == null || amount <= 0)
+            return;
+        try {
+            Transfers.record(at, to, Keys.of(what), amount, kind);
+        } catch (RuntimeException e) {
+            // a monitor must never break the game it watches
+        }
+    }
+
     /** {@code amount} of an AE2 key went out of the block {@code from}. */
     public static void sent(@Nullable BlockEntity from, @Nullable Place to, appeng.api.stacks.AEKey what, long amount, int kind) {
         Place at = placeOf(from);
