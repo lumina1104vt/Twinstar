@@ -7,6 +7,7 @@ import com.lumina.twinstar.client.hover.KeyHit;
 import com.lumina.twinstar.client.hover.KeyHits;
 import com.lumina.twinstar.client.hover.KeyHover;
 import com.lumina.twinstar.client.ui.PixelIcon;
+import com.lumina.twinstar.client.ui.Scroller;
 import com.lumina.twinstar.usage.UsagePackets;
 import com.lumina.twinstar.usage.UsageSnapshot;
 import com.lumina.twinstar.usage.UsageStore;
@@ -70,7 +71,8 @@ public class UsageScreen extends Screen implements KeyHover {
     private long lastPickMs;
     private @Nullable Component notice;
     private long noticeUntilMs;
-    private int listScroll, detailScroll, listHeight, detailHeight;
+    private final Scroller listBar = new Scroller(), detailBar = new Scroller();
+    private int listHeight, detailHeight;
     private int listX, listY, listW, listH, detailX, detailY, detailW, detailH;
 
     private record Click(int x, int y, int w, int h, Runnable action) {
@@ -89,7 +91,7 @@ public class UsageScreen extends Screen implements KeyHover {
         search.setMaxLength(48);
         search.setResponder(t -> {
             dirty = true;
-            listScroll = 0;
+            listBar.offset = 0;
         });
     }
 
@@ -188,7 +190,7 @@ public class UsageScreen extends Screen implements KeyHover {
                     byInterface == iface, mx, my, () -> {
                         byInterface = iface;
                         dirty = true;
-                        listScroll = 0;
+                        listBar.offset = 0;
                     }, 0);
         }
         ctlX += 8;
@@ -303,10 +305,10 @@ public class UsageScreen extends Screen implements KeyHover {
         for (var line : m.lines())
             total += line.machine() == null ? HEADER_H : MACHINE_H;
         listHeight = total;
-        listScroll = Math.max(0, Math.min(listScroll, total - listH));
+        listBar.offset = Math.max(0, Math.min(listBar.offset, total - listH));
         g.enableScissor(listX, listY, listX + listW, listY + listH);
         List<Component> tip = null;
-        int y = listY - listScroll;
+        int y = listY - listBar.offset;
         for (var line : m.lines()) {
             var e = line.machine();
             if (e == null) {
@@ -361,7 +363,7 @@ public class UsageScreen extends Screen implements KeyHover {
             y += MACHINE_H;
         }
         g.disableScissor();
-        scrollBar(g, listX + listW - 3, listY, listH, listHeight, listScroll);
+        listBar.drawBar(g, listX + listW - 4, listY, 4, listH, listHeight, listH);
         return tip;
     }
 
@@ -427,7 +429,7 @@ public class UsageScreen extends Screen implements KeyHover {
         UsageSnapshot.Machine mc = e.machine();
         List<Component> tip = null;
         g.enableScissor(detailX, detailY, detailX + detailW, detailY + detailH);
-        int x = detailX + 6, y = detailY + 6 - detailScroll, w = detailW - 12;
+        int x = detailX + 6, y = detailY + 6 - detailBar.offset, w = detailW - 12;
         int y0 = y;
         g.drawString(font, font.plainSubstrByWidth(mc.name().getString(), w), x, y, TEXT, false);
         y += 11;
@@ -511,19 +513,11 @@ public class UsageScreen extends Screen implements KeyHover {
         }
         detailHeight = y - y0 + 12;
         g.disableScissor();
-        detailScroll = Math.max(0, Math.min(detailScroll, detailHeight - detailH));
-        scrollBar(g, detailX + detailW - 3, detailY, detailH, detailHeight, detailScroll);
+        detailBar.offset = Math.max(0, Math.min(detailBar.offset, detailHeight - detailH));
+        detailBar.drawBar(g, detailX + detailW - 4, detailY, 4, detailH, detailHeight, detailH);
         return tip;
     }
 
-    private void scrollBar(GuiGraphics g, int x, int y, int h, int content, int scroll) {
-        if (content <= h)
-            return;
-        int bar = Math.max(12, h * h / content);
-        int by = y + (int) ((long) (h - bar) * scroll / Math.max(1, content - h));
-        g.fill(x, y, x + 2, y + h, 0x40FFFFFF);
-        g.fill(x, by, x + 2, by + bar, 0xFFA082F0);
-    }
 
     // ───────────────────────────── tooltips and texts ─────────────────────────────
 
@@ -565,6 +559,8 @@ public class UsageScreen extends Screen implements KeyHover {
         search.setFocused(inSearch);
         if (inSearch)
             return search.mouseClicked(mx, my, button);
+        if (button == 0 && (listBar.press(mx, my) || detailBar.press(mx, my)))
+            return true;
         if (button == 0)
             for (int i = clicks.size() - 1; i >= 0; i--)
                 if (clicks.get(i).has(mx, my)) {
@@ -575,12 +571,25 @@ public class UsageScreen extends Screen implements KeyHover {
     }
 
     @Override
+    public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+        if (button == 0 && (listBar.drag(my) || detailBar.drag(my)))
+            return true;
+        return super.mouseDragged(mx, my, button, dx, dy);
+    }
+
+    @Override
+    public boolean mouseReleased(double mx, double my, int button) {
+        boolean held = listBar.release() | detailBar.release();
+        return held || super.mouseReleased(mx, my, button);
+    }
+
+    @Override
     public boolean mouseScrolled(double mx, double my, double scrollX, double scrollY) {
         int step = (int) Math.round(-scrollY * 16);
         if (mx >= detailX && mx < detailX + detailW && my >= detailY && my < detailY + detailH)
-            detailScroll = Math.max(0, Math.min(detailScroll + step, Math.max(0, detailHeight - detailH)));
+            detailBar.offset = Math.max(0, Math.min(detailBar.offset + step, Math.max(0, detailHeight - detailH)));
         else
-            listScroll = Math.max(0, Math.min(listScroll + step, Math.max(0, listHeight - listH)));
+            listBar.offset = Math.max(0, Math.min(listBar.offset + step, Math.max(0, listHeight - listH)));
         return true;
     }
 
