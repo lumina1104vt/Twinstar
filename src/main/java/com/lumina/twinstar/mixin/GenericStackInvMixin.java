@@ -5,6 +5,7 @@ import appeng.api.stacks.AEKey;
 import appeng.helpers.externalstorage.GenericStackInv;
 import com.lumina.twinstar.monitor.Transfers;
 import com.lumina.twinstar.usage.OwnedInventory;
+import com.lumina.twinstar.usage.SendGate;
 import com.lumina.twinstar.usage.TransferSites;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
@@ -33,7 +34,7 @@ public abstract class GenericStackInvMixin implements OwnedInventory {
 
     @Inject(method = "extract(ILappeng/api/stacks/AEKey;JLappeng/api/config/Actionable;)J", at = @At("RETURN"))
     private void twinstar$extracted(int slot, AEKey what, long amount, Actionable mode, CallbackInfoReturnable<Long> cir) {
-        if (twinstar$owner == null || mode != Actionable.MODULATE || cir.getReturnValueJ() <= 0)
+        if (twinstar$owner == null || SendGate.returning > 0 || mode != Actionable.MODULATE || cir.getReturnValueJ() <= 0)
             return;
         TransferSites.sent(TransferSites.blockOf(twinstar$owner), null, what, cir.getReturnValueJ(), Transfers.INTERFACE);
     }
