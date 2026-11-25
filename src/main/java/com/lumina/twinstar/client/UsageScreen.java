@@ -305,7 +305,7 @@ public class UsageScreen extends Screen implements KeyHover {
                 if (y + HEADER_H > listY && y < listY + listH) {
                     g.fill(listX, y, listX + listW, y + HEADER_H, HEADER);
                     Component head = line.first().side() == UsageStore.TRANSFER_SIDE
-                            ? Component.translatable("gui.twinstar.usage.senders_head", line.count())
+                            ? Component.translatable(UsageModel.isImporter(line.first()) ? "gui.twinstar.usage.imports_head" : "gui.twinstar.usage.senders_head", line.count())
                             : Component.translatable("gui.twinstar.usage.iface_head", UsageModel.ifaceTitle(line.first()),
                             pos(line.first().ifacePos()), line.count());
                     g.drawString(font, font.plainSubstrByWidth(head.getString(), listW - 10), listX + 5, y + 3, ACCENT, false);
@@ -397,9 +397,9 @@ public class UsageScreen extends Screen implements KeyHover {
             y += 10;
         }
         int[] sentKinds = {com.lumina.twinstar.monitor.Transfers.PROVIDER, com.lumina.twinstar.monitor.Transfers.EXPORT_BUS,
-                com.lumina.twinstar.monitor.Transfers.INTERFACE, com.lumina.twinstar.monitor.Transfers.OTHER};
-        int[] sentColors = {PROVIDER, EXPORT, INTERFACE, SENDER};
-        String[] sentKeys = {"provider", "export", "interface", "other"};
+                com.lumina.twinstar.monitor.Transfers.INTERFACE, com.lumina.twinstar.monitor.Transfers.OTHER, com.lumina.twinstar.monitor.Transfers.IMPORT_BUS};
+        int[] sentColors = {PROVIDER, EXPORT, INTERFACE, SENDER, 0xFF6EA8FF};
+        String[] sentKeys = {"provider", "export", "interface", "other", "import"};
         for (int i = 0; i < sentKinds.length; i++)
             if ((mc.kinds() & sentKinds[i]) != 0) {
                 g.fill(x, y + 1, x + 6, y + 7, sentColors[i]);

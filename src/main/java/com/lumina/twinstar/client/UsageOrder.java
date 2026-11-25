@@ -40,6 +40,11 @@ public final class UsageOrder<M, R> {
             return false;
         }
 
+        /** a block that only brought material into the network (its own section: that is the other direction) */
+        default boolean importer(M m) {
+            return false;
+        }
+
         String ifaceName(M m);
 
         /** the machine place as text, searched too */
@@ -124,18 +129,22 @@ public final class UsageOrder<M, R> {
             case NAME -> Comparator.<Entry<M, R>, String>comparing(Entry::sortName).thenComparing(e -> src.place(e.machine()));
         };
         entries.sort(ascending ? up : up.reversed());
-        List<Entry<M, R>> senders = new ArrayList<>();
+        List<Entry<M, R>> senders = new ArrayList<>(), importers = new ArrayList<>();
         for (Entry<M, R> e : entries)
-            if (src.sender(e.machine()))
+            if (src.importer(e.machine()))
+                importers.add(e);
+            else if (src.sender(e.machine()))
                 senders.add(e);
         entries.removeAll(senders);
+        entries.removeAll(importers);
         List<Line<M, R>> lines = new ArrayList<>();
         buildMachines(lines, entries, src, byInterface, sort, ascending);
-        if (!senders.isEmpty()) {
-            lines.add(new Line<>(null, senders.get(0).machine(), senders.size(), false));
-            for (Entry<M, R> e : senders)
-                lines.add(new Line<>(e, e.machine(), 1, true));
-        }
+        for (List<Entry<M, R>> section : List.of(senders, importers))
+            if (!section.isEmpty()) {
+                lines.add(new Line<>(null, section.get(0).machine(), section.size(), false));
+                for (Entry<M, R> e : section)
+                    lines.add(new Line<>(e, e.machine(), 1, true));
+            }
         return new UsageOrder<>(lines, byId);
     }
 

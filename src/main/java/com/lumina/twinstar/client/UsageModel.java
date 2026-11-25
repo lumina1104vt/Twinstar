@@ -36,6 +36,11 @@ public final class UsageModel {
         }
 
         @Override
+        public boolean importer(UsageSnapshot.Machine m) {
+            return isImporter(m);
+        }
+
+        @Override
         public String ifaceName(UsageSnapshot.Machine m) {
             return ifaceTitle(m).getString();
         }
@@ -69,6 +74,14 @@ public final class UsageModel {
     public static UsageOrder<UsageSnapshot.Machine, UsageSnapshot.Row> build(UsageSnapshot s, int window, boolean byInterface,
                                                                              UsageOrder.Sort sort, boolean ascending, String search) {
         return UsageOrder.build(s.machines(), SOURCE, window, byInterface, sort, ascending, search);
+    }
+
+    /** A block that did nothing but bring material into the network. */
+    public static boolean isImporter(UsageSnapshot.Machine m) {
+        int sends = com.lumina.twinstar.monitor.Transfers.PROVIDER | com.lumina.twinstar.monitor.Transfers.EXPORT_BUS
+                | com.lumina.twinstar.monitor.Transfers.INTERFACE | com.lumina.twinstar.monitor.Transfers.OTHER;
+        return m.side() == com.lumina.twinstar.usage.UsageStore.TRANSFER_SIDE
+                && (m.kinds() & com.lumina.twinstar.monitor.Transfers.IMPORT_BUS) != 0 && (m.kinds() & sends) == 0;
     }
 
     /** The interface own name, or what it is called without one. */

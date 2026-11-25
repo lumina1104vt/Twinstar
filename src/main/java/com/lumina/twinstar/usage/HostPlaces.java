@@ -29,6 +29,16 @@ public final class HostPlaces {
         return host instanceof BlockEntity || host instanceof appeng.parts.AEBasePart;
     }
 
+    /** A machine that takes material from the network (by its class names: input, stocking, a pattern buffer). */
+    public static boolean isInputSide(Object host) {
+        for (Class<?> c = host.getClass(); c != null && c != Object.class; c = c.getSuperclass()) {
+            String n = c.getSimpleName();
+            if (n.contains("Input") || n.contains("Stocking") || n.contains("PatternBuffer"))
+                return true;
+        }
+        return false;
+    }
+
     public static @Nullable Place placeOf(@Nullable Object host) {
         return placeOf(host, 0);
     }

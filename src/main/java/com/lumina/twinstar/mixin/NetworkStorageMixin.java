@@ -20,6 +20,22 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  */
 @Mixin(value = NetworkStorage.class, remap = false)
 public abstract class NetworkStorageMixin {
+    /**
+     * Put into the network by such a block (GregTech's ME output hatches and the like): the other direction, listed apart. A block
+     * that is an input (an input or stocking bus, a pattern buffer) gives back what it did not use this way too: that is no
+     * bringing in, so those are left out.
+     */
+    @Inject(method = "insert", at = @At("RETURN"))
+    private void twinstar$brought(AEKey what, long amount, Actionable mode, IActionSource source, CallbackInfoReturnable<Long> cir) {
+        long put = cir.getReturnValueJ();
+        if (put <= 0 || mode != Actionable.MODULATE || source.player().isPresent())
+            return;
+        IActionHost host = source.machine().orElse(null);
+        if (host == null || HostPlaces.isBlockEntityHost(host) || HostPlaces.isInputSide(host))
+            return;
+        TransferSites.sentFrom(HostPlaces.placeOf(host), null, what, put, Transfers.IMPORT_BUS);
+    }
+
     @Inject(method = "extract", at = @At("RETURN"))
     private void twinstar$taken(AEKey what, long amount, Actionable mode, IActionSource source, CallbackInfoReturnable<Long> cir) {
         long taken = cir.getReturnValueJ();

@@ -126,6 +126,8 @@
   "gui.twinstar.usage.denied": "无法从这里查看这个网络。",
   "gui.twinstar.usage.empty": "这个网络上的机器接入接口还没有绑定机器，而且服务器启动后没有东西被用掉。机器吃进材料后就会出现在这里。",
   "gui.twinstar.usage.nomatch": "没有符合搜索的机器或物品。",
+  "gui.twinstar.usage.imports_head": "送进网络（%1$s 个）：它们送进网络的东西",
+  "gui.twinstar.usage.kind.import": "其他模组的方块送进网络",
   "gui.twinstar.usage.senders_head": "送出方（%1$s 个）：它们送出去的东西",
   "gui.twinstar.usage.idle_sent": "30 分钟内没送出东西",
   "gui.twinstar.usage.idle": "30 分钟内没用掉东西",
