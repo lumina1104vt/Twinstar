@@ -50,12 +50,18 @@ public class UsageScreen extends Screen implements KeyHover {
             "........"};
     private static final String[] ARROW_UP = {"..#..", ".###.", "#####"};
     private static final String[] ARROW_DOWN = {"#####", ".###.", "..#.."};
+    private static final String[] CROSS = {"#...#", ".#.#.", "..#..", ".#.#.", "#...#"};
+    private static final String[] ARROW_RIGHT = {"#..", "##.", "###", "##.", "#.."};
 
     // what the player chose last stays for the next time the screen opens
     private static int window = 1;
     private static boolean byInterface;
     private static UsageOrder.Sort sort = UsageOrder.Sort.AMOUNT;
     private static boolean ascending;
+    /** machines that used nothing in the window are hidden unless this is on */
+    private static boolean showIdle;
+    /** the groups the player folded (by {@link #groupKey}) */
+    private static final java.util.Set<String> COLLAPSED = new java.util.HashSet<>();
 
     private final Supplier<Screen> back;
     private final EditBox search;
@@ -139,7 +145,7 @@ public class UsageScreen extends Screen implements KeyHover {
     private void rebuild() {
         dirty = false;
         UsageSnapshot s = snapshot;
-        model = s == null || !s.allowed() ? null : UsageModel.build(s, window, byInterface, sort, ascending, search.getValue());
+        model = s == null || !s.allowed() ? null : UsageModel.build(s, window, byInterface, sort, ascending, search.getValue(), !showIdle);
         if (selected != null && (model == null || model.find(selected) == null))
             selected = null;
     }
@@ -220,20 +226,37 @@ public class UsageScreen extends Screen implements KeyHover {
                         Component.translatable("gui.twinstar.usage.sort.tooltip.name").withStyle(st -> st.withColor(DIM)));
         }
 
-        // body
+        // the idle machines: hidden unless asked for (what is hidden is counted on the button)
+        UsageSnapshot snap = snapshot;
+        if (snap != null && snap.allowed()) {
+            ctlX += 8;
+            int idle = UsageModel.idleCount(snap, window);
+            if (showIdle || idle > 0)
+                button(g, Component.translatable(showIdle ? "gui.twinstar.usage.idle_hide" : "gui.twinstar.usage.idle_show", idle), showIdle,
+                        mx, my, () -> {
+                            showIdle = !showIdle;
+                            dirty = true;
+                            listBar.offset = 0;
+                        }, 0);
+        }
+
+        // body: the list over the whole width; a picked machine opens its panel on the right
         int top = ctlY + 18, bottom = height - 16;
-        detailW = Math.max(200, Math.min(300, width * 2 / 5));
+        boolean detailOpen = selected != null && model != null && model.find(selected) != null;
+        detailW = detailOpen ? Math.max(200, Math.min(300, width * 2 / 5)) : 0;
         listX = 6;
         listY = top;
-        listW = width - detailW - 18;
+        listW = detailOpen ? width - detailW - 18 : width - 12;
         listH = bottom - top;
         detailX = listX + listW + 6;
         detailY = top;
         detailH = listH;
         g.fill(listX - 1, listY - 1, listX + listW + 1, listY + listH + 1, PANEL_LINE);
         g.fill(listX, listY, listX + listW, listY + listH, PANEL);
-        g.fill(detailX - 1, detailY - 1, detailX + detailW + 1, detailY + detailH + 1, PANEL_LINE);
-        g.fill(detailX, detailY, detailX + detailW, detailY + detailH, PANEL);
+        if (detailOpen) {
+            g.fill(detailX - 1, detailY - 1, detailX + detailW + 1, detailY + detailH + 1, PANEL_LINE);
+            g.fill(detailX, detailY, detailX + detailW, detailY + detailH, PANEL);
+        }
 
         UsageSnapshot s = snapshot;
         if (s == null) {
@@ -243,7 +266,9 @@ public class UsageScreen extends Screen implements KeyHover {
             note(g, "gui.twinstar.usage.denied");
         }
         else if (model == null || model.lines().isEmpty()) {
-            note(g, s.machines().isEmpty() ? "gui.twinstar.usage.empty" : "gui.twinstar.usage.nomatch");
+            note(g, s.machines().isEmpty() ? "gui.twinstar.usage.empty"
+                    : !showIdle && UsageModel.idleCount(s, window) == s.machines().size() ? "gui.twinstar.usage.all_idle"
+                    : "gui.twinstar.usage.nomatch");
         }
         else {
             List<Component> t1 = list(g, mx, my);
@@ -302,27 +327,44 @@ public class UsageScreen extends Screen implements KeyHover {
         if (m == null || s == null)
             return null;
         int total = 0;
+        boolean folded = false;
         for (var line : m.lines())
-            total += line.machine() == null ? HEADER_H : MACHINE_H;
+            if (line.machine() == null) {
+                total += HEADER_H;
+                folded = COLLAPSED.contains(groupKey(line.first()));
+            } else if (!folded)
+                total += MACHINE_H;
         listHeight = total;
         listBar.offset = Math.max(0, Math.min(listBar.offset, total - listH));
         g.enableScissor(listX, listY, listX + listW, listY + listH);
         List<Component> tip = null;
         int y = listY - listBar.offset;
+        folded = false;
         for (var line : m.lines()) {
             var e = line.machine();
             if (e == null) {
+                String key = groupKey(line.first());
+                folded = COLLAPSED.contains(key);
                 if (y + HEADER_H > listY && y < listY + listH) {
-                    g.fill(listX, y, listX + listW, y + HEADER_H, HEADER);
+                    boolean headOver = mx >= listX && mx < listX + listW && my >= y && my < y + HEADER_H && my >= listY && my < listY + listH;
+                    g.fill(listX, y, listX + listW, y + HEADER_H, headOver ? ROW_HOT : HEADER);
+                    PixelIcon.draw(g, folded ? ARROW_RIGHT : ARROW_DOWN, listX + 5, folded ? y + 4 : y + 5, ACCENT);
+                    int clickTop = Math.max(y, listY), clickBottom = Math.min(y + HEADER_H, listY + listH);
+                    clicks.add(new Click(listX, clickTop, listW, Math.max(0, clickBottom - clickTop), () -> {
+                        if (!COLLAPSED.remove(key))
+                            COLLAPSED.add(key);
+                    }));
                     Component head = line.first().side() == UsageStore.TRANSFER_SIDE
                             ? Component.translatable(UsageModel.isImporter(line.first()) ? "gui.twinstar.usage.imports_head" : "gui.twinstar.usage.senders_head", line.count())
                             : Component.translatable("gui.twinstar.usage.iface_head", UsageModel.ifaceTitle(line.first()),
                             pos(line.first().ifacePos()), line.count());
-                    g.drawString(font, font.plainSubstrByWidth(head.getString(), listW - 10), listX + 5, y + 3, ACCENT, false);
+                    g.drawString(font, font.plainSubstrByWidth(head.getString(), listW - 20), listX + 14, y + 3, ACCENT, false);
                 }
                 y += HEADER_H;
                 continue;
             }
+            if (folded)
+                continue;
             if (y + MACHINE_H > listY && y < listY + listH) {
                 int indent = line.indent() ? 8 : 0;
                 int rx = listX + indent, rw = listW - indent;
@@ -365,6 +407,11 @@ public class UsageScreen extends Screen implements KeyHover {
         g.disableScissor();
         listBar.drawBar(g, listX + listW - 4, listY, 4, listH, listHeight, listH);
         return tip;
+    }
+
+    /** Tells a group of the list from the others (an interface; the senders; the ones that brought in). */
+    private static String groupKey(UsageSnapshot.Machine first) {
+        return first.side() == UsageStore.TRANSFER_SIDE ? (UsageModel.isImporter(first) ? "I" : "S") : first.ifaceId();
     }
 
     /** A click on a row: it is the picked one; a second click on it at once lights it up in the world. */
@@ -420,18 +467,14 @@ public class UsageScreen extends Screen implements KeyHover {
         if (m == null || s == null)
             return null;
         var e = selected == null ? null : m.find(selected);
-        if (e == null) {
-            var lines = font.split(Component.translatable("gui.twinstar.usage.pick"), detailW - 12);
-            for (int i = 0; i < lines.size(); i++)
-                g.drawString(font, lines.get(i), detailX + 6, detailY + 6 + i * 10, DIM, false);
+        if (e == null || detailW <= 0)
             return null;
-        }
         UsageSnapshot.Machine mc = e.machine();
         List<Component> tip = null;
         g.enableScissor(detailX, detailY, detailX + detailW, detailY + detailH);
         int x = detailX + 6, y = detailY + 6 - detailBar.offset, w = detailW - 12;
         int y0 = y;
-        g.drawString(font, font.plainSubstrByWidth(mc.name().getString(), w), x, y, TEXT, false);
+        g.drawString(font, font.plainSubstrByWidth(mc.name().getString(), w - 12), x, y, TEXT, false);
         y += 11;
         g.drawString(font, font.plainSubstrByWidth(Component.translatable("gui.twinstar.usage.at", pos(mc.pos()), shortDim(mc.dim())).getString(), w),
                 x, y, DIM, false);
@@ -514,6 +557,13 @@ public class UsageScreen extends Screen implements KeyHover {
         detailHeight = y - y0 + 12;
         g.disableScissor();
         detailBar.offset = Math.max(0, Math.min(detailBar.offset, detailHeight - detailH));
+        // the cross that closes the panel (outside the scrolling part)
+        int crossX = detailX + detailW - 16, cy = detailY + 3;
+        boolean crossOver = mx >= crossX && mx < crossX + 11 && my >= cy && my < cy + 11;
+        g.fill(crossX, cy, crossX + 11, cy + 11, crossOver ? BUTTON_HOT : BUTTON_LINE);
+        g.fill(crossX + 1, cy + 1, crossX + 10, cy + 10, BUTTON);
+        PixelIcon.draw(g, CROSS, crossX + 3, cy + 3, crossOver ? TEXT : DIM);
+        clicks.add(new Click(crossX, cy, 11, 11, () -> selected = null));
         detailBar.drawBar(g, detailX + detailW - 4, detailY, 4, detailH, detailHeight, detailH);
         return tip;
     }
