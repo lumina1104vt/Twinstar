@@ -853,6 +853,11 @@ public final class HubState {
 
     /** {@code into}: the machine the run goes to; a kept catalyst it already holds for this batch is not taken again. */
     private @Nullable List<@Nullable Map<Key, Long>> extractInputs(Job job, Pattern pat, ExecutionEnv env, @Nullable MachineState into) {
+        return extractInputs(job, pat, env, into, 1);
+    }
+
+    /** {@code runs} runs' inputs in one go (only for patterns {@link #canBatch}); null (nothing taken) when the job lacks them. */
+    private @Nullable List<@Nullable Map<Key, Long>> extractInputs(Job job, Pattern pat, ExecutionEnv env, @Nullable MachineState into, long runs) {
         List<@Nullable Map<Key, Long>> out = new ArrayList<>(pat.inputCount());
         for (int s = 0; s < pat.inputCount(); s++)
             out.add(null);
@@ -860,7 +865,9 @@ public final class HubState {
         for (int s = 0; s < pat.inputCount(); s++) {
             if (pat.inputAmount(s).isBig())
                 return rollback(job, taken);
-            Amount amt = pat.inputAmount(s);
+            Amount amt = runs == 1 ? pat.inputAmount(s) : pat.inputAmount(s).mul(Amount.of(runs));
+            if (amt.isBig())
+                return rollback(job, taken);
             int item = pat.inputItem(s);
             if (into != null && pat.inputRole(s) == InputRoles.CATALYST && holdsKept(into, job, pat, s, env))
                 continue;
@@ -2429,12 +2436,23 @@ public final class HubState {
             long runs = share + (i < extra ? 1 : 0);
             if (m.access.getBlockMode() == IMachine.BlockMode.FULL)
                 runs = Math.min(runs, 1);       // one run, then wait until it is used up
-            for (long c = 0; c < runs; c++) {
-                if (!startRun(job, t, pat, m, env)) {
+            // one run after another used to cost a feed each: tens of thousands of runs in one tick took longer than the tick. A pattern that
+            // is only used-up materials goes in batches of 1, 2, 4... runs (each one fed whole before the next, so what the machine
+            // cannot take stays small: no more than it took before); any other pattern goes one run at a time, as before
+            boolean batch = canBatch(pat, chance);
+            long size = 1, left = runs;
+            while (left > 0) {
+                long take = batch ? Math.min(size, left) : 1;
+                if (!startRun(job, t, pat, m, env, take)) {
+                    if (take > 1) {         // the job has not that many runs of materials: fewer
+                        size = Math.max(1, take / 2);
+                        continue;
+                    }
                     lastDispatchNote += "，訂單裡的材料不夠了";
                     return Amount.of(sent);     // out of materials
                 }
-                sent++;
+                sent += take;
+                left -= take;
                 if (chance != null)
                     chance.ran(Amount.ONE);
                 World level = m.access.getMachineWorld();
@@ -2444,9 +2462,25 @@ public final class HubState {
                     lastDispatchNote += "，機器放不下：" + leftOf(m.feed, level, m.access.getMachinePos(), debug != null);
                     break;                      // the machine takes the rest over the next ticks
                 }
+                if (batch)
+                    size = Math.min(size * 2, 1L << 24);
             }
         }
         return Amount.of(sent);
+    }
+
+    /**
+     * Whether several runs may go into a machine as one feed: only patterns whose every material is plainly used up (no catalyst,
+     * tool or container that is kept or given back), with no chance outputs and no GUI slot to put a material into.
+     */
+    private static boolean canBatch(Pattern pat, @Nullable ChanceProgress chance) {
+        if (chance != null)
+            return false;
+        for (int s = 0; s < pat.inputCount(); s++)
+            if (pat.inputRole(s) != InputRoles.NORMAL || pat.inputKind(s) != InputKind.CONSUME || pat.inputGuiSlot(s) > 0
+                    || pat.inputAmount(s).isBig())
+                return false;
+        return true;
     }
 
     /** Why the last machine dispatch sent what it sent, for the debug log. */
@@ -2481,8 +2515,8 @@ public final class HubState {
     }
 
     /** Takes one run's materials out of the job and starts feeding them to {@code m}. */
-    private boolean startRun(Job job, Task t, Pattern pat, MachineState m, ExecutionEnv env) {
-        List<@Nullable Map<Key, Long>> inputs = extractInputs(job, pat, env, m);
+    private boolean startRun(Job job, Task t, Pattern pat, MachineState m, ExecutionEnv env, long runs) {
+        List<@Nullable Map<Key, Long>> inputs = extractInputs(job, pat, env, m, runs);
         if (inputs == null)
             return false;
         Feed f = new Feed(job, t.pattern);
@@ -2507,8 +2541,8 @@ public final class HubState {
         m.feed = f;
         m.lastPattern = t.pattern;
         m.lastPat = pat;
-        m.inFlight.merge(new Flight(job, t.pattern), Amount.ONE, Amount::add);
-        expectOutputs(job, t, pat, 1, env.nowNanos());
+        m.inFlight.merge(new Flight(job, t.pattern), Amount.of(runs), Amount::add);
+        expectOutputs(job, t, pat, runs, env.nowNanos());
         return true;
     }
 
