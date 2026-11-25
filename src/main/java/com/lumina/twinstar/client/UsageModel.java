@@ -68,7 +68,33 @@ public final class UsageModel {
 
     public static UsageOrder<UsageSnapshot.Machine, UsageSnapshot.Row> build(UsageSnapshot s, int window, boolean byInterface,
                                                                              UsageOrder.Sort sort, boolean ascending, String search) {
-        return UsageOrder.build(s.machines(), SOURCE, window, byInterface, sort, ascending, search);
+        return build(s, window, byInterface, sort, ascending, search, false);
+    }
+
+    /** @param hideIdle leave out the machines that used nothing in the window */
+    public static UsageOrder<UsageSnapshot.Machine, UsageSnapshot.Row> build(UsageSnapshot s, int window, boolean byInterface,
+                                                                             UsageOrder.Sort sort, boolean ascending, String search,
+                                                                             boolean hideIdle) {
+        List<UsageSnapshot.Machine> machines = s.machines();
+        if (hideIdle)
+            machines = machines.stream().filter(m -> !isIdle(m, window)).toList();
+        return UsageOrder.build(machines, SOURCE, window, byInterface, sort, ascending, search);
+    }
+
+    /** Nothing used (or sent) in the window. */
+    public static boolean isIdle(UsageSnapshot.Machine m, int window) {
+        for (UsageSnapshot.Row r : m.rows())
+            if (r.totals()[window] > 0)
+                return false;
+        return true;
+    }
+
+    public static int idleCount(UsageSnapshot s, int window) {
+        int n = 0;
+        for (UsageSnapshot.Machine m : s.machines())
+            if (isIdle(m, window))
+                n++;
+        return n;
     }
 
     /** The interface own name, or what it is called without one. */
