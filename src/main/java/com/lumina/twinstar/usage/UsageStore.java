@@ -41,8 +41,8 @@ public final class UsageStore {
         record(level, pos, GlobalPos.of(dim, pos.immutable()), TRANSFER_SIDE, ae, amount, kind);
     }
 
-    /** {@link Source#side()} of a source that is a sender and no machine. */
-    public static final int TRANSFER_SIDE = -1;
+    /** {@link Source#side()} of a source that is a sender and no machine (not -1: that is an interface that is a block of its own). */
+    public static final int TRANSFER_SIDE = -2;
 
     /** What used something: a machine, as one interface (this block, this side) stands for it. */
     public record Source(GlobalPos machine, @Nullable GlobalPos iface, int side) {
