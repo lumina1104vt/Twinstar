@@ -516,6 +516,8 @@ public class PlanScreen extends AbstractContainerScreen<PlanMenu> implements Key
     public boolean mouseClicked(double mx, double my, int button) {
         PlanView view = shownView;
         int vx = leftPos + VIEW_X, vy = topPos + VIEW_Y;
+        if (button == 0 && (treeScroll.press(mx, my) || missingScroll.press(mx, my)))
+            return true;
         if (view != null && button == 0 && UiKit.inside(mx, my, vx, vy, VIEW_W, VIEW_H)) {
             int i = ((int) my - vy + treeScroll.offset) / ROW_H;
             if (i >= 0 && i < view.rows().size()) {
@@ -539,6 +541,19 @@ public class PlanScreen extends AbstractContainerScreen<PlanMenu> implements Key
         for (EditBox box : keepBoxes.values())
             box.setFocused(false);
         return super.mouseClicked(mx, my, button);
+    }
+
+    @Override
+    public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+        if (button == 0 && (treeScroll.drag(my) || missingScroll.drag(my)))
+            return true;
+        return super.mouseDragged(mx, my, button, dx, dy);
+    }
+
+    @Override
+    public boolean mouseReleased(double mx, double my, int button) {
+        boolean held = treeScroll.release() | missingScroll.release();
+        return held || super.mouseReleased(mx, my, button);
     }
 
     @Override
