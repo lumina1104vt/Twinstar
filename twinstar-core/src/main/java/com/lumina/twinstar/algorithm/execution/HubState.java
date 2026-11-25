@@ -2135,7 +2135,12 @@ public final class HubState {
             // a GUI slot the pattern names: that slot, nowhere else (an ordered crafting table puts it by place; the machine's
             // own item slots would put it wherever they like)
             Face face = faces.isEmpty() || faces.get(0) == null ? m.access.getMachineFace() : faces.get(0);
-            return level.actions().insertViaGui(pos, face, item, amount, guiSlot, (k, n) -> m.overflow.merge(k, n, Long::sum));
+            long via = level.actions().insertViaGui(pos, face, item, amount, guiSlot, (k, n) -> m.overflow.merge(k, n, Long::sum));
+            if (via > 0 || !level.storage().hasItemStorage(pos))
+                return via;
+            // that GUI slot took nothing (a slot number that is no input slot of this machine) while the machine has item slots of
+            // its own that take it: they are used rather than leaving the run stuck for ever
+            return level.storage().insert(pos, faces, key, amount);
         }
         long in = level.storage().insert(pos, faces, key, amount);
         if (in == 0 && key.kind() == Key.Kind.ITEM && !level.storage().hasItemStorage(pos)) {
