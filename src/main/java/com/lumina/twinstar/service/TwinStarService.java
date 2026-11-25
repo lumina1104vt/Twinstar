@@ -201,19 +201,31 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
     /** Which stacks the materials of {@code details} whose NBT does not matter have now; 0 when it has none. */
     private int variantsHash(IPatternDetails details) {
         var ignore = details.getDefinition().get(com.lumina.twinstar.storage.TwinstarContent.PATTERN_IGNORE_NBT.get());
-        if (ignore == null || ignore.inputs().isEmpty())
+        boolean anyIgnore = ignore != null && !ignore.inputs().isEmpty();
+        // the tool of a pattern is any stack of its item (worn, unbreakable, named): those the network has count as well
+        net.minecraft.world.item.Item tool = com.lumina.twinstar.api.PatternMachines.toolOf(details.getDefinition());
+        if (!anyIgnore && tool == null)
             return 0;
         int h = 1;
-        for (AEKey k : ignore.inputs())
-            if (k instanceof appeng.api.stacks.AEItemKey item)
-                for (appeng.api.stacks.AEItemKey v : variantsOf(item))
-                    if (com.lumina.twinstar.algorithm.ae2.PatternIgnoreNbt.sameIgnoringNbt(v, item))
-                        h = h * 31 + v.hashCode();
-        for (AEKey k : ignore.inputs())
-            if (k instanceof appeng.api.stacks.AEItemKey item)
-                for (appeng.api.stacks.AEItemKey v : craftableOf(item))
-                    if (com.lumina.twinstar.algorithm.ae2.PatternIgnoreNbt.sameIgnoringNbt(v, item))
-                        h = h * 17 + v.hashCode();
+        if (anyIgnore) {
+            for (AEKey k : ignore.inputs())
+                if (k instanceof appeng.api.stacks.AEItemKey item)
+                    for (appeng.api.stacks.AEItemKey v : variantsOf(item))
+                        if (com.lumina.twinstar.algorithm.ae2.PatternIgnoreNbt.sameIgnoringNbt(v, item))
+                            h = h * 31 + v.hashCode();
+            for (AEKey k : ignore.inputs())
+                if (k instanceof appeng.api.stacks.AEItemKey item)
+                    for (appeng.api.stacks.AEItemKey v : craftableOf(item))
+                        if (com.lumina.twinstar.algorithm.ae2.PatternIgnoreNbt.sameIgnoringNbt(v, item))
+                            h = h * 17 + v.hashCode();
+        }
+        if (tool != null) {
+            appeng.api.stacks.AEItemKey toolKey = appeng.api.stacks.AEItemKey.of(tool);
+            for (appeng.api.stacks.AEItemKey v : variantsOf(toolKey))
+                h = h * 31 + v.hashCode();
+            for (appeng.api.stacks.AEItemKey v : craftableOf(toolKey))
+                h = h * 17 + v.hashCode();
+        }
         return h == 0 ? 1 : h;
     }
 
