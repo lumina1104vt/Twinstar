@@ -126,6 +126,8 @@
   "gui.twinstar.usage.denied": "This network cannot be looked at from here.",
   "gui.twinstar.usage.empty": "No machine access interface on this network has a machine yet, and nothing was used since the server started. Machines show here once they take something in.",
   "gui.twinstar.usage.nomatch": "No machine or item matches the search.",
+  "gui.twinstar.usage.senders_head": "Senders (%1$s): what they sent on",
+  "gui.twinstar.usage.idle_sent": "Nothing sent in 30 minutes",
   "gui.twinstar.usage.idle": "Nothing used in 30 minutes",
   "gui.twinstar.usage.pick": "Pick a machine on the left to see every item and fluid it used, in 1, 5 and 30 minutes.",
   "gui.twinstar.usage.at": "At %1$s (%2$s)",

@@ -126,6 +126,8 @@
   "gui.twinstar.usage.denied": "無法從這裡檢視這個網路。",
   "gui.twinstar.usage.empty": "這個網路上的機器接入接口還沒有綁機器，而且伺服器啟動後沒有東西被用掉。機器吃進材料後就會出現在這裡。",
   "gui.twinstar.usage.nomatch": "沒有符合搜尋的機器或物品。",
+  "gui.twinstar.usage.senders_head": "送出方（%1$s 個）：它們送出去的東西",
+  "gui.twinstar.usage.idle_sent": "30 分鐘內沒送出東西",
   "gui.twinstar.usage.idle": "30 分鐘內沒用掉東西",
   "gui.twinstar.usage.pick": "在左邊點一台機器，就能看到它在 1、5、30 分鐘內用掉的每種物品和流體。",
   "gui.twinstar.usage.at": "位置 %1$s（%2$s）",

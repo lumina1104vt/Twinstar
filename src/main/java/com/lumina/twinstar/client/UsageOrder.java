@@ -35,6 +35,11 @@ public final class UsageOrder<M, R> {
 
         String ifaceId(M m);
 
+        /** a sender (it sent materials on) and no machine (it used some up): listed apart, under a heading of its own */
+        default boolean sender(M m) {
+            return false;
+        }
+
         String ifaceName(M m);
 
         /** the machine place as text, searched too */
@@ -119,11 +124,27 @@ public final class UsageOrder<M, R> {
             case NAME -> Comparator.<Entry<M, R>, String>comparing(Entry::sortName).thenComparing(e -> src.place(e.machine()));
         };
         entries.sort(ascending ? up : up.reversed());
+        List<Entry<M, R>> senders = new ArrayList<>();
+        for (Entry<M, R> e : entries)
+            if (src.sender(e.machine()))
+                senders.add(e);
+        entries.removeAll(senders);
         List<Line<M, R>> lines = new ArrayList<>();
+        buildMachines(lines, entries, src, byInterface, sort, ascending);
+        if (!senders.isEmpty()) {
+            lines.add(new Line<>(null, senders.get(0).machine(), senders.size(), false));
+            for (Entry<M, R> e : senders)
+                lines.add(new Line<>(e, e.machine(), 1, true));
+        }
+        return new UsageOrder<>(lines, byId);
+    }
+
+    private static <M, R> void buildMachines(List<Line<M, R>> lines, List<Entry<M, R>> entries, Source<M, R> src, boolean byInterface,
+                                             Sort sort, boolean ascending) {
         if (!byInterface) {
             for (Entry<M, R> e : entries)
                 lines.add(new Line<>(e, e.machine(), 1, false));
-            return new UsageOrder<>(lines, byId);
+            return;
         }
         // grouped: the interfaces in the order of their first machine (by name: their own name)
         Map<String, List<Entry<M, R>>> groups = new LinkedHashMap<>();
@@ -139,7 +160,6 @@ public final class UsageOrder<M, R> {
             for (Entry<M, R> e : g)
                 lines.add(new Line<>(e, e.machine(), 1, true));
         }
-        return new UsageOrder<>(lines, byId);
     }
 
     /** How much a minute that is: {@code total} over {@code spanTicks} (at least ten seconds, so the first seconds do not look huge). */
