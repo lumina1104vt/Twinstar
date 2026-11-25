@@ -2433,7 +2433,7 @@ public final class HubState {
                 if (level != null)
                     feed(m, level, m.access.getMachinePos());
                 if (m.feed != null) {
-                    lastDispatchNote += "，機器放不下：" + leftOf(m.feed);
+                    lastDispatchNote += "，機器放不下：" + leftOf(m.feed, level, m.access.getMachinePos());
                     break;                      // the machine takes the rest over the next ticks
                 }
             }
@@ -2454,13 +2454,20 @@ public final class HubState {
         return "?";
     }
 
-    private static String leftOf(Feed f) {
+    /** What did not go in, and why: each face's simulated insert and what the machine holds, so the log says it at once. */
+    private static String leftOf(Feed f, World level, Pos pos) {
         StringBuilder sb = new StringBuilder();
         for (Part p : f.parts)
-            if (p.left > 0)
+            if (p.left > 0) {
                 sb.append(sb.isEmpty() ? "" : "、").append(p.key.displayName()).append(" 還有 ").append(p.left)
                         .append(" 放不進去（").append(p.faces.stream().map(d -> d == null ? "不指定面" : d.getName())
                                 .collect(java.util.stream.Collectors.joining("、"))).append("）");
+                try {
+                    sb.append("〔").append(level.storage().describeInsert(pos, p.faces, p.key, p.left)).append("〕");
+                } catch (RuntimeException e) {
+                    sb.append("〔看不到機器：").append(e.getClass().getSimpleName()).append("〕");
+                }
+            }
         return sb.toString();
     }
 
