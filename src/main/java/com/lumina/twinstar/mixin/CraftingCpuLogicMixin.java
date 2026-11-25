@@ -23,6 +23,9 @@ import java.util.List;
  */
 @Mixin(value = CraftingCpuLogic.class, remap = false)
 public abstract class CraftingCpuLogicMixin {
+    @org.spongepowered.asm.mixin.Unique
+    private static final java.util.Set<String> SEEN = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     @WrapOperation(method = "executeCrafting",
             at = @At(value = "INVOKE", target = "Lappeng/api/networking/crafting/ICraftingProvider;pushPattern(Lappeng/api/crafting/IPatternDetails;[Lappeng/api/stacks/KeyCounter;)Z"))
     private boolean twinstar$pushed(ICraftingProvider provider, IPatternDetails pattern, KeyCounter[] inputHolder, Operation<Boolean> original) {
@@ -38,6 +41,9 @@ public abstract class CraftingCpuLogicMixin {
         boolean pushed = original.call(provider, pattern, inputHolder);
         if (pushed) {
             var at = HostPlaces.placeOf(provider);
+            if (SEEN.add(provider.getClass().getName()))
+                org.slf4j.LoggerFactory.getLogger("twinstar").info("[monitor] a run was pushed into {} ({})", provider.getClass().getName(),
+                        at == null ? "no place" : "placed");
             for (int i = 0; i < keys.size(); i++)
                 TransferSites.sentFrom(at, null, keys.get(i), amounts.get(i), Transfers.PROVIDER);
         }
