@@ -481,8 +481,12 @@ public final class HubState {
                 produce(job, pat, n, chance);   // later tasks may become ready within this tick
             } else {
                 Amount asked = n;
+                long dispatchStart = System.nanoTime();
                 n = pat.where == PatternLocation.HUB_MACHINE ? dispatchMachines(job, t, pat, n, chance, env)
                         : dispatchEven(job, t, pat, n, env);
+                // a dispatch of tens of thousands of runs can take longer than the whole tick budget: the tasks behind it
+                // would never be reached, so it goes last next tick (and is not asked again in this one)
+                t.heavy = System.nanoTime() - dispatchStart > env.tickBudgetNanos();
                 if (debug != null && pat.where == PatternLocation.HUB_MACHINE) {
                     String line = "[雙星] 機器派送 " + nameOf(pat, env) + "：樣板剩 " + t.remaining + " 次、材料夠 " + supported
                             + " 次、並行與能量後 " + asked + " 次 → 送出 " + n + " 次（" + lastDispatchNote + "）";
@@ -509,8 +513,12 @@ public final class HubState {
             if (t.scc != -1)
                 releaseSeedsIfLoopDone(job, t.scc);
             releaseRecycleIfLoopDone(job, t.pattern);
-            if (t.remaining.signum() > 0)
-                checkReady(job, t);
+            if (t.remaining.signum() > 0) {
+                if (t.heavy)
+                    retryNextTick(job, t);
+                else
+                    checkReady(job, t);
+            }
             deliverFinals(job, env);    // finished products go out batch by batch
         }
     }
