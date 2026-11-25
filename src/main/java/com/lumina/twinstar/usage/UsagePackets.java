@@ -71,11 +71,10 @@ public final class UsagePackets {
     private static java.util.Set<net.minecraft.core.GlobalPos> gridPlaces(IGrid grid) {
         java.util.Set<net.minecraft.core.GlobalPos> places = new java.util.HashSet<>();
         for (appeng.api.networking.IGridNode node : grid.getNodes()) {
-            Object owner = node.getOwner();
-            net.minecraft.world.level.block.entity.BlockEntity be = owner instanceof net.minecraft.world.level.block.entity.BlockEntity b ? b
-                    : owner instanceof appeng.parts.AEBasePart part ? part.getBlockEntity() : null;
-            if (be != null && be.getLevel() != null)
-                places.add(net.minecraft.core.GlobalPos.of(be.getLevel().dimension(), be.getBlockPos().immutable()));
+            // a block entity, a part, or a machine of another mod that is none (GregTech's: found by what it can tell)
+            net.minecraft.core.GlobalPos at = com.lumina.bridge.Positions.toMc(HostPlaces.placeOf(node.getOwner()));
+            if (at != null)
+                places.add(at);
         }
         return places;
     }
