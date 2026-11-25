@@ -1,6 +1,10 @@
 package com.lumina.twinstar.mixin;
 
+import appeng.api.stacks.AEKey;
 import appeng.helpers.InterfaceLogic;
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.lumina.twinstar.usage.SendGate;
 import appeng.helpers.InterfaceLogicHost;
 import appeng.util.ConfigInventory;
 import com.lumina.twinstar.usage.OwnedInventory;
@@ -25,5 +29,16 @@ public abstract class InterfaceLogicMixin {
             at = @At("TAIL"))
     private void twinstar$stamp(CallbackInfo ci) {
         ((OwnedInventory) (Object) storage).twinstar$setOwner(host);
+    }
+
+    /** The interface taking surplus back out of its own storage to hand to the network is no sending: it is not counted. */
+    @WrapMethod(method = "tryUsePlan")
+    private boolean twinstar$returning(int slot, AEKey what, int amount, Operation<Boolean> original) {
+        SendGate.returning++;
+        try {
+            return original.call(slot, what, amount);
+        } finally {
+            SendGate.returning--;
+        }
     }
 }
