@@ -16,6 +16,7 @@
     "StorageExportStrategyMixin"
   ],
   "client": [
+    "client.MEStorageScreenMixin",
     "client.CraftingStatusTableRendererMixin",
     "client.CraftingCPUScreenMixin"
   ],
