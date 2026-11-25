@@ -304,7 +304,9 @@ public class UsageScreen extends Screen implements KeyHover {
             if (e == null) {
                 if (y + HEADER_H > listY && y < listY + listH) {
                     g.fill(listX, y, listX + listW, y + HEADER_H, HEADER);
-                    Component head = Component.translatable("gui.twinstar.usage.iface_head", UsageModel.ifaceTitle(line.first()),
+                    Component head = line.first().side() == UsageStore.TRANSFER_SIDE
+                            ? Component.translatable("gui.twinstar.usage.senders_head", line.count())
+                            : Component.translatable("gui.twinstar.usage.iface_head", UsageModel.ifaceTitle(line.first()),
                             pos(line.first().ifacePos()), line.count());
                     g.drawString(font, font.plainSubstrByWidth(head.getString(), listW - 10), listX + 5, y + 3, ACCENT, false);
                 }
@@ -344,7 +346,7 @@ public class UsageScreen extends Screen implements KeyHover {
                     any = true;
                 }
                 if (!any)
-                    g.drawString(font, Component.translatable("gui.twinstar.usage.idle"), rx + 6, y + 16, 0xFF5C5878, false);
+                    g.drawString(font, Component.translatable(e.machine().side() == UsageStore.TRANSFER_SIDE ? "gui.twinstar.usage.idle_sent" : "gui.twinstar.usage.idle"), rx + 6, y + 16, 0xFF5C5878, false);
                 if (over && tip == null)
                     tip = machineTip(e.machine());
             }

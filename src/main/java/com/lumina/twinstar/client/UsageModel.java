@@ -31,6 +31,11 @@ public final class UsageModel {
         }
 
         @Override
+        public boolean sender(UsageSnapshot.Machine m) {
+            return m.side() == com.lumina.twinstar.usage.UsageStore.TRANSFER_SIDE;
+        }
+
+        @Override
         public String ifaceName(UsageSnapshot.Machine m) {
             return ifaceTitle(m).getString();
         }
