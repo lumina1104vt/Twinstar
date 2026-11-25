@@ -40,8 +40,16 @@ public final class HostPlaces {
     }
 
     public static @Nullable Place placeOf(@Nullable Object host) {
-        return placeOf(host, 0);
+        Place place = placeOf(host, 0);
+        // once for each kind of host: what the monitor could and could not place (so a block that does not show can be told why)
+        if (host != null && !isBlockEntityHost(host) && SEEN.add(host.getClass().getName() + (place == null ? "!" : "")))
+            LOGGER.info("[monitor] {} of {}: {}", place == null ? "cannot place" : "places", host.getClass().getName(),
+                    place == null ? "no getPos/getLevel/getMachine that answers" : place.pos());
+        return place;
     }
+
+    private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
+    private static final java.util.Set<String> SEEN = ConcurrentHashMap.newKeySet();
 
     private static @Nullable Place placeOf(@Nullable Object host, int depth) {
         if (host == null || depth > 2)
