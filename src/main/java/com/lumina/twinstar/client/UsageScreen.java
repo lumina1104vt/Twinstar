@@ -65,6 +65,11 @@ public class UsageScreen extends Screen implements KeyHover {
     private @Nullable UsageOrder<UsageSnapshot.Machine, UsageSnapshot.Row> model;
     private boolean dirty = true;
     private @Nullable String selected;
+    /** the row picked last and when (a second pick of it within the double click time lights the machine up in the world) */
+    private @Nullable String lastPick;
+    private long lastPickMs;
+    private @Nullable Component notice;
+    private long noticeUntilMs;
     private int listScroll, detailScroll, listHeight, detailHeight;
     private int listX, listY, listW, listH, detailX, detailY, detailW, detailH;
 
@@ -252,7 +257,10 @@ public class UsageScreen extends Screen implements KeyHover {
             String foot = Component.translatable("gui.twinstar.usage.footer", Math.max(1, s.memory() / 1024)).getString();
             if (s.dropped() > 0)
                 foot += "  " + Component.translatable("gui.twinstar.usage.dropped", s.dropped()).getString();
-            g.drawString(font, font.plainSubstrByWidth(foot, width - 16), 8, height - 12, DIM, false);
+            if (notice != null && System.currentTimeMillis() < noticeUntilMs)
+                g.drawString(font, font.plainSubstrByWidth(notice.getString(), width - 16), 8, height - 12, STOCK, false);
+            else
+                g.drawString(font, font.plainSubstrByWidth(foot, width - 16), 8, height - 12, DIM, false);
         }
         if (tooltip != null)
             g.renderComponentTooltip(font, tooltip, mx, my);
@@ -326,7 +334,7 @@ public class UsageScreen extends Screen implements KeyHover {
                 g.drawString(font, font.plainSubstrByWidth(e.machine().name().getString(), rw - posW - 14), rx + 6, y + 3, TEXT, false);
                 g.drawString(font, pos, rx + rw - posW - 5, y + 3, DIM, false);
                 int clickTop = Math.max(y, listY), clickBottom = Math.min(y + MACHINE_H - 1, listY + listH);
-                clicks.add(new Click(rx, clickTop, rw, Math.max(0, clickBottom - clickTop), () -> selected = e.machine().id()));
+                clicks.add(new Click(rx, clickTop, rw, Math.max(0, clickBottom - clickTop), () -> pick(e.machine())));
                 // the biggest users, each an icon and its rate
                 int ix = rx + 6;
                 boolean any = false;
@@ -355,6 +363,52 @@ public class UsageScreen extends Screen implements KeyHover {
         g.disableScissor();
         scrollBar(g, listX + listW - 3, listY, listH, listHeight, listScroll);
         return tip;
+    }
+
+    /** A click on a row: it is the picked one; a second click on it at once lights it up in the world. */
+    private void pick(UsageSnapshot.Machine m) {
+        long now = System.currentTimeMillis();
+        String id = m.id();
+        selected = id;
+        if (id.equals(lastPick) && now - lastPickMs <= 350) {
+            lastPick = null;
+            light(m);
+            return;
+        }
+        lastPick = id;
+        lastPickMs = now;
+    }
+
+    private void say(String key) {
+        notice = Component.translatable(key);
+        noticeUntilMs = System.currentTimeMillis() + 4000;
+    }
+
+    /** Lights the machine up in the world for a few seconds, with a line to its interface; says why when it cannot. */
+    private void light(UsageSnapshot.Machine m) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null || !MachineHighlight.available())
+            return;
+        if (!m.dim().equals(mc.level.dimension().location().toString())) {
+            say("gui.twinstar.usage.light.other_dimension");
+            return;
+        }
+        if (!m.loaded()) {
+            say("gui.twinstar.usage.light.unloaded");
+            return;
+        }
+        net.minecraft.core.BlockPos at = net.minecraft.core.BlockPos.of(m.pos());
+        // the side that faces the player, so the marked face is the one that can be seen
+        net.minecraft.world.phys.Vec3 d = mc.gameRenderer.getMainCamera().getPosition().subtract(net.minecraft.world.phys.Vec3.atCenterOf(at));
+        net.minecraft.core.Direction face = net.minecraft.core.Direction.getNearest(d.x, d.y, d.z);
+        net.minecraft.core.BlockPos host = null;
+        net.minecraft.core.Direction hostSide = null;
+        if (m.side() != UsageStore.TRANSFER_SIDE && m.ifaceDim().equals(m.dim())) {
+            host = net.minecraft.core.BlockPos.of(m.ifacePos());
+            hostSide = m.side() >= 0 && m.side() < net.minecraft.core.Direction.values().length ? net.minecraft.core.Direction.values()[m.side()] : null;
+        }
+        MachineHighlight.light(at, face, host, hostSide);
+        say("gui.twinstar.usage.light.done");
     }
 
     /** The picked machine on the right. */
