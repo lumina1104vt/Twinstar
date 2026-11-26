@@ -76,13 +76,6 @@ final class MachineIO {
         return out;
     }
 
-    /** An item of Create's sequenced assembly that is not done: it stays on its line (it goes round until it is). */
-    private static boolean unfinished(ItemStack in) {
-        return net.minecraft.core.registries.BuiltInRegistries.DATA_COMPONENT_TYPE
-                .getOptional(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("create", "sequenced_assembly"))
-                .map(in::has).orElse(false);
-    }
-
     /** Slot {@code s} holds {@code in} (not empty) as an output. */
     private static boolean isOutput(IItemHandler h, int s, ItemStack in) {
         if (!h.isItemValid(s, in))
@@ -158,8 +151,6 @@ final class MachineIO {
                 if (in.isEmpty())
                     continue;
                 AEItemKey inKey = AEItemKey.of(in);
-                if (unfinished(in) && !products.contains(inKey))
-                    continue;
                 // what a run's materials look like in a slot that refuses more (a single-item chamber) is not a product
                 if (!keep.isEmpty() && keep.contains(inKey))
                     continue;
