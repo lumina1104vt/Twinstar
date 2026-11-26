@@ -161,7 +161,7 @@ public final class DemandPass {
         lots.forEach((item, byPattern) -> lotsCopy.put(item, byPattern.copy()));
         DemandPass t = new DemandPass(snap, stock, avail.copy(), ledger.copy(), lotsCopy, overlay, dl, true, Map.of(), x, p);
         t.upstreamMemo = upstreamMemo;
-        t.push(x, n, ctx[x]);
+        t.pushOrder(x, n, ctx[x]);
         try {
             t.run();
         } catch (TrialStopped e) {
@@ -201,7 +201,7 @@ public final class DemandPass {
         DemandPass t = new DemandPass(snap, stock, avail.copy(), ledger.copy(), lotsCopy, overlay, deadline, false,
                 Map.of(x, all), -1, -1);
         t.upstreamMemo = upstreamMemo;
-        t.push(x, total, ctx[x]);
+        t.pushOrder(x, total, ctx[x]);
         return t;
     }
 
@@ -238,9 +238,14 @@ public final class DemandPass {
 
     /** The order: the amount asked for is crafted even when storage already has some. */
     void pushOrder(int target, Amount amount) {
+        pushOrder(target, amount, null);
+    }
+
+    /** A route trial, too, must make its target rather than satisfy it from existing stock. */
+    private void pushOrder(int target, Amount amount, @Nullable BitSet forbid) {
         rootItem = target;
         rootLeft = amount;
-        push(target, amount, null);
+        push(target, amount, forbid);
     }
 
     /** Part of {@code d} that must be crafted, not taken from storage (the order's own amount). */

@@ -21,6 +21,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class MinedItemTest {
     static final int RAW = 1, RAW_BLOCK = 2, INGOT = 3, ORE = 4;
     static final int UNPACK = 0, PACK = 1, SMELT_RAW = 2;
+    private static final int DUST = 5, HOT_INGOT = 6;
+    private static final int HEAT = 0, COOL = 1, GRIND = 2;
 
     private static TestGraphs iron() {
         TestGraphs g = new TestGraphs();
@@ -75,6 +77,41 @@ class MinedItemTest {
         Plan p = plan(iron(), INGOT, 10);
         assertEquals(Amount.of(10), p.missing.get(RAW), p.toString());
         assertEquals(Amount.ZERO, p.missing.get(RAW_BLOCK), p.toString());
+    }
+
+    private static TestGraphs titanium() {
+        TestGraphs g = new TestGraphs();
+        g.pattern(b -> b.input(DUST, 1).output(HOT_INGOT, 1));
+        g.pattern(b -> b.input(HOT_INGOT, 1).output(INGOT, 1));
+        g.pattern(b -> b.input(INGOT, 1).output(DUST, 1));
+        return g;
+    }
+
+    @Test
+    void minedConversionCanStartTwoStepsBack() {
+        Plan p = plan(titanium().stock(DUST, 1), INGOT, 1);
+        assertTrue(p.isComplete(), p.toString());
+        assertEquals(Amount.ONE, p.pulled.get(DUST));
+        assertEquals(Amount.ONE, p.patternTimes.get(HEAT));
+        assertEquals(Amount.ONE, p.patternTimes.get(COOL));
+        assertEquals(Amount.ZERO, p.patternTimes.get(GRIND));
+    }
+
+    @Test
+    void aPartlyStockedIntermediateDoesNotCapTheOrder() {
+        Plan p = plan(titanium().stock(HOT_INGOT, 1).stock(DUST, 31), INGOT, 32);
+        assertTrue(p.isComplete(), p.toString());
+        assertEquals(Amount.of(31), p.patternTimes.get(HEAT));
+        assertEquals(Amount.of(32), p.patternTimes.get(COOL));
+    }
+
+    @Test
+    void onlyNewIngotsCountTowardsTheConversionCeiling() {
+        Plan p = plan(titanium().stock(DUST, 1).stock(INGOT, 10), INGOT, 2);
+        assertEquals(Amount.ONE, p.missing.get(INGOT), p.toString());
+        assertEquals(Amount.ONE, p.patternTimes.get(HEAT));
+        assertEquals(Amount.ONE, p.patternTimes.get(COOL));
+        assertEquals(Amount.ZERO, p.pulled.get(INGOT));
     }
 
     @Test

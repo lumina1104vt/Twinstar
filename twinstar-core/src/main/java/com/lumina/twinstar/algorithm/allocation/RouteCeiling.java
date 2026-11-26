@@ -7,7 +7,9 @@ import com.lumina.twinstar.algorithm.model.Pattern;
 import com.lumina.twinstar.algorithm.planning.DemandPass;
 import com.lumina.twinstar.algorithm.planning.Split;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -115,11 +117,18 @@ public final class RouteCeiling {
         if (!prior.isEmpty())
             return m;       // a later route: the estimate only (trials replaying the earlier routes cost too much;
                             // what it misses is the leftover trial's in greedySplit)
-        if (m.signum() <= 0)
-            return stockedIntermediateInput(pass, p) ? fromIntermediates(pass, p, x, d) : Amount.ZERO;
+        // Mined forms are priced as raws: the cooling route's BOM stops at hot ingots even
+        // when dust in stock can be heated first. Let the demand pass check the actual quantity.
+        boolean searchStock = snap.isMined(x) && hasIndirectConversionStock(pass, p, x);
+        if (m.signum() <= 0) {
+            if (!searchStock && !stockedIntermediateInput(pass, p))
+                return Amount.ZERO;
+            m = Amount.ONE.min(d);
+            searchStock = true;
+        }
         for (int step = 0; step < DOWN_STEPS && m.signum() > 0; step++) {
             if (pass.trial(x, m, p))
-                return refineUp(pass, p, x, m, d);
+                return searchStock ? fromIntermediates(pass, p, x, m, d) : refineUp(pass, p, x, m, d);
             if (pass.deadline().softPassed())
                 return Amount.ZERO;
             Amount next = m.mul(9).div(Amount.of(10));
@@ -155,15 +164,11 @@ public final class RouteCeiling {
     }
 
     /**
-     * The raws allow nothing, but intermediates in stock may (the BOM only counts raws). Searched
-     * upwards from 1: what stock allows is small next to an astronomical order, so stepping down
-     * from the order would take thousands of trials.
+     * The trial already proved lo. Stock not counted by the BOM may cover more. Try the full
+     * order, then grow from lo: stepping down from an astronomical order would take too many trials.
      */
-    private static Amount fromIntermediates(DemandPass pass, int p, int x, Amount d) {
-        Amount lo = Amount.ONE.min(d);
-        if (!pass.trial(x, lo, p))
-            return Amount.ZERO;     // one trial for the common case: the route really is out
-        if (pass.trial(x, d, p))
+    private static Amount fromIntermediates(DemandPass pass, int p, int x, Amount lo, Amount d) {
+        if (lo.equals(d) || pass.trial(x, d, p))
             return d;
         Amount hi = d;
         while (!pass.deadline().softPassed()) {
@@ -188,11 +193,36 @@ public final class RouteCeiling {
     }
 
     /**
+     * Look for stock beyond the direct inputs, following only conversions between mined forms.
+     * This is a reason to try the route, not a supply estimate: the trial checks amounts and back edges.
+     */
+    private static boolean hasIndirectConversionStock(DemandPass pass, int p, int x) {
+        Snapshot snap = pass.snapshot();
+        var seen = new HashSet<Integer>();
+        seen.add(x);    // the ordered form itself is not extra supply
+        var todo = new ArrayDeque<Integer>();
+        todo.add(p);
+        while (!todo.isEmpty() && !pass.deadline().softPassed()) {
+            int q = todo.removeFirst();
+            Pattern pat = snap.pattern(q);
+            for (int s = 0; s < pat.inputCount(); s++) {
+                int y = pat.inputItem(s);
+                if (!snap.isMined(y) || !seen.add(y))
+                    continue;
+                if (q != p && pass.available(y).signum() > 0)
+                    return true;
+                for (int producer : pass.usableProducers(y))
+                    todo.addLast(producer);
+            }
+        }
+        return false;
+    }
+
+    /**
      * Is any direct input of p an intermediate (not raw) with stock or ledger left, or a substitute
-     * a slot takes with stock left (the raw estimate counts neither)? Only then can a
-     * route whose raws allow nothing still make some: trying every such route cost a real pack
-     * (30 levels, little stock) hundreds of trial runs per order. Stock deeper down is not seen;
-     * that demand then goes to the first route.
+     * a slot takes with stock left (the raw estimate counts neither)? Keep this check shallow outside
+     * mined conversions: trying every zero-BOM route cost a real pack (30 levels, little stock)
+     * hundreds of trial runs per order.
      */
     private static boolean stockedIntermediateInput(DemandPass pass, int p) {
         Snapshot snap = pass.snapshot();
