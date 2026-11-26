@@ -17,8 +17,13 @@ public interface PatternSite {
     /** The hub's own, not a machine on the network. */
     boolean isHub();
 
+    /** How many runs of {@code pattern} one push here may carry, of {@code wanted}. */
+    default long maxRuns(Object pattern, long wanted) {
+        return 1;
+    }
+
     /**
-     * Sends one run. {@code inputs}: slot by slot, what goes in (an empty slot sends nothing, a null one is skipped).
+     * Sends one run, or as many as {@link #maxRuns} allows with their inputs added up. {@code inputs}: slot by slot, what goes in (an empty slot sends nothing, a null one is skipped).
      * False when it is refused.
      */
     boolean push(Object pattern, List<Map<Key, Long>> inputs);

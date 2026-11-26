@@ -483,7 +483,7 @@ public final class HubState {
                 Amount asked = n;
                 long dispatchStart = System.nanoTime();
                 n = pat.where == PatternLocation.HUB_MACHINE ? dispatchMachines(job, t, pat, n, chance, env)
-                        : dispatchEven(job, t, pat, n, env);
+                        : dispatchEven(job, t, pat, n, env, deadline);
                 // a dispatch of tens of thousands of runs can take longer than the whole tick budget: the tasks behind it
                 // would never be reached, so it goes last next tick (and is not asked again in this one)
                 t.heavy = System.nanoTime() - dispatchStart > env.tickBudgetNanos();
@@ -768,8 +768,11 @@ public final class HubState {
      * Even split within the highest-priority group of machines that still have window room; leftover
      * copies go one each from the rotation start; only then the next group. N copies = N operations.
      * Returns the runs actually sent.
+     * <p>
+     * Stops at {@code deadline} with what it has sent (at least one run): a machine may take long to accept a push,
+     * and thousands of runs in one go would hold the server for seconds. The rest goes next tick.
      */
-    private Amount dispatchEven(Job job, Task t, Pattern pat, Amount n, ExecutionEnv env) {
+    private Amount dispatchEven(Job job, Task t, Pattern pat, Amount n, ExecutionEnv env, long deadline) {
         Object details = pat.source();
         if (details == null)
             return Amount.ZERO;
@@ -779,6 +782,8 @@ public final class HubState {
                 groups.add(prov.priority(), prov);
         long want = n.saturatedLong();
         long sent = 0;
+        // several runs in one push, where the place takes that: only for patterns that merely use up their inputs
+        boolean batch = canBatch(pat, job.chances.get(t.pattern));
         for (List<PatternSite> group : groups.highestFirst()) {
             List<PatternSite> open = new ArrayList<>(group);
             while (sent < want && !open.isEmpty()) {
@@ -798,8 +803,18 @@ public final class HubState {
                     k = Math.min(k, cap);
                     long pushed = 0;
                     boolean outOfStock = false;
-                    for (long c = 0; c < k; c++) {
-                        List<@Nullable Map<Key, Long>> inputs = extractInputs(job, pat, env);
+                    boolean late = false;
+                    while (pushed < k) {
+                        if (sent + pushed > 0 && System.nanoTime() >= deadline) {
+                            late = true;
+                            break;
+                        }
+                        long take = batch && k - pushed > 1 ? Math.max(1, Math.min(prov.maxRuns(details, k - pushed), k - pushed)) : 1;
+                        List<@Nullable Map<Key, Long>> inputs = extractInputs(job, pat, env, null, take);
+                        while (inputs == null && take > 1) {    // the job has not that many runs of materials: fewer
+                            take /= 2;
+                            inputs = extractInputs(job, pat, env, null, take);
+                        }
                         if (inputs == null) {
                             outOfStock = true;
                             break;
@@ -808,9 +823,11 @@ public final class HubState {
                             returnInputs(job, inputs, env);
                             break;
                         }
-                        pushed++;
+                        pushed += take;
                     }
-                    w.onPushResult(Amount.of(k), Amount.of(pushed));
+                    // cut short by time, the push tells nothing about the machine: its window stays
+                    if (!late)
+                        w.onPushResult(Amount.of(k), Amount.of(pushed));
                     if (pushed > 0) {
                         w.lastSendNanos = env.nowNanos();
                         expectOutputs(job, t, pat, pushed, env.nowNanos());
@@ -818,7 +835,7 @@ public final class HubState {
                         sent += pushed;
                         progress = true;
                     }
-                    if (outOfStock)
+                    if (outOfStock || late)
                         return Amount.of(sent);
                     if (pushed < k || pushed >= cap)
                         full.add(prov);     // refused, or its window is used up for this tick
