@@ -1,5 +1,12 @@
 package com.lumina.twinstar.service;
 
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Item;
+import net.minecraft.tags.TagKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.core.registries.Registries;
+import appeng.api.storage.cells.StorageCell;
+import appeng.api.storage.MEStorage;
 import appeng.api.config.Actionable;
 import appeng.api.crafting.IPatternDetails;
 import appeng.api.networking.IGrid;
@@ -50,6 +57,7 @@ import com.lumina.twinstar.algorithm.planning.OrderResult;
 import com.lumina.twinstar.algorithm.planning.Planner;
 import appeng.api.implementations.blockentities.IChestOrDrive;
 import com.lumina.twinstar.api.IBigStorage;
+import com.lumina.twinstar.api.StorageAdapters;
 import com.lumina.twinstar.api.IMachineAccess;
 import com.lumina.twinstar.api.ITwinStarService;
 import com.lumina.twinstar.cpu.TwinStarCpu;
@@ -389,8 +397,9 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
                     host.setParkedJobs(parked);     // a second hub on the grid: its jobs wait with it
             }
         }
-        if (node.getOwner() instanceof IBigStorage big)
-            bigStorages.put(node, big);
+        IBigStorage owned = StorageAdapters.of(node.getOwner());
+        if (owned != null)
+            bigStorages.put(node, owned);
         if (node.getOwner() instanceof IMachineAccess access)
             machineAccess.put(node, access);
     }
@@ -1184,9 +1193,14 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
         return host != null ? IActionSource.ofMachine(host) : IActionSource.empty();
     }
 
+    /** Cells that never run out; a pack adds to it with a data pack. */
+    private static final TagKey<Item> ENDLESS_CELLS = TagKey.create(Registries.ITEM,
+            new ResourceLocation("twinstar", "endless_cells"));
+
     /** AE2's storage plus the powered big storages on the grid, blocks and disks in drives (AE2 only mounts those too). */
     private NetworkStore store() {
         List<IBigStorage> big = new ArrayList<>();
+        List<MEStorage> endless = new ArrayList<>();
         bigStorages.forEach((node, s) -> {
             if (node.isActive())
                 big.add(s);
@@ -1196,12 +1210,18 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
                 continue;
             for (Object drive : grid.getActiveMachines(machine)) {
                 IChestOrDrive d = (IChestOrDrive) drive;
-                for (int i = 0; i < d.getCellCount(); i++)
-                    if (d.getOriginalCellInventory(i) instanceof IBigStorage cell)
+                for (int i = 0; i < d.getCellCount(); i++) {
+                    StorageCell inside = d.getOriginalCellInventory(i);
+                    IBigStorage cell = StorageAdapters.of(inside);
+                    if (cell != null)
                         big.add(cell);
+                    Item item = d.getCellItem(i);
+                    if (inside != null && item != null && new ItemStack(item).is(ENDLESS_CELLS))
+                        endless.add(inside);
+                }
             }
         }
-        return new NetworkStore(grid.getStorageService().getInventory(), big, actionSource());
+        return new NetworkStore(grid.getStorageService().getInventory(), big, actionSource(), endless);
     }
 
     @Override

@@ -12,8 +12,8 @@ import java.util.BitSet;
 /** Main thread only: the planner runs in the background and must never read AE2's storage itself. */
 public final class StockSnapshotter {
     /**
-     * Stacks reported at least this large are probed for being infinite. AE2's creative storage cell
-     * reports Integer.MAX_VALUE per item; other mods' infinity cells report more.
+     * Stacks reported at least this large are asked about being infinite. AE2's creative storage cell
+     * reports Integer.MAX_VALUE per item; other mods' infinity cells report that or more.
      */
     private static final long PROBE_FROM = Integer.MAX_VALUE;
 

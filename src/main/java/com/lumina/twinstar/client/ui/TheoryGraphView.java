@@ -567,10 +567,14 @@ public class TheoryGraphView extends GraphView {
         }
         g.drawString(font, Component.translatable("gui.twinstar.theory.prediction"), 6, height - 12, DIM, false);
         PerfContent.Content perf = PerfContent.theory(TheoryCache.status().report());
+        // above the side panel's item icons: the game draws those raised, and the panel may be dragged over them
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 250);
         perfPanel.draw(g, font, 6, height - 16 - perfPanel.openHeightFor(perf), width, height, perf, mx, my);
         List<Component> tip = perfPanel.isPressed() ? null : perfPanel.tooltipAt(mx, my);
         if (tip != null)
             g.renderComponentTooltip(font, tip, mx, my);
+        g.pose().popPose();
     }
 
     private void button(GuiGraphics g, int x, int y, int w, Component text, boolean hot) {

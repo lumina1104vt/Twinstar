@@ -13,6 +13,11 @@ import java.util.function.BiConsumer;
 public interface IBigStorage {
     BigInteger getAmount(AEKey key);
 
+    /** It gives any amount of {@code key} and never has less: no stock to count. */
+    default boolean isEndless(AEKey key) {
+        return false;
+    }
+
     /** @return what was (or, simulated, would be) taken in */
     BigInteger insertBig(AEKey key, BigInteger amount, boolean simulate);
 

@@ -28,8 +28,11 @@ public final class NetworkStore implements Stock {
     private final MEStorage ae2;
     private final List<IBigStorage> big;
     private final IActionSource source;
+    private final List<? extends MEStorage> endless;
 
-    public NetworkStore(MEStorage ae2, List<IBigStorage> big, IActionSource source) {
+    /** {@code endless}: the cells on the grid that are listed as never running out. */
+    public NetworkStore(MEStorage ae2, List<IBigStorage> big, IActionSource source, List<? extends MEStorage> endless) {
+        this.endless = endless;
         this.ae2 = ae2;
         this.big = big;
         this.source = source;
@@ -51,6 +54,9 @@ public final class NetworkStore implements Stock {
                 break;
             done = done.add(Amount.of(s.insertBig(key, left.bigValue(), false)));
         }
+        // a big storage may take nothing in: what is left still has AE2's storage
+        if (done.compareTo(amount) < 0)
+            done = done.add(ae2Insert(key, amount.sub(done), MAX_CHUNKS_PER_CALL));
         return done;
     }
 
@@ -91,14 +97,18 @@ public final class NetworkStore implements Stock {
     }
 
     /**
-     * AE2 has no "infinite source" flag. A stack is taken as infinite when the network would hand
-     * out Long.MAX_VALUE of it (simulated): no real storage holds that much, while creative and
-     * infinity cells give whatever is asked for. Big storages can really hold that much, so their
-     * exact count must stay below it for the probe to mean anything.
+     * AE2 has no "infinite source" flag, and amounts cannot tell: a huge but finite storage hands out a long's
+     * worth just as a creative cell does. So only the cells listed in the item tag {@code twinstar:endless_cells}
+     * count, and only for what one of them offers.
      */
     public boolean isInfinite(AEKey key) {
-        return bigTotal(key).compareTo(LONG_MAX) < 0
-                && ae2.extract(key, Long.MAX_VALUE, Actionable.SIMULATE, source) == Long.MAX_VALUE;
+        for (MEStorage cell : endless)
+            if (cell.extract(key, 1, Actionable.SIMULATE, source) > 0)
+                return true;
+        for (IBigStorage s : big)
+            if (s.isEndless(key))
+                return true;
+        return false;
     }
 
     /** Exact contents of the big storages. */

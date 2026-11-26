@@ -26,6 +26,9 @@ public class PlanGraphView extends GraphView {
     private @Nullable PlanView shown;
     /** the graph shown: its own field, as the layout asks for texts while it is being built */
     private PlanGraph graph = PlanGraph.EMPTY;
+    /** the whole plan, and whether only what leads from a missing item is shown of it */
+    private PlanGraph whole = PlanGraph.EMPTY;
+    private boolean onlyMissing;
 
     public PlanGraphView(PlanMenu menu, Runnable back) {
         super(back);
@@ -39,8 +42,32 @@ public class PlanGraphView extends GraphView {
         if (view == shown && layout != null)
             return;
         shown = view;
-        graph = view == null ? PlanGraph.EMPTY : view.graph();
-        setGraph(view == null ? null : graph, false);
+        whole = view == null ? PlanGraph.EMPTY : view.graph();
+        onlyMissing &= whole.hasMissing();
+        show();
+    }
+
+    private void show() {
+        graph = onlyMissing ? whole.missingOnly() : whole;
+        setGraph(shown == null ? null : graph, false);
+    }
+
+    @Override
+    protected @Nullable Component barSwitch() {
+        if (!whole.hasMissing())
+            return null;
+        return Component.translatable(onlyMissing ? "gui.twinstar.graph.show_all" : "gui.twinstar.graph.only_missing");
+    }
+
+    @Override
+    protected void barSwitched() {
+        onlyMissing = !onlyMissing;
+        show();
+    }
+
+    @Override
+    protected boolean labelsAllowed() {
+        return !onlyMissing;    // the way a missing material goes is what this view is for
     }
 
     private PlanGraph graph() {

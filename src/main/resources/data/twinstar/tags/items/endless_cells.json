@@ -1,0 +1,8 @@
+{
+  "replace": false,
+  "values": [
+    {"id": "ae2:creative_item_cell", "required": false},
+    {"id": "ae2:creative_fluid_cell", "required": false},
+    {"id": "expatternprovider:infinity_cell", "required": false}
+  ]
+}

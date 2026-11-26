@@ -120,6 +120,20 @@ class GraphLayoutTest {
     }
 
     @Test
+    void onlyMissingKeepsTheWayUp() {
+        // 0 ← 1 + 2;  1 ← 3 (missing);  2 ← 4 (enough)
+        PlanGraph g = graph(5, new int[][]{{0, 1, 2}, {1, 3}, {2, 4}});
+        List<PlanGraph.Item> items = new ArrayList<>(g.items());
+        items.set(3, new PlanGraph.Item(null, "", "", "", false, "7", "", -1));
+        PlanGraph only = new PlanGraph(items, g.recipes(), g.loops(), false).missingOnly();
+        assertEquals(3, only.items().size());       // 0, 1 and 3
+        assertEquals(2, only.recipes().size());
+        assertEquals("7", only.items().get(2).missing());
+        assertEquals(1, only.recipes().get(0).inputs().size());
+        assertTrue(g.missingOnly().items().isEmpty());
+    }
+
+    @Test
     void targetInsideALoop() {
         // the certus plan: dust (target) ← purified ← seed ← dust + sand
         int dust = 0, pure = 1, seed = 2, sand = 3;
