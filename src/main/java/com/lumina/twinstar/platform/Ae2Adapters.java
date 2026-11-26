@@ -92,6 +92,10 @@ public final class Ae2Adapters {
             return provider instanceof com.lumina.twinstar.host.ITwinStarHost;
         }
 
+        public long maxRuns(Object pattern, long wanted) {
+            return com.lumina.twinstar.api.PushBatchers.maxRuns(provider, (IPatternDetails) pattern, wanted);
+        }
+
         public boolean push(Object pattern, List<Map<Key, Long>> inputs) {
             KeyCounter[] counters = new KeyCounter[inputs.size()];
             for (int i = 0; i < counters.length; i++) {
