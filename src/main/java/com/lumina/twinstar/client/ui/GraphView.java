@@ -26,6 +26,8 @@ import static com.lumina.twinstar.client.ui.PlanUI.TEXT;
  * around the mouse, click a loop to unfold it and its frame's title to fold it again. Subclasses
  * give the graph, the texts, colours, marks and tooltips, and may draw panels over it.
  * <p>
+ * A common material has no lines: hovering a label of it (or its box) shows them, a click keeps them.
+ * <p>
  * States are never told by red vs green alone: something missing has a thick orange frame and a
  * "!" tab, an infinite source an ∞ tab, an item that can be opened a +/− tab.
  */
@@ -55,12 +57,18 @@ public abstract class GraphView {
     private final Set<Integer> unfolded = new HashSet<>();
     private float panX, panY, zoom = 1;
     private boolean pressing, dragging;
+    /** the common material whose lines stay shown (a clicked label), −1: none */
+    private int pinned = -1;
     private double dragged;
     private final Runnable back;
 
     protected GraphView(Runnable back) {
         this.back = back;
     }
+
+    /** this frame: the screen in the graph's units, and far away the line pieces already drawn */
+    private double seenLeft, seenTop, seenRight, seenBottom;
+    private final Set<Long> drawnPieces = new HashSet<>();
 
     // ── what subclasses give ──
 
@@ -110,6 +118,19 @@ public abstract class GraphView {
         return false;
     }
 
+    /** A switch of the subclass's own on the bar: its text, null for none. */
+    protected @Nullable Component barSwitch() {
+        return null;
+    }
+
+    protected void barSwitched() {
+    }
+
+    /** False: common materials keep their lines even with labels chosen. */
+    protected boolean labelsAllowed() {
+        return true;
+    }
+
     /** A click on an item box (not a drag). */
     protected void itemClicked(int item) {
     }
@@ -152,16 +173,49 @@ public abstract class GraphView {
      * and the view stays where it is; otherwise loops fold and the view fits the new graph.
      */
     protected void setGraph(@Nullable PlanGraph graph, boolean sameGraph) {
-        if (!sameGraph)
+        if (!sameGraph) {
             unfolded.clear();
+            pinned = -1;
+        }
         if (graph == null) {
             layout = null;
             return;
         }
         unfolded.removeIf(l -> l >= graph.loops().size());
-        layout = new GraphLayout(graph, unfolded, oneTarget(), labels(), font::width);
+        layout = lay(graph);
         if (!sameGraph)
             fit();
+    }
+
+    private GraphLayout lay(PlanGraph graph) {
+        GraphLayout.Style style = GraphStyle.get();
+        if (style == GraphLayout.Style.LABELS && !labelsAllowed())
+            style = GraphLayout.Style.SQUARE;
+        return new GraphLayout(graph, unfolded, oneTarget(), labels(), font::width, style);
+    }
+
+    /** The subclass's switch, left of the line style: its left end and width; null when there is none. */
+    private int @Nullable [] switchButton() {
+        Component text = barSwitch();
+        if (text == null)
+            return null;
+        int w = font.width(text) + 12;
+        return new int[]{styleButton()[0] - 4 - w, w};
+    }
+
+    /** The bar's button for how lines go: its left end and width. */
+    private int[] styleButton() {
+        int w = font.width(GraphStyle.name(GraphStyle.get())) + 12;
+        return new int[]{width - BUTTON_W - 8 - w, w};
+    }
+
+    private void nextStyle() {
+        GraphStyle.next();
+        if (layout != null) {
+            pinned = -1;
+            layout = lay(layout.graph);
+            fit();
+        }
     }
 
     private GraphLayout.Labels labels() {
@@ -227,6 +281,10 @@ public abstract class GraphView {
                 back.run();
             else if (mx >= width - BUTTON_W - 4 && mx < width - 4)
                 fit();
+            else if (mx >= styleButton()[0] && mx < styleButton()[0] + styleButton()[1])
+                nextStyle();
+            else if (switchButton() != null && mx >= switchButton()[0] && mx < switchButton()[0] + switchButton()[1])
+                barSwitched();
             return true;
         }
         if (overlayContains(mx, my))
@@ -297,6 +355,13 @@ public abstract class GraphView {
     private void click(double wx, double wy) {
         if (layout == null)
             return;
+        int tag = tagAt(wx, wy);
+        if (tag >= 0) {
+            pinned = pinned == tag ? -1 : tag;
+            return;
+        }
+        if (layout.all().stream().noneMatch(n -> n.contains(wx, wy)))
+            pinned = -1;
         for (GraphLayout.Node n : layout.nodes) {
             if (n.kind != GraphLayout.Kind.LOOP || !n.contains(wx, wy))
                 continue;
@@ -307,7 +372,7 @@ public abstract class GraphView {
                 unfolded.remove(n.ref);
             else
                 unfolded.add(n.ref);
-            layout = new GraphLayout(layout.graph, unfolded, oneTarget(), labels(), font::width);
+            layout = lay(layout.graph);
             GraphLayout.Node again = layout.loopNode(n.ref);
             panX = keepX - again.x * zoom;
             panY = keepY - again.y * zoom;
@@ -359,6 +424,10 @@ public abstract class GraphView {
         Hovered under = hoverAt(mx, my);
         GraphLayout.Node hover = under == null ? null : under.node();
         boolean frameTitle = under != null && under.frameTitle();
+        int tag = hover == null || my < BAR_H ? -1 : tagAt(worldX(mx), worldY(my));
+        // the common material whose lines are shown: the label or box under the mouse, else the kept one
+        int lit = tag >= 0 ? tag : hover != null && hover.kind == GraphLayout.Kind.ITEM && layout.common.containsKey(hover.ref)
+                ? hover.ref : pinned;
 
         if (layout != null) {
             // what is on the screen, in world units (with a margin for tabs and labels)
@@ -374,9 +443,24 @@ public abstract class GraphView {
                     frame(g, n);
             // very far out only the strong lines: a large pack has a hundred thousand of them
             boolean thin = zoom < FAR_ZOOM;
-            for (GraphLayout.Edge e : layout.edges)
-                if (visible(e, vx0, vy0, vx1, vy1) && (!thin || edgeStrong(e) || hover != null && (e.from() == hover || e.to() == hover)))
-                    edge(g, e, hover, detail);
+            seenLeft = vx0;
+            seenTop = vy0;
+            seenRight = vx1;
+            seenBottom = vy1;
+            drawnPieces.clear();
+            // strong and hovered lines over the rest: routed lines run over each other
+            for (int pass = 0; pass < 2; pass++)
+                for (GraphLayout.Edge e : layout.edges) {
+                    boolean on = hover != null && (e.from() == hover || e.to() == hover);
+                    boolean strong = edgeStrong(e);
+                    if ((on || strong) == (pass == 1) && (!thin || strong || on) && visible(e, vx0, vy0, vx1, vy1))
+                        edge(g, e, hover, detail);
+                }
+            if (detail)
+                for (GraphLayout.Dot d : layout.dots)
+                    if (d.x() >= vx0 && d.x() <= vx1 && d.y() >= vy0 && d.y() <= vy1)
+                        g.fill((int) d.x() - 2, (int) d.y() - 2, (int) d.x() + 2, (int) d.y() + 2,
+                                d.from() == hover ? LINE_HOT : LINE_STRONG);
             g.flush();
             for (GraphLayout.Node n : layout.all())
                 if (!(n.kind == GraphLayout.Kind.LOOP && n.unfolded) && visible(n, vx0, vy0, vx1, vy1)) {
@@ -385,6 +469,8 @@ public abstract class GraphView {
                     else
                         block(g, n);
                 }
+            if (lit >= 0 && layout.common.containsKey(lit))
+                commonLines(g, lit);
             if (zoom >= 0.75f)
                 for (GraphLayout.Edge e : layout.edges)
                     if (visible(e, vx0, vy0, vx1, vy1))
@@ -416,7 +502,105 @@ public abstract class GraphView {
                         : loopTooltip(hover.ref, hover.inner.stream().filter(n -> n.kind == GraphLayout.Kind.ITEM).map(n -> n.ref).toList(),
                         (int) hover.inner.stream().filter(n -> n.kind == GraphLayout.Kind.RECIPE).count());
             };
+            if (tag >= 0) {
+                lines = new java.util.ArrayList<>(itemTooltip(tag));
+                commonNote(lines, tag);
+            } else if (hover.kind == GraphLayout.Kind.ITEM && layout.common.containsKey(hover.ref)) {
+                lines = new java.util.ArrayList<>(lines);
+                commonNote(lines, hover.ref);
+            }
             g.renderComponentTooltip(font, lines, mx, my);
+        }
+    }
+
+    private void commonNote(List<Component> lines, int item) {
+        lines.add(Component.translatable("gui.twinstar.graph.common", layout.common.getOrDefault(item, 0)).withColor(FROM_STOCK));
+        lines.add(Component.translatable("gui.twinstar.graph.common.pin").withColor(DIM));
+    }
+
+    /** The common material label under a point of the graph (its item), −1: none. */
+    private int tagAt(double wx, double wy) {
+        if (layout == null || zoom < DETAIL_ZOOM)
+            return -1;
+        for (GraphLayout.Node n : layout.all()) {
+            if (n.tags.isEmpty() || !n.contains(wx, wy))
+                continue;
+            int i = (int) Math.floor((wx - n.x - 2) / GraphLayout.TAG);
+            if (wx >= n.x + 2 && i < Math.min(n.tags.size(), GraphLayout.MAX_TAGS))
+                return n.tags.get(i);
+        }
+        return -1;
+    }
+
+    /** The labels at a box's left end: the common materials it uses, as small icons. */
+    private void labelsOf(GuiGraphics g, GraphLayout.Node n) {
+        if (n.tags.isEmpty())
+            return;
+        int shown = Math.min(n.tags.size(), GraphLayout.MAX_TAGS);
+        int y = n.y + (n.h - 10) / 2;
+        for (int i = 0; i < shown; i++) {
+            int item = n.tags.get(i), x = n.x + 2 + i * GraphLayout.TAG;
+            g.fill(x, y, x + 10, y + 10, itemMissing(item) ? MISSING : FROM_STOCK);
+            g.fill(x + 1, y + 1, x + 9, y + 9, item == pinned ? 0xFF2C5070 : BOX);
+            g.pose().pushPose();
+            g.pose().translate(x + 1, y + 1, 0);
+            g.pose().scale(0.5f, 0.5f, 1);
+            AEKeyRendering.drawInGui(Minecraft.getInstance(), g, 0, 0, layout.graph.items().get(item).key());
+            g.pose().popPose();
+        }
+        if (n.tags.size() > shown)
+            g.drawString(font, "+" + (n.tags.size() - shown), n.x + 2 + shown * GraphLayout.TAG, n.y + (n.h - 8) / 2, FROM_STOCK, false);
+    }
+
+    /** A common material's lines, over the boxes while asked for: up from it, along, into each box that uses it. */
+    private void commonLines(GuiGraphics g, int item) {
+        GraphLayout.Node from = layout.shownItem(item);
+        float width = Math.max(1.4f, 1 / zoom);
+        g.pose().pushPose();
+        g.pose().translate(0, 0, 250);
+        for (GraphLayout.Node to : layout.all()) {
+            int i = to.tags.indexOf(item);
+            if (i < 0)
+                continue;
+            float x1 = from.cx(), y1 = from.y;
+            float x2 = to.x + 7 + Math.min(i, GraphLayout.MAX_TAGS) * GraphLayout.TAG, y2 = to.y + to.h;
+            float mid = y2 + 8;
+            path(g, new float[]{x1, y1, x1, mid, x2, mid, x2, y2}, width, LINE_HOT);
+            arrow(g, x2, y2 + 3, x2, y2, LINE_HOT);
+        }
+        g.flush();
+        g.pose().popPose();
+    }
+
+    /**
+     * A routed line, only its pieces on the screen. Many lines share their trunks: far away, where
+     * thousands are on the screen at once, each shared piece is drawn once.
+     */
+    private void routed(GuiGraphics g, float[] p, float width, int color, boolean once) {
+        float[] piece = new float[4];
+        for (int i = 0; i + 3 < p.length; i += 2) {
+            System.arraycopy(p, i, piece, 0, 4);
+            if (Math.max(piece[0], piece[2]) < seenLeft || Math.min(piece[0], piece[2]) > seenRight
+                    || Math.max(piece[1], piece[3]) < seenTop || Math.min(piece[1], piece[3]) > seenBottom)
+                continue;
+            if (once && !drawnPieces.add(31L * (31L * (31L * (31L * Math.round(piece[0]) + Math.round(piece[1]))
+                    * 1_000_003L + Math.round(piece[2])) + Math.round(piece[3])) + color))
+                continue;
+            path(g, piece, width, color);
+        }
+    }
+
+    /** Level and upright pieces, the corners filled. */
+    private static void path(GuiGraphics g, float[] p, float width, int color) {
+        float half = width / 2;
+        for (int i = 0; i + 3 < p.length; i += 2) {
+            float x1 = p[i], y1 = p[i + 1], x2 = p[i + 2], y2 = p[i + 3];
+            if (x1 == x2 && y1 == y2)
+                continue;
+            if (y1 == y2)
+                line(g, Math.min(x1, x2) - half, y1, Math.max(x1, x2) + half, y1, width, color);
+            else
+                line(g, x1, y1, x2, y2, width, color);
         }
     }
 
@@ -424,7 +608,18 @@ public abstract class GraphView {
         return n.x + n.w >= x0 && n.x <= x1 && n.y + n.h >= y0 && n.y <= y1;
     }
 
-    private static boolean visible(GraphLayout.Edge e, double x0, double y0, double x1, double y1) {
+    private boolean visible(GraphLayout.Edge e, double x0, double y0, double x1, double y1) {
+        float[] p = layout.routes.get(e);
+        if (p != null) {
+            float l = p[0], r = p[0], t = p[1], b = p[1];
+            for (int i = 2; i < p.length; i += 2) {
+                l = Math.min(l, p[i]);
+                r = Math.max(r, p[i]);
+                t = Math.min(t, p[i + 1]);
+                b = Math.max(b, p[i + 1]);
+            }
+            return r >= x0 && l <= x1 && b >= y0 && t <= y1;
+        }
         GraphLayout.Node a = e.from(), b = e.to();
         return Math.max(a.x + a.w, b.x + b.w) >= x0 && Math.min(a.x, b.x) <= x1
                 && Math.max(a.y + a.h, b.y + b.h) >= y0 && Math.min(a.y, b.y) <= y1;
@@ -469,6 +664,9 @@ public abstract class GraphView {
             return null;
         GraphLayout.Node n = h.node();
         PlanGraph graph = layout.graph;
+        int tag = tagAt(worldX(mx), worldY(my));
+        if (tag >= 0)
+            return keyHit(graph.items().get(tag).key(), n.x, n.y, n.w, n.h, mx, my);
         return switch (n.kind) {
             case ITEM -> keyHit(graph.items().get(n.ref).key(), n.x, n.y, n.w, n.h, mx, my);
             case RECIPE -> {
@@ -484,7 +682,7 @@ public abstract class GraphView {
                 }
                 // the member icons of a folded loop's box, as drawn in box()
                 double wx = worldX(mx), wy = worldY(my);
-                int x = n.x + 14, shown = 0;
+                int x = n.x + n.tagW + 14, shown = 0;
                 for (GraphLayout.Node in : n.inner) {
                     if (in.kind != GraphLayout.Kind.ITEM)
                         continue;
@@ -639,7 +837,9 @@ public abstract class GraphView {
         Component status = barStatus();
         Component hint = status != null ? status : Component.translatable("gui.twinstar.graph.hint");
         int bx = width - BUTTON_W - 4;
-        int hx = bx - 8 - font.width(hint);
+        int[] style = styleButton();
+        int[] own = switchButton();
+        int hx = (own != null ? own[0] : style[0]) - 8 - font.width(hint);
         if (hx > BAR_H + 8 + font.width(title))
             g.drawString(font, hint, hx, 7, status != null ? barStatusColor() : DIM, false);
         boolean overFit = my < BAR_H && mx >= bx && mx < bx + BUTTON_W;
@@ -647,6 +847,16 @@ public abstract class GraphView {
         g.fill(bx + 1, 4, bx + BUTTON_W - 1, BAR_H - 4, overFit ? 0xFF2C2642 : 0xFF1E1C2C);
         Component fit = Component.translatable("gui.twinstar.graph.fit");
         g.drawString(font, fit, bx + (BUTTON_W - font.width(fit)) / 2, 7, TEXT, false);
+        boolean overStyle = my < BAR_H && mx >= style[0] && mx < style[0] + style[1];
+        g.fill(style[0], 3, style[0] + style[1], BAR_H - 3, overStyle ? 0xFFA082F0 : 0xFF4E4474);
+        g.fill(style[0] + 1, 4, style[0] + style[1] - 1, BAR_H - 4, overStyle ? 0xFF2C2642 : 0xFF1E1C2C);
+        g.drawString(font, GraphStyle.name(GraphStyle.get()), style[0] + 6, 7, TEXT, false);
+        if (own != null) {
+            boolean over = my < BAR_H && mx >= own[0] && mx < own[0] + own[1];
+            g.fill(own[0], 3, own[0] + own[1], BAR_H - 3, over ? 0xFFA082F0 : MISSING);
+            g.fill(own[0] + 1, 4, own[0] + own[1] - 1, BAR_H - 4, over ? 0xFF2C2642 : 0xFF1E1C2C);
+            g.drawString(font, barSwitch(), own[0] + 6, 7, TEXT, false);
+        }
     }
 
     private void frame(GuiGraphics g, GraphLayout.Node n) {
@@ -673,6 +883,11 @@ public abstract class GraphView {
                 String text = itemText(n.ref);
                 if (!text.isEmpty())
                     g.drawString(font, text, n.x + 22, n.y + 7, missing ? MISSING : itemTextColor(n.ref), false);
+                if (layout.common.containsKey(n.ref)) {
+                    // no lines go up from it: a small hollow square says where they would start
+                    int cx = n.x + n.w / 2;
+                    outline(g, cx - 3, n.y - 6, 7, 7, FROM_STOCK);
+                }
                 tabs(g, n, itemTabs(n.ref));
             }
             case RECIPE -> {
@@ -682,14 +897,15 @@ public abstract class GraphView {
                 outline(g, n.x, n.y, n.w, n.h, missing ? MISSING : best ? BEST : RECIPE_LINE);
                 if (missing || best)
                     outline(g, n.x + 1, n.y + 1, n.w - 2, n.h - 2, missing ? MISSING : BEST);
-                int tx = n.x + 4;
+                labelsOf(g, n);
+                int tx = n.x + n.tagW + 4;
                 if (rc.machine() != null) {
                     g.pose().pushPose();
-                    g.pose().translate(n.x + 3, n.y + 3, 0);
+                    g.pose().translate(n.x + n.tagW + 3, n.y + 3, 0);
                     g.pose().scale(0.5f, 0.5f, 1);
                     AEKeyRendering.drawInGui(Minecraft.getInstance(), g, 0, 0, rc.machine());
                     g.pose().popPose();
-                    tx = n.x + 13;
+                    tx = n.x + n.tagW + 13;
                 }
                 g.drawString(font, recipeText(n.ref), tx, n.y + 3, recipeTextColor(n.ref), false);
                 if (missing)
@@ -698,8 +914,9 @@ public abstract class GraphView {
             case LOOP -> {
                 g.fill(n.x, n.y, n.x + n.w, n.y + n.h, LOOP_BOX);
                 outline(g, n.x, n.y, n.w, n.h, LOOP_COLOR);
-                PixelIcon.draw(g, PixelIcon.LOOP, n.x + 4, n.y + (n.h - 7) / 2, LOOP_COLOR);
-                int x = n.x + 14, shownIcons = 0, items = 0;
+                labelsOf(g, n);
+                PixelIcon.draw(g, PixelIcon.LOOP, n.x + n.tagW + 4, n.y + (n.h - 7) / 2, LOOP_COLOR);
+                int x = n.x + n.tagW + 14, shownIcons = 0, items = 0;
                 for (GraphLayout.Node in : n.inner)
                     if (in.kind == GraphLayout.Kind.ITEM) {
                         items++;
@@ -763,6 +980,16 @@ public abstract class GraphView {
         boolean strong = edgeStrong(e);
         int color = hot ? LINE_HOT : missing ? MISSING_LINE : strong ? LINE_STRONG : LINE;
         float width = (strong ? 2.2f : 1f) * (hot ? 1.4f : 1f);
+        float[] route = layout.routes.get(e);
+        if (route != null) {
+            routed(g, route, detail ? width : Math.max(width, 1 / zoom), color, !detail && !hot);
+            if (detail) {
+                int n = route.length;
+                float x = route[n - 2], y = route[n - 1];
+                arrow(g, x, y + (route[n - 3] > y ? 3 : -3), x, y, color);
+            }
+            return;
+        }
         if (!detail) {
             // far away: straight lines, no heads; at least a pixel wide on the screen
             float x1 = a.cx(), y1 = a.cy(), x2 = b.cx(), y2 = b.cy();
@@ -804,7 +1031,12 @@ public abstract class GraphView {
         AEKey key = layout.graph.items().get(e.from().ref).key();
         String text = PlanUI.shortText(e.amount(), key);
         float x, y;
-        if (e.inner()) {
+        float[] route = layout.routes.get(e);
+        if (route != null) {
+            x = route[route.length - 2];
+            // lines arriving side by side: their amounts at two heights
+            y = route[route.length - 1] + 3 + (Math.floorMod((int) (x - e.to().x) / 7, 2)) * 6;
+        } else if (e.inner()) {
             x = (e.from().cx() + e.to().cx()) / 2;
             y = (e.from().cy() + e.to().cy()) / 2;
         } else {

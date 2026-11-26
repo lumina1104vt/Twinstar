@@ -4,7 +4,10 @@ import appeng.api.stacks.AEKey;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Deque;
 import java.util.List;
 
 /**
@@ -43,6 +46,80 @@ public record PlanGraph(List<Item> items, List<Recipe> recipes, List<Loop> loops
 
     /** A cycle of the plan; its items and recipes name it by index. {@code seeds}: what it starts from. */
     public record Loop(List<Flow> seeds) {
+    }
+
+    public boolean hasMissing() {
+        return items.stream().anyMatch(i -> !i.missing().isEmpty());
+    }
+
+    /**
+     * Only why something is missing: the missing items, what is made from them, and so on up to the
+     * target, with the lines between those. Everything the plan has enough of is left out. The target
+     * stays item 0. Empty when nothing is missing.
+     */
+    public PlanGraph missingOnly() {
+        boolean[] keep = new boolean[items.size()];
+        Deque<Integer> todo = new ArrayDeque<>();
+        for (int i = 0; i < keep.length; i++)
+            if (!items.get(i).missing().isEmpty()) {
+                keep[i] = true;
+                todo.add(i);
+            }
+        if (todo.isEmpty())
+            return EMPTY;
+        List<List<Recipe>> usedBy = new ArrayList<>();
+        for (int i = 0; i < keep.length; i++)
+            usedBy.add(new ArrayList<>());
+        for (Recipe r : recipes)
+            for (Flow f : r.inputs())
+                usedBy.get(f.item()).add(r);
+        while (!todo.isEmpty())
+            for (Recipe r : usedBy.get(todo.pop()))
+                for (Flow f : r.outputs())
+                    if (f.kind() == 0 && !keep[f.item()]) {
+                        keep[f.item()] = true;
+                        todo.add(f.item());
+                    }
+        keep[0] = true;
+
+        int[] item = new int[keep.length], loop = new int[loops.size()];
+        Arrays.fill(item, -1);
+        Arrays.fill(loop, -1);
+        int next = 0, nextLoop = 0;
+        for (int i = 0; i < keep.length; i++)
+            if (keep[i]) {
+                item[i] = next++;
+                int l = items.get(i).loop();
+                if (l >= 0 && loop[l] < 0)
+                    loop[l] = nextLoop++;
+            }
+        List<Item> keptItems = new ArrayList<>(next);
+        for (int i = 0; i < keep.length; i++)
+            if (keep[i]) {
+                Item it = items.get(i);
+                keptItems.add(new Item(it.key(), it.used(), it.made(), it.stock(), it.infinite(), it.missing(),
+                        it.leftover(), it.loop() < 0 ? -1 : loop[it.loop()]));
+            }
+        List<Recipe> keptRecipes = new ArrayList<>();
+        for (Recipe r : recipes) {
+            List<Flow> in = kept(r.inputs(), item), out = kept(r.outputs(), item);
+            // a step on the way: it takes something missing (or on the way) and makes something that is
+            if (!in.isEmpty() && out.stream().anyMatch(f -> f.kind() == 0))
+                keptRecipes.add(new Recipe(r.runs(), r.machine(), r.machineMissing(), r.loop() < 0 ? -1 : loop[r.loop()], in, out));
+        }
+        Loop[] keptLoops = new Loop[nextLoop];
+        for (int l = 0; l < loop.length; l++)
+            if (loop[l] >= 0)
+                keptLoops[loop[l]] = new Loop(kept(loops.get(l).seeds(), item));
+        return new PlanGraph(keptItems, keptRecipes, List.of(keptLoops), truncated);
+    }
+
+    private static List<Flow> kept(List<Flow> flows, int[] item) {
+        List<Flow> out = new ArrayList<>(flows.size());
+        for (Flow f : flows)
+            if (item[f.item()] >= 0)
+                out.add(new Flow(item[f.item()], f.amount(), f.kind()));
+        return out;
     }
 
     public void write(RegistryFriendlyByteBuf buf) {

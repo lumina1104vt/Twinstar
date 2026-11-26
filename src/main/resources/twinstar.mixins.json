@@ -3,6 +3,7 @@
   "minVersion": "0.8",
   "package": "com.lumina.twinstar.mixin",
   "compatibilityLevel": "JAVA_21",
+  "mixinPriority": 2000,
   "mixins": [
     "CraftingServiceMixin",
     "CraftingServiceAccessor",
