@@ -1332,6 +1332,8 @@ public final class HubState {
         /** the pattern fed last (blocking interfaces) */
         int lastPattern = -1;
         @Nullable Pattern lastPat;
+        /** a run was started here and nothing has come out since (what {@link IMachine.BlockMode#RESULT} waits for) */
+        boolean awaiting;
         /** runs started here whose products are not all back, per job and pattern */
         final Map<Flight, Amount> inFlight = new LinkedHashMap<>();
         /** products taken out that neither the hub nor the network took yet */
@@ -1424,7 +1426,7 @@ public final class HubState {
 
     /** What a saved machine was doing: put back on the interface found at its place. */
     record RestoredMachine(@Nullable Feed feed, int lastPattern, @Nullable Pattern lastPat, Map<Flight, Amount> inFlight,
-                           Map<Key, Long> overflow) {
+                           Map<Key, Long> overflow, boolean awaiting) {
     }
 
     /** Machine access interfaces added and gone since the last tick. */
@@ -1500,6 +1502,7 @@ public final class HubState {
             m.feed = saved.feed();
             m.lastPattern = saved.lastPattern();
             m.lastPat = saved.lastPat();
+            m.awaiting = saved.awaiting();
             m.inFlight.putAll(saved.inFlight());
             saved.overflow().forEach((k, v) -> m.overflow.merge(k, v, Long::sum));
         }
@@ -1594,7 +1597,8 @@ public final class HubState {
             boolean sure = false;
             for (int o = 0; o < pat.outputCount() && !sure; o++)
                 sure = !pat.isChance(o) && !pat.isDispatchDone(o);
-            if (!sure && !(m.feed != null && m.feed.job == f.job() && m.feed.pattern == f.pattern()) && !holds(m, pat, env))
+            if (!sure && !(m.feed != null && m.feed.job == f.job() && m.feed.pattern == f.pattern()) && !holds(m, pat, env)
+                    && !waitsForResult(m))
                 it.remove();
         }
     }
@@ -1681,11 +1685,13 @@ public final class HubState {
      */
     private void takeProduct(MachineState m, Key key, long n, ExecutionEnv env) {
         // a catalyst coming back out of the machine is no longer in it, nor due
+        long catalysts = 0;
         for (Iterator<Map.Entry<Flight, Map<Key, Long>>> it = m.held.entrySet().iterator(); it.hasNext() && n > 0; ) {
             Map<Key, Long> h = it.next().getValue();
             Long c = h.get(key);
             if (c != null) {
                 long back = Math.min(c, n);
+                catalysts += back;
                 if (c - back > 0)
                     h.put(key, c - back);
                 else
@@ -1695,6 +1701,9 @@ public final class HubState {
                 m.due.computeIfPresent(key, (k, d) -> d - back > 0 ? d - back : null);
             }
         }
+        if (n > catalysts)
+            for (MachineState peer : peers(m))
+                peer.awaiting = false;
         Key as = productAs(m, key, env);
         int id = env.index().idOf(as);
         landed(m, id, Amount.of(n));
@@ -2390,7 +2399,12 @@ public final class HubState {
     private static boolean busyWith(MachineState m, Job job, int p, ExecutionEnv env) {
         if (m.feed != null && m.feed.job == job && m.feed.pattern == p)
             return true;
-        return m.inFlight.containsKey(new Flight(job, p)) && holds(m, job.snap.pattern(p), env);
+        return m.inFlight.containsKey(new Flight(job, p)) && (holds(m, job.snap.pattern(p), env) || waitsForResult(m));
+    }
+
+    /** Its interface waits for something to come back, and nothing has since the last run. */
+    private static boolean waitsForResult(MachineState m) {
+        return m.awaiting && !m.inFlight.isEmpty() && m.access.getBlockMode() == IMachine.BlockMode.RESULT;
     }
 
     /**
@@ -2420,6 +2434,8 @@ public final class HubState {
             if (block == IMachine.BlockMode.BLOCKING && m.lastPat != null && m.lastPattern != t.pattern
                     && stillHasMaterials(m, env, m.lastPat))
                 continue;   // blocking: the previous pattern's materials are still there
+            if (waitsForResult(m))
+                continue;   // nothing has come back since the last run
             free.add(m);
         }
         lastDispatchNote = all.size() + " 台機器都在餵料或阻擋中";
@@ -2437,7 +2453,7 @@ public final class HubState {
         for (int i = 0; i < k && sent < want; i++) {
             MachineState m = free.get((i + rotate) % k);
             long runs = share + (i < extra ? 1 : 0);
-            if (m.access.getBlockMode() == IMachine.BlockMode.FULL)
+            if (m.access.getBlockMode() == IMachine.BlockMode.FULL || m.access.getBlockMode() == IMachine.BlockMode.RESULT)
                 runs = Math.min(runs, 1);       // one run, then wait until it is used up
             // one run after another used to cost a feed each: tens of thousands of runs in one tick took longer than the tick. A pattern that
             // is only used-up materials goes in batches of 1, 2, 4... runs (each one fed whole before the next, so what the machine
@@ -2522,6 +2538,7 @@ public final class HubState {
         List<@Nullable Map<Key, Long>> inputs = extractInputs(job, pat, env, m, runs);
         if (inputs == null)
             return false;
+        m.awaiting = true;
         Feed f = new Feed(job, t.pattern);
         for (int s = 0; s < inputs.size(); s++) {
             if (inputs.get(s) == null)

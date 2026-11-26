@@ -38,7 +38,12 @@ public interface IMachine {
         /** another pattern's materials wait until the previous pattern's are gone (AE2's blocking mode) */
         BLOCKING,
         /** one run at a time: the next waits until the last one's materials are all used up */
-        FULL
+        FULL,
+        /**
+         * one run at a time: the next waits until something comes back out of the machine, whatever it is (a line whose materials
+         * leave the block they were put on, and whose result is left to chance)
+         */
+        RESULT
     }
 
     /** Wait until the previous pattern's materials are gone before putting in another pattern's. */
