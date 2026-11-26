@@ -87,9 +87,9 @@ public final class JobStore {
             Place at = m.place;
             if (at == null)
                 continue;
-            machines.add(w.machine(at, m.feed, m.lastPattern, m.lastPat, m.inFlight, m.overflow));
+            machines.add(w.machine(at, m.feed, m.lastPattern, m.lastPat, m.inFlight, m.overflow, m.awaiting));
         }
-        hub.restoring.forEach((at, r) -> machines.add(w.machine(at, r.feed(), r.lastPattern(), r.lastPat(), r.inFlight(), r.overflow())));
+        hub.restoring.forEach((at, r) -> machines.add(w.machine(at, r.feed(), r.lastPattern(), r.lastPat(), r.inFlight(), r.overflow(), r.awaiting())));
         out.put("machines", machines);
         // the tables last: everything above added to them
         out.put("keys", w.keys);
@@ -219,7 +219,8 @@ public final class JobStore {
         }
 
         Data machine(Place at, @Nullable HubState.Feed feed, int lastPattern, @Nullable Pattern lastPat,
-                            Map<HubState.Flight, Amount> inFlight, Map<Key, Long> overflow) {
+                            Map<HubState.Flight, Amount> inFlight, Map<Key, Long> overflow,
+                     boolean awaiting) {
             Data t = new Data();
             t.put("at", place(at));
             if (feed != null && feed.job.finished) {
@@ -256,6 +257,7 @@ public final class JobStore {
                 f.put("tools", tools);
                 t.put("feed", f);
             }
+            t.putInt("awaiting", awaiting ? 1 : 0);
             t.putInt("last", lastPat == null ? -1 : pattern(lastPat));
             Map<HubState.Flight, Amount> live = new LinkedHashMap<>();
             inFlight.forEach((f, r) -> {
@@ -475,7 +477,7 @@ public final class JobStore {
                 if (k != null)
                     overflow.merge(k, ot.getLong("n"), Long::sum);
             }
-            hub.restoring.put(at, new HubState.RestoredMachine(feed, last == null ? -1 : last, lastPat, inFlight, overflow));
+            hub.restoring.put(at, new HubState.RestoredMachine(feed, last == null ? -1 : last, lastPat, inFlight, overflow, mt.getInt("awaiting") != 0));
         }
         hub.onHubResume();      // what machines returned while the hub was down may be in network storage
         return out;

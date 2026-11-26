@@ -75,6 +75,11 @@ final class MachineIO {
         return out;
     }
 
+    /** An item of Create's sequenced assembly that is not done: it stays on its line (it goes round until it is). */
+    private static boolean unfinished(ItemStack in) {
+        return in.hasTag() && in.getTag().contains("SequencedAssembly");
+    }
+
     /** Slot {@code s} holds {@code in} (not empty) as an output. */
     private static boolean isOutput(IItemHandler h, int s, ItemStack in) {
         if (!h.isItemValid(s, in))
@@ -150,6 +155,8 @@ final class MachineIO {
                 if (in.isEmpty())
                     continue;
                 AEItemKey inKey = AEItemKey.of(in);
+                if (unfinished(in) && !products.contains(inKey))
+                    continue;
                 // what a run's materials look like in a slot that refuses more (a single-item chamber) is not a product
                 if (!keep.isEmpty() && keep.contains(inKey))
                     continue;
