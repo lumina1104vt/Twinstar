@@ -17,11 +17,24 @@ public final class Window {
     /** samples ever recorded; the valid ones are the last min(rttCount, 16) */
     int rttCount;
     long lastSendNanos = -1;
+    /** the most runs one push to it carries, where it takes several: smaller after it refuses a batch */
+    long batchLimit = Long.MAX_VALUE;
 
     /** Java memory of this window with its timing samples (see {@link com.lumina.twinstar.algorithm.model.Mem}). */
     long memoryBytes() {
-        return com.lumina.twinstar.algorithm.model.Mem.obj(4 + 4 + 4 + 4 + 8) + size.memoryBytes() + lastOk.memoryBytes()
+        return com.lumina.twinstar.algorithm.model.Mem.obj(4 + 4 + 4 + 4 + 8 + 8) + size.memoryBytes() + lastOk.memoryBytes()
                 + com.lumina.twinstar.algorithm.model.Mem.longs(rttSamples);
+    }
+
+    /**
+     * What a push of {@code runs} runs in one go told. Refused: half as many next time; refused even one, it is busy
+     * rather than too small a place, so nothing is learned. Taken at the limit: the limit doubles again.
+     */
+    void onBatchResult(long runs, boolean accepted) {
+        if (!accepted)
+            batchLimit = runs <= 1 ? Long.MAX_VALUE : runs / 2;
+        else if (runs >= batchLimit)
+            batchLimit = batchLimit > Long.MAX_VALUE / 2 ? Long.MAX_VALUE : batchLimit * 2;
     }
 
     /** All taken: double. Part taken: the amount taken. Refused: the last good amount, or half. */

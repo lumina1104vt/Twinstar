@@ -737,7 +737,27 @@ public final class TwinStarService implements ITwinStarService, IGridServiceProv
         if (!lastPlan.isEmpty())
             out.add("  上次規劃：" + lastPlan + "（" + (now - lastPlanAt) / 1000 + " 秒前）");
         out.add("  執行中的工作 " + hub.jobs().size() + " 個；詳細日誌：" + (EngineLog.enabled() ? "開（logs/latest.log）" : "關"));
+        for (Job job : hub.jobs())
+            waitingLines(job, out);
         return out;
+    }
+
+    /** What a job still waits for from machines, beside what the network holds of it. */
+    private void waitingLines(Job job, List<String> out) {
+        var waiting = job.outstanding();
+        int shown = 0, all = 0;
+        for (int item : waiting.keys()) {
+            AEKey key = index.keyOf(item);
+            if (key == null || waiting.get(item).signum() <= 0)
+                continue;
+            all++;
+            if (shown == 20)
+                continue;
+            shown++;
+            out.add("    在等 " + key.getDisplayName().getString() + " (" + key.getId() + ") × " + waiting.get(item)
+                    + "；網路現有 " + stockOf(key) + (key.hasComponents() ? "；帶元件資料" : ""));
+        }
+        out.add("    共在等 " + all + " 種" + (all > shown ? "（只列前 " + shown + " 種）" : ""));
     }
 
     /**
