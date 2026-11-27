@@ -461,6 +461,7 @@ public final class HubState {
                 continue;
             }
             job.waitingPatterns.remove(t.pattern);
+            Amount unpowered = n;
             n = energyCap(pat, n, env);
             if (n.signum() <= 0) {
                 noteTask(t, pat, "能量不足，每次要 " + pat.energyPerRun.toDoubleSaturated() + " AE");
@@ -487,6 +488,14 @@ public final class HubState {
                 // a dispatch of tens of thousands of runs can take longer than the whole tick budget: the tasks behind it
                 // would never be reached, so it goes last next tick (and is not asked again in this one)
                 t.heavy = System.nanoTime() - dispatchStart > env.tickBudgetNanos();
+                // what held this batch to its size: one line per size, so a steady stream does not fill the log
+                if (debug != null && pat.where != PatternLocation.HUB_MACHINE && n.signum() > 0) {
+                    String line = "[雙星] 派送 " + nameOf(pat, env) + "：樣板剩 " + t.remaining + " 次、材料夠 " + supported
+                            + " 次（最少的是 " + scarcest(job, t, pat, env) + "）、並行剩 " + (p == null ? "不限" : p) + "、合約後 "
+                            + unpowered + "、能量後 " + asked + " → 送出 " + n + " 次";
+                    if (!line.equals(lastDebugLine.put(t, line)))
+                        debug.accept(line);
+                }
                 if (debug != null && pat.where == PatternLocation.HUB_MACHINE) {
                     String line = "[雙星] 機器派送 " + nameOf(pat, env) + "：樣板剩 " + t.remaining + " 次、材料夠 " + supported
                             + " 次、並行與能量後 " + asked + " 次 → 送出 " + n + " 次（" + lastDispatchNote + "）";
@@ -613,6 +622,26 @@ public final class HubState {
     }
 
     /** What a run uses of slot {@code s}'s material in all: slots that hold the same material add up (a shaped recipe). */
+    /** For the log: the input that allows the fewest runs now, and how much of it the job has. */
+    private String scarcest(Job job, Task t, Pattern pat, ExecutionEnv env) {
+        int worst = -1;
+        Amount fewest = null;
+        for (int s = 0; s < pat.inputCount(); s++) {
+            if (pat.inputKind(s) != InputKind.CONSUME)
+                continue;
+            Amount runs = usable(job, t, pat.inputItem(s), false).div(totalUse(pat, s));
+            if (fewest == null || runs.compareTo(fewest) < 0) {
+                fewest = runs;
+                worst = s;
+            }
+        }
+        if (worst < 0)
+            return "—";
+        Key key = env.index().key(pat.inputItem(worst));
+        return (key == null ? "?" : key.displayName()) + " 現有 " + usable(job, t, pat.inputItem(worst), false)
+                + "、每次 " + totalUse(pat, worst);
+    }
+
     private static Amount totalUse(Pattern pat, int s) {
         Amount sum = Amount.ZERO;
         for (int o = 0; o < pat.inputCount(); o++)
@@ -798,8 +827,11 @@ public final class HubState {
                     long k = share + (i < extra ? 1 : 0);
                     if (k <= 0)
                         continue;
+                    // a place that takes many runs in one push costs the same call for 1 as for thousands: its whole share
+                    // goes at once, no window to feel out how many pushes a tick it stands
+                    long most = batch && k > 1 ? Math.max(1, prov.maxRuns(details, k)) : 1;
                     Window w = windows.computeIfAbsent(new WindowKey(prov, t.pattern), key -> new Window());
-                    long cap = w.size.saturatedLong();
+                    long cap = most > 1 ? Long.MAX_VALUE : w.size.saturatedLong();
                     k = Math.min(k, cap);
                     long pushed = 0;
                     boolean outOfStock = false;
@@ -809,7 +841,7 @@ public final class HubState {
                             late = true;
                             break;
                         }
-                        long take = batch && k - pushed > 1 ? Math.max(1, Math.min(prov.maxRuns(details, k - pushed), k - pushed)) : 1;
+                        long take = most > 1 ? Math.min(Math.min(most, k - pushed), w.batchLimit) : 1;
                         List<@Nullable Map<Key, Long>> inputs = extractInputs(job, pat, env, null, take);
                         while (inputs == null && take > 1) {    // the job has not that many runs of materials: fewer
                             take /= 2;
@@ -819,14 +851,17 @@ public final class HubState {
                             outOfStock = true;
                             break;
                         }
-                        if (!prov.push(details, inputs)) {
-                            returnInputs(job, inputs, env);
+                        boolean accepted = prov.push(details, inputs);
+                        if (most > 1)
+                            w.onBatchResult(take, accepted);
+                        if (!accepted) {
+                            returnInputs(job, inputs, env);     // a smaller batch is tried next tick
                             break;
                         }
                         pushed += take;
                     }
                     // cut short by time, the push tells nothing about the machine: its window stays
-                    if (!late)
+                    if (!late && most <= 1)
                         w.onPushResult(Amount.of(k), Amount.of(pushed));
                     if (pushed > 0) {
                         w.lastSendNanos = env.nowNanos();

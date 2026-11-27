@@ -1,5 +1,7 @@
 package com.lumina.twinstar.mixin;
 
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import appeng.api.networking.crafting.ICraftingCPU;
 import appeng.api.stacks.AEKey;
 import appeng.core.sync.packets.CraftingStatusPacket;
@@ -49,14 +51,13 @@ public abstract class CraftingCPUMenuMixin extends AEBaseMenu implements PullFro
         sendClientAction(twinstar$PULL);
     }
 
-    @Inject(method = "setCPU", at = @At("HEAD"))
-    private void twinstar$setCPU(ICraftingCPU cpu, CallbackInfo ci) {
+    // wraps the method: another mod may end it from its own HEAD handler (GTLCore does for its CPUs), and the
+    // hub's CPU would then stay selected here and go on sending its status over theirs
+    @WrapMethod(method = "setCPU")
+    private void twinstar$setCPU(ICraftingCPU cpu, Operation<Void> original) {
         twinstar$serials.clear();
-        if (cpu instanceof TwinStarCpu c) {
-            twinstar$cpu = c;
-        } else {
-            twinstar$cpu = null;
-        }
+        twinstar$cpu = cpu instanceof TwinStarCpu c ? c : null;
+        original.call(cpu);
     }
 
     @Inject(method = "cancelCrafting", at = @At("HEAD"), cancellable = true)

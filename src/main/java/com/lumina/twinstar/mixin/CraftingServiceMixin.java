@@ -108,33 +108,39 @@ public abstract class CraftingServiceMixin {
         }
     }
 
+    /*
+     * The four below wrap the whole method, not its return: another mod may answer from a handler of its own at
+     * RETURN (GTLCore does), which ends the method there and then, and a hook of ours placed after it never runs.
+     * What the hub's jobs wait for would then go into storage unclaimed.
+     */
+
     /** The only way returns reach CPUs: AE2's CPUs take theirs first, the hub keeps what its jobs expect. */
-    @Inject(method = "insertIntoCpus", at = @At("RETURN"), cancellable = true)
-    private void twinstar$insertIntoCpus(AEKey what, long amount, Actionable type, CallbackInfoReturnable<Long> cir) {
+    @WrapMethod(method = "insertIntoCpus")
+    private long twinstar$insertIntoCpus(AEKey what, long amount, Actionable type, Operation<Long> original) {
+        long taken = original.call(what, amount, type);
         var service = twinstar$service();
-        long taken = cir.getReturnValueJ();
         if (taken < amount && service.hasHub())
-            cir.setReturnValue(taken + service.insertIntoCpus(what, amount - taken, type));
+            taken += service.insertIntoCpus(what, amount - taken, type);
+        return taken;
     }
 
-    @Inject(method = "isRequesting", at = @At("RETURN"), cancellable = true)
-    private void twinstar$isRequesting(AEKey what, CallbackInfoReturnable<Boolean> cir) {
-        if (!cir.getReturnValueZ() && twinstar$service().getRequestedAmount(what) > 0)
-            cir.setReturnValue(true);
+    @WrapMethod(method = "isRequesting")
+    private boolean twinstar$isRequesting(AEKey what, Operation<Boolean> original) {
+        return original.call(what) || twinstar$service().getRequestedAmount(what) > 0;
     }
 
-    @Inject(method = "getRequestedAmount", at = @At("RETURN"), cancellable = true)
-    private void twinstar$getRequestedAmount(AEKey what, CallbackInfoReturnable<Long> cir) {
+    @WrapMethod(method = "getRequestedAmount")
+    private long twinstar$getRequestedAmount(AEKey what, Operation<Long> original) {
+        long theirs = original.call(what);
         long ours = twinstar$service().getRequestedAmount(what);
-        if (ours > 0) {
-            long sum = cir.getReturnValueJ() + ours;
-            cir.setReturnValue(sum < 0 ? Long.MAX_VALUE : sum);
-        }
+        if (ours <= 0)
+            return theirs;
+        long sum = theirs + ours;
+        return sum < 0 ? Long.MAX_VALUE : sum;
     }
 
-    @Inject(method = "isRequestingAny", at = @At("RETURN"), cancellable = true)
-    private void twinstar$isRequestingAny(CallbackInfoReturnable<Boolean> cir) {
-        if (!cir.getReturnValueZ() && twinstar$service().isRequestingAny())
-            cir.setReturnValue(true);
+    @WrapMethod(method = "isRequestingAny")
+    private boolean twinstar$isRequestingAny(Operation<Boolean> original) {
+        return original.call() || twinstar$service().isRequestingAny();
     }
 }
