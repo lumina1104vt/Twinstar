@@ -193,13 +193,17 @@ public final class RouteCeiling {
      * route whose raws allow nothing still make some: trying every such route cost a real pack
      * (30 levels, little stock) hundreds of trial runs per order. Stock deeper down is not seen;
      * that demand then goes to the first route.
+     * <p>
+     * A mined input (made only by a closed loop) always counts: its raw estimate stops at itself, and
+     * no route takes the rest of a mined item, so dust → hot ingot → ingot → dust with one dust in
+     * stock would report the ingot missing.
      */
     private static boolean stockedIntermediateInput(DemandPass pass, int p) {
         Snapshot snap = pass.snapshot();
         Pattern pat = snap.pattern(p);
         for (int s = 0; s < pat.inputCount(); s++) {
             int y = pat.inputItem(s);
-            if (!snap.isRaw(y) && pass.available(y).signum() > 0)
+            if (!snap.isRaw(y) && (pass.available(y).signum() > 0 || snap.isMined(y)))
                 return true;
             for (int a = 0; a < pat.alternativeCount(s); a++)
                 if (pass.available(pat.alternative(s, a)).signum() > 0)
